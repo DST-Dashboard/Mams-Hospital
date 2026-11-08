@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+var/*.db*
+.env
+.env.local
+*.tsbuildinfo
+next-env.d.ts
+coverage
+data/raw/*.json

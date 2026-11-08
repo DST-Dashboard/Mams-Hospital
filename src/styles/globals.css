@@ -1,0 +1,23 @@
+@import "./tokens.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { background: rgb(var(--bg)); color: rgb(var(--ink)); font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif; font-optical-sizing: auto; -webkit-font-smoothing: antialiased; }
+  body { min-height: 100dvh; font-size: 15px; line-height: 1.5; }
+  :focus-visible { outline: none; box-shadow: var(--focus); border-radius: 4px; }
+  ::selection { background: rgb(var(--tide) / 0.35); }
+  .num { font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum" 1; }
+}
+@layer components {
+  .hairline { border-color: rgb(var(--line)); }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded px-4 h-10 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none; }
+  .btn-primary { @apply btn bg-tide text-bg hover:bg-tide/85; }
+  .btn-quiet { @apply btn border hairline hover:bg-raised; }
+  .field { @apply h-10 w-full rounded border hairline bg-surface px-3 text-sm placeholder:text-muted; }
+}
+/* Water surface drift — the single decorative motion in the product; off for reduced-motion users. */
+@keyframes drift { from { transform: translateX(0); } to { transform: translateX(-60px); } }
+.water-drift { animation: drift 7s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .water-drift { animation: none; } * { transition-duration: 0.01ms !important; } }

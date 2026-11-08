@@ -1,0 +1,119 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-11-01T12:04:18.354Z",
+  "devices": [
+    "wio-e5-node-01",
+    "wio-e5-node-02",
+    "wio-e5-node-03",
+    "wio-e5-node-04",
+    "wio-e5-node-05"
+  ],
+  "startT": 1792734408050,
+  "endT": 1793338988398,
+  "cadenceS": 300,
+  "totalReadings": 10080,
+  "rawFiles": [
+    {
+      "file": "mams-hospital_n1_week.json",
+      "sha256": "9913f57f7d30d836e91befbfbf21f5785401d40d585cb2c9bb9df0bc3f35768d",
+      "bytes": 4541426
+    },
+    {
+      "file": "mams-hospital_n2_week.json",
+      "sha256": "69b80ab44ce803771cf2bf837f2c6070ba357d3d57d26dcf91ed7150f12ca1c7",
+      "bytes": 4540810
+    },
+    {
+      "file": "mams-hospital_n3_week.json",
+      "sha256": "8bd8ed486acd28b8a407f2b584566055c5109b3bc02dcd535d9e3187966914d8",
+      "bytes": 4541403
+    },
+    {
+      "file": "mams-hospital_n4_week.json",
+      "sha256": "3e4ce06075b5f65c9cbb8d3e91d3023163a3bf46602a5840a7ee648eb1410a9b",
+      "bytes": 4541429
+    },
+    {
+      "file": "mams-hospital_n5_week.json",
+      "sha256": "47197e334d81e357dc051a6c6d3e6c0e5396fbadb8042ee3a64245c863d3dd10",
+      "bytes": 4541083
+    }
+  ],
+  "validation": [
+    {
+      "deviceId": "wio-e5-node-01",
+      "count": 2016,
+      "startT": 1792734408050,
+      "endT": 1793338908287,
+      "medianCadenceS": 300.004,
+      "gaps": [],
+      "duplicateTimestamps": 0,
+      "fCntBreaks": 0,
+      "payloadMismatches": 0,
+      "minDistanceCm": 154,
+      "maxDistanceCm": 206,
+      "ok": true,
+      "problems": []
+    },
+    {
+      "deviceId": "wio-e5-node-02",
+      "count": 2016,
+      "startT": 1792734428576,
+      "endT": 1793338928216,
+      "medianCadenceS": 300,
+      "gaps": [],
+      "duplicateTimestamps": 0,
+      "fCntBreaks": 0,
+      "payloadMismatches": 0,
+      "minDistanceCm": 55,
+      "maxDistanceCm": 189,
+      "ok": true,
+      "problems": []
+    },
+    {
+      "deviceId": "wio-e5-node-03",
+      "count": 2016,
+      "startT": 1792734448214,
+      "endT": 1793338948749,
+      "medianCadenceS": 300.005,
+      "gaps": [],
+      "duplicateTimestamps": 0,
+      "fCntBreaks": 0,
+      "payloadMismatches": 0,
+      "minDistanceCm": 85,
+      "maxDistanceCm": 238,
+      "ok": true,
+      "problems": []
+    },
+    {
+      "deviceId": "wio-e5-node-04",
+      "count": 2016,
+      "startT": 1792734468979,
+      "endT": 1793338968905,
+      "medianCadenceS": 300,
+      "gaps": [],
+      "duplicateTimestamps": 0,
+      "fCntBreaks": 0,
+      "payloadMismatches": 0,
+      "minDistanceCm": 120,
+      "maxDistanceCm": 275,
+      "ok": true,
+      "problems": []
+    },
+    {
+      "deviceId": "wio-e5-node-05",
+      "count": 2016,
+      "startT": 1792734488048,
+      "endT": 1793338988398,
+      "medianCadenceS": 299.997,
+      "gaps": [],
+      "duplicateTimestamps": 0,
+      "fCntBreaks": 0,
+      "payloadMismatches": 0,
+      "minDistanceCm": 82,
+      "maxDistanceCm": 141,
+      "ok": true,
+      "problems": []
+    }
+  ]
+}

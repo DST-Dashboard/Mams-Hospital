@@ -1,0 +1,6 @@
+node_modules
+.next
+var
+.git
+data/raw/*.json
+.env

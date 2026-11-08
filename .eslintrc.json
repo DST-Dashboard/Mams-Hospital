@@ -1,0 +1,66 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "next/typescript"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "src/components/**/*.{ts,tsx}",
+        "src/features/**/*.{ts,tsx}",
+        "src/lib/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "@typescript-eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@/server/*",
+                  "@/server/**"
+                ],
+                "allowTypeImports": true,
+                "message": "UI code may only import server TYPES. Fetch data through /api."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/domain/**/*.ts",
+        "src/analytics/**/*.ts",
+        "src/dataset/**/*.ts",
+        "src/contracts/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "react",
+                  "react-dom",
+                  "next",
+                  "next/*"
+                ],
+                "message": "Pure layers must not depend on React/Next."
+              },
+              {
+                "group": [
+                  "@/server/*",
+                  "@/features/*",
+                  "@/components/*"
+                ],
+                "message": "Dependency direction: domain \u2190 analytics/dataset \u2190 server \u2190 app. Never upward."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

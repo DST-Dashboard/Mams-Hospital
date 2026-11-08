@@ -1,0 +1,2 @@
+-- [BE-07] OWNER: backend · Tables: alert_recipients(tank_id,user_id,channels), notification_prefs(user_id,json), notifications gets delivery columns.
+-- STATUS: TODO

@@ -1,0 +1,55 @@
+{
+  "name": "ohtms",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MAMS Hospital — Overhead Tank Management System (standalone)",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "data:build": "tsx scripts/build-dataset.ts",
+    "db:seed": "tsx scripts/seed-db.ts",
+    "db:reset": "tsx scripts/seed-db.ts --reset",
+    "setup": "npm run data:build && npm run db:reset",
+    "alerts:replay": "tsx scripts/replay-alerts.ts",
+    "rules:replay": "tsx scripts/replay-check.ts",
+    "auth:reset": "tsx scripts/reset-admin.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "clsx": "^2.1.1",
+    "echarts": "^6.1.0",
+    "jose": "^6.2.14",
+    "lucide-react": "^1.66.0",
+    "next": "^15.5.28",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "swr": "^2.5.1",
+    "zod": "^4.6.7",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.6.2",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.28",
+    "postcss": "^8.5.32",
+    "prettier": "^3.9.10",
+    "tailwindcss": "^3.4.19",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

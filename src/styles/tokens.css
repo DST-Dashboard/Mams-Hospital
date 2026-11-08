@@ -1,0 +1,18 @@
+/* Design tokens. "Hydrographic chart": deep harbour water, sea-glass signal colours, chalk-paper light theme.
+   Channels are space-separated RGB so Tailwind can apply alpha (bg-tide/20). */
+:root, [data-theme="dark"] {
+  --bg: 9 24 31; --surface: 15 36 45; --raised: 22 49 60; --line: 38 70 80;
+  --ink: 231 241 238; --muted: 140 168 168;
+  --tide: 62 182 201; --ok: 108 196 154; --warn: 240 185 74; --crit: 238 122 92; --emerg: 229 72 77; --info: 138 160 235;
+  color-scheme: dark;
+}
+[data-theme="light"] {
+  --bg: 238 243 241; --surface: 247 250 249; --raised: 255 255 255; --line: 201 215 213;
+  --ink: 14 38 46; --muted: 84 110 114;
+  --tide: 12 124 150; --ok: 26 132 88; --warn: 168 108 6; --crit: 196 70 38; --emerg: 187 30 42; --info: 70 90 190;
+  color-scheme: light;
+}
+:root {
+  --font-sans: "Schibsted Grotesk Variable";
+  --focus: 0 0 0 2px rgb(var(--bg)), 0 0 0 4px rgb(var(--tide));
+}

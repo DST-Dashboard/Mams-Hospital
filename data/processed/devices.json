@@ -1,0 +1,62 @@
+[
+  {
+    "deviceId": "wio-e5-node-01",
+    "devEui": "2CF7F12063500F93",
+    "devAddr": "27FA91FE",
+    "gatewayId": "sensecap-gateway",
+    "latitude": 17.48901585080757,
+    "longitude": 78.32702100276947,
+    "model": "loraeminidevboard-e5",
+    "nodeNo": 1,
+    "label": "Tank 1",
+    "simulated": false
+  },
+  {
+    "deviceId": "wio-e5-node-02",
+    "devEui": "2CF7F12063500F94",
+    "devAddr": "27FA91FF",
+    "gatewayId": "sensecap-gateway",
+    "latitude": 17.48901585080757,
+    "longitude": 78.32702100276947,
+    "model": "loraeminidevboard-e5",
+    "nodeNo": 2,
+    "label": "Tank 2",
+    "simulated": true
+  },
+  {
+    "deviceId": "wio-e5-node-03",
+    "devEui": "2CF7F12063500F95",
+    "devAddr": "27FA9200",
+    "gatewayId": "sensecap-gateway",
+    "latitude": 17.48901585080757,
+    "longitude": 78.32702100276947,
+    "model": "loraeminidevboard-e5",
+    "nodeNo": 3,
+    "label": "Tank 3",
+    "simulated": true
+  },
+  {
+    "deviceId": "wio-e5-node-04",
+    "devEui": "2CF7F12063500F96",
+    "devAddr": "27FA9201",
+    "gatewayId": "sensecap-gateway",
+    "latitude": 17.48901585080757,
+    "longitude": 78.32702100276947,
+    "model": "loraeminidevboard-e5",
+    "nodeNo": 4,
+    "label": "Tank 4",
+    "simulated": true
+  },
+  {
+    "deviceId": "wio-e5-node-05",
+    "devEui": "2CF7F12063500F97",
+    "devAddr": "27FA9202",
+    "gatewayId": "sensecap-gateway",
+    "latitude": 17.48901585080757,
+    "longitude": 78.32702100276947,
+    "model": "loraeminidevboard-e5",
+    "nodeNo": 5,
+    "label": "Tank 5",
+    "simulated": true
+  }
+]
