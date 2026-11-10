@@ -448,3 +448,26 @@ Status: `BUILT` working · `MOCK` endpoint returns sample data until backend imp
 - `tests/fe-format.test.ts`
 - `tests/fe-store.test.ts`
 - `tests/fe-windows.test.ts`
+
+
+## Added by Prompt 2
+- `src/lib/series.ts`
+- `src/lib/heatmap.ts`
+- `src/styles/views-monitoring.css`
+- `src/components/charts/DistanceChart.tsx`
+- `src/features/dashboard/TankTile.tsx`
+- `src/features/dashboard/TankGrid.tsx`
+- `src/features/dashboard/FleetHealth.tsx`
+- `src/features/dashboard/SignalQualityCard.tsx`
+- `src/features/dashboard/copy.ts`
+- `src/features/time-nav/TimeNavPanel.tsx`
+- `src/features/tank-detail/TankHeroCard.tsx`
+- `src/features/tank-detail/ReadingCard.tsx`
+- `src/features/tank-detail/StatusCard.tsx`
+- `src/features/tank-detail/StatsGrid.tsx`
+- `src/features/tank-detail/copy.ts`
+- `tests/fe-series.test.ts`
+- `tests/fe-heatmap.test.ts`
+- `tests/fe-url-state.test.ts`
+- `tests/fe-csv.test.ts`
+- `tests/fe-tanks-monitoring.test.tsx`
