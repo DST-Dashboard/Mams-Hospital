@@ -1,5 +1,10 @@
-import { PageHeader, Planned } from "@/components/ui/primitives";
-export const metadata = { title: "About" };
-export default function Page() {
-  return (<><PageHeader title="About" /><Planned title="About" phase="Phase 2" items={["U-13 System diagram", "U-14 Glossary", "M-05 Methodology: what is simulated"]} /></>);
+import { AboutView } from "@/features/about/AboutView";
+
+export const metadata = {
+  title: "About · MAMS Hospital OHTMS",
+  description: "Architecture, physical telemetry methodology, and technical glossary.",
+};
+
+export default function AboutPage() {
+  return <AboutView />;
 }
