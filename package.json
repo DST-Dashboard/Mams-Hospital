@@ -23,7 +23,9 @@
     "auth:reset": "tsx scripts/reset-admin.ts"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/schibsted-grotesk": "^5.3.0",
+    "@fontsource/merriweather": "^5.3.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
     "clsx": "^2.1.1",
@@ -38,13 +40,19 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.9",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
     "autoprefixer": "^10.6.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.28",
+    "jsdom": "^31.0.0",
     "postcss": "^8.5.32",
     "prettier": "^3.9.10",
     "tailwindcss": "^3.4.19",

@@ -8,3 +8,5 @@ var/*.db*
 next-env.d.ts
 coverage
 data/raw/*.json
+test-results/
+playwright-report/
