@@ -471,3 +471,19 @@ Status: `BUILT` working · `MOCK` endpoint returns sample data until backend imp
 - `tests/fe-url-state.test.ts`
 - `tests/fe-csv.test.ts`
 - `tests/fe-tanks-monitoring.test.tsx`
+
+## Added by Prompt 3
+- `src/lib/validation.ts`
+- `src/lib/roles.ts`
+- `src/styles/views-ops.css`
+- `src/features/alerts/registry.ts`
+- `src/features/alerts/adapter.ts`
+- `src/features/settings/TankConfigForm.tsx`
+- `src/features/settings/DisplayPrefs.tsx`
+- `src/features/nodes-admin/AddNodeDialog.tsx`
+- `src/features/auth/ResetForm.tsx`
+- `tests/fe-validation.test.ts`
+- `tests/fe-alert-registry.test.ts`
+- `tests/fe-alert-adapter.test.ts`
+- `tests/fe-roles.test.ts`
+- `tests/fe-alerts-components.test.tsx`
