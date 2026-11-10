@@ -34,3 +34,4 @@ describe("fe-csv: RFC-4180 escaping & formula injection mitigation", () => {
     expect(lines[2]).toBe('2,"Tank 2, East",18');
   });
 });
+

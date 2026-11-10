@@ -52,3 +52,4 @@ describe("fe-url-state: parsing and serializing", () => {
     expect(parsed.day).toBe("2026-10-26");
   });
 });
+

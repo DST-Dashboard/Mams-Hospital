@@ -5,6 +5,7 @@ export const UNSTABLE_EVENT_COUNT = 40;
 export interface SeriesPoint {
   t: number;
   pct: number | null;
+  levelPct: number | null;
   levelCm?: number | null;
   distanceCm?: number | null;
   volumeL?: number | null;
@@ -50,6 +51,7 @@ export function buildSeries<T extends { t: number; levelPct?: number | null; pct
         result.push({
           t: prev.t + cadenceMs,
           pct: null,
+          levelPct: null,
           levelCm: null,
           distanceCm: null,
           volumeL: null,
@@ -57,12 +59,18 @@ export function buildSeries<T extends { t: number; levelPct?: number | null; pct
       }
     }
 
+    const curObj = cur as Record<string, unknown>;
+    const levelCm = typeof curObj.levelCm === "number" ? curObj.levelCm : undefined;
+    const distanceCm = typeof curObj.distanceCm === "number" ? curObj.distanceCm : undefined;
+    const volumeL = typeof curObj.volumeL === "number" ? curObj.volumeL : undefined;
+
     result.push({
       t: cur.t,
       pct: curPct,
-      ...("levelCm" in cur ? { levelCm: (cur as any).levelCm } : {}),
-      ...("distanceCm" in cur ? { distanceCm: (cur as any).distanceCm } : {}),
-      ...("volumeL" in cur ? { volumeL: (cur as any).volumeL } : {}),
+      levelPct: curPct,
+      ...(levelCm !== undefined ? { levelCm } : {}),
+      ...(distanceCm !== undefined ? { distanceCm } : {}),
+      ...(volumeL !== undefined ? { volumeL } : {}),
     });
   }
 
@@ -108,7 +116,7 @@ export function downsample(data: SeriesPoint[], threshold: number = 2000): Serie
     // Calculate point average for next bucket (containing c)
     let avgX = 0;
     let avgY = 0;
-    let avgRangeStart = Math.floor((i + 1) * every) + 1;
+    const avgRangeStart = Math.floor((i + 1) * every) + 1;
     let avgRangeEnd = Math.floor((i + 2) * every) + 1;
     avgRangeEnd = avgRangeEnd < dataLength ? avgRangeEnd : dataLength;
 
@@ -122,7 +130,7 @@ export function downsample(data: SeriesPoint[], threshold: number = 2000): Serie
     avgY /= avgRangeLength || 1;
 
     // Get the range for bucket (containing b)
-    let rangeOffs = Math.floor(i * every) + 1;
+    const rangeOffs = Math.floor(i * every) + 1;
     const rangeTo = Math.floor((i + 1) * every) + 1;
 
     // Point a

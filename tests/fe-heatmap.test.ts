@@ -52,3 +52,4 @@ describe("fe-heatmap: aggregation & timezone boundary", () => {
     expect(grid.maxPct).toBe(80);
   });
 });
+

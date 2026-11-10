@@ -60,6 +60,7 @@ describe("fe-series: minMax & downsample", () => {
     const pts = Array.from({ length: 3000 }, (_, i) => ({
       t: i * 100,
       pct: Math.sin(i / 10) * 50 + 50,
+      levelPct: Math.sin(i / 10) * 50 + 50,
     }));
     const res = downsample(pts, 500);
     expect(res.length).toBe(500);

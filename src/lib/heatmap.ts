@@ -130,3 +130,4 @@ export function aggregateMultiTankHeatmap(
   const flattened = tanksPoints.flat();
   return aggregateHeatmap(flattened, tz, calendarDays);
 }
+
