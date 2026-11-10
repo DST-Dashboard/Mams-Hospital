@@ -422,3 +422,29 @@ Status: `BUILT` working · `MOCK` endpoint returns sample data until backend imp
 | BE | 63 | 21 | 0 | 50 |
 | SHARED | 14 | 0 | 0 | 0 |
 | BOTH | 24 | 0 | 0 | 0 |
+
+
+## Added by Prompt 1
+- `docs/DESIGN-SPEC.md`
+- `public/favicon.svg`
+- `src/components/charts/chart-theme.ts`
+- `src/components/ui/icons.ts`
+- `src/components/ui/Logos.tsx`
+- `src/features/shell/BackToTop.tsx`
+- `src/features/shell/FirstLoadGate.tsx`
+- `src/features/shell/Footer.tsx`
+- `src/features/shell/GlassHeader.tsx`
+- `src/features/shell/Hero.tsx`
+- `src/features/shell/MegaNav.tsx`
+- `src/features/shell/PageFrame.tsx`
+- `src/features/shell/SessionGate.tsx`
+- `src/features/shell/TabBar.tsx`
+- `src/features/shell/UtilityStrip.tsx`
+- `src/lib/copy.ts`
+- `src/lib/windows.ts`
+- `tests/fe-api.test.ts`
+- `tests/fe-chart-theme.test.ts`
+- `tests/fe-components.test.tsx`
+- `tests/fe-format.test.ts`
+- `tests/fe-store.test.ts`
+- `tests/fe-windows.test.ts`

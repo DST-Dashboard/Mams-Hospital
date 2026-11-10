@@ -1,20 +1,24 @@
-# Design system — "hydrographic chart"
+# OHTMS-DS Design System
 
-A control-room instrument, not a SaaS template. Deep harbour water, graduated measuring cylinders, hairline rules instead of card boxes, one decorative motion (the water surface).
+Authoritative visual and interactive specification for the **MAMS Hospital Overhead Tank Management System (OHTMS)**, implementing the master visual contract in `docs/DESIGN-SPEC.md` together with the overrides defined in §3.
 
-**Tokens** live in `src/styles/tokens.css` (RGB channels so Tailwind alpha works). Never hard-code a colour.
-| Token | Dark | Light | Use |
-|---|---|---|---|
-| bg / surface / raised / line | `9 24 31` / `15 36 45` / `22 49 60` / `38 70 80` | `238 243 241` / `247 250 249` / `255 255 255` / `201 215 213` | page, panel, hover, hairline |
-| ink / muted | `231 241 238` / `140 168 168` | `14 38 46` / `84 110 114` | text |
-| tide | `62 182 201` | `12 124 150` | water, primary action |
-| ok / warn / crit / emerg / info | `108 196 154` / `240 185 74` / `238 122 92` / `229 72 77` / `138 160 235` | AA-darkened variants | status |
+## 1. Principles & Overrides
+- **Override O1 (Light Default):** `:root` carries the light tokens as default; dark theme is activated under `:root[data-theme="dark"]`. The pre-paint bootstrap script sets `data-theme="light"` unless overridden by user selection in `localStorage`. Both themes maintain WCAG AA contrast.
+- **Override O2 (Day + Week Co-existence):** Both 24 h rolling day (`[asOf - 24h, asOf]`) at raw cadence and rolling 7-day week (`[asOf - 7d, asOf]`) at 1h cadence are visible across views. State synchronizes via URL parameters (`tank`, `day`, `from`, `to`).
+- **Data Honesty:** Missing data is rendered as `—` or chart gaps, never `0`. Unconfirmed tank dimensions trigger M1 `DimensionsModal` for admins and pause level alerts. Simulated tanks carry `SIM` chips. Demo mode displays `Snapshot · last reading 30 Oct 11:13 IST`.
+- **Tokens Only:** All styling resolves to CSS custom properties defined in `src/styles/tokens.css`. Zero hardcoded hex values in component stylesheets.
 
-**Type:** Schibsted Grotesk Variable (self-hosted). Numbers use `.num` (tabular). Scale: 44 px hero readout · 28 page title · 15 body · 12–13 meta. No all-caps eyebrow labels, no middle-dot meta strings.
-**Layout:** left rail 220 px (top bar on mobile); content max 1500 px; tanks as columns separated by hairlines (5 across ≥ 1280, 3 ≥ 768, 1 below).
-**Shape:** radius 4 / 8 / 14. Borders `1 px` hairline. Focus ring = 2 px bg gap + 2 px tide.
-**Motion:** water level eases 900 ms; surface drifts 7 s; everything off under `prefers-reduced-motion`.
-**Status is never colour alone:** icon + word + colour (`components/status/badges.tsx`).
-**Tank cylinder:** graduations every 10 %, labels at 0/50/100 on the right; warn/crit/empty as dashed coloured rules on the left; `?` and empty vessel when no data.
-**Charts:** ECharts, level % up = more water; thresholds as mark lines; gaps stay gaps; theme read from tokens at draw time.
-**Don't:** gradients on text, glassmorphism, neon on near-black, identical rounded cards in a grid, emoji as icons, centered-everything.
+## 2. Typography & Iconography
+- **Families:** Display = `Merriweather` (H1–H3, eyebrows). UI = `Inter` (all body, controls, tables, badges). Mono = `Menlo` (code and JSON).
+- **Icons:** `lucide-react` mapped via `ICON` in `src/components/ui/icons.ts`.
+- **Numbers:** Tabular figures (`.num`, `font-variant-numeric: tabular-nums`) across all tables, KPI cards, and tank metrics.
+
+## 3. Chrome & Layout Architecture
+- **Utility Strip:** Height ~30px, background `--bg-strip`, freshness pill, gateway status, accessibility text-size controls, UTC/IST toggle, theme toggle, Demo/Live mode indicator.
+- **Glass Header:** Height ~105px, sticky `top: 0`, backdrop blur 20px, hospital mark + 3-line title on left, OHTMS mark on right.
+- **Mega Nav:** Height ~53px, background `--g-ocean`, home icon, active dashboard indicator with live pulsing dot, administration dropdown (admin only), about link, alert bell panel, user profile menu.
+- **Combined Chrome:** Measured via `ResizeObserver` as `--chrome-h` (~158px).
+- **Global Alert Banner:** Sticky at `top: var(--chrome-h)`, ordering: Emergency -> Critical -> Warning -> Info, with "+N more" expansion and "Dimensions not confirmed: alerts paused" banner when unconfirmed.
+- **Hero:** Rendered on Overview with floating glass stat card, particle effects, and 60px wave divider.
+- **App Shell:** Floats `-20px` over the wave on Overview, 6 numbered pill tabs (01. Overview, 02. Tank detail, 03. Analytics, 04. Alerts, 05. Settings, 06. Administration), role-gated by `useMe()`.
+- **Footer:** Hospital mark (grayscale to color hover), system version, active timezone note.
