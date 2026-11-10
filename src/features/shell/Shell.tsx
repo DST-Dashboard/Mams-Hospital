@@ -1,51 +1,116 @@
 "use client";
-import clsx from "clsx";
-import { Activity, Bell, Droplets, Info, LayoutDashboard, LogOut, Moon, ScrollText, Server, Settings, Sun, Users } from "lucide-react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
-import { post } from "@/lib/api";
+
+import React, { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
+import { WifiOff } from "lucide-react";
+import { UtilityStrip } from "./UtilityStrip";
+import { GlassHeader } from "./GlassHeader";
+import { MegaNav } from "./MegaNav";
+import { GlobalAlertBanner } from "./GlobalAlertBanner";
+import { FirstLoadGate } from "./FirstLoadGate";
+import { SessionGate } from "./SessionGate";
+import { PageFrame } from "./PageFrame";
+import { Footer } from "./Footer";
+import { BackToTop } from "./BackToTop";
+import { useOnline } from "@/lib/hooks";
 import { useUi } from "@/lib/store";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/analytics", label: "Analytics", icon: Activity },
-  { href: "/alerts", label: "Alerts", icon: Bell },
-  { href: "/settings", label: "Settings", icon: Settings },
-  { href: "/admin/nodes", label: "Nodes", icon: Server, admin: true },
-  { href: "/admin/users", label: "Users", icon: Users, admin: true },
-  { href: "/admin/audit", label: "Audit log", icon: ScrollText, admin: true },
-  { href: "/about", label: "About", icon: Info },
-] as const;
+interface ShellProps {
+  children: React.ReactNode;
+}
 
-export function Shell({ user, children }: { user: { name: string; role: string }; children: ReactNode }) {
-  const path = usePathname(), router = useRouter();
-  const { tz, setTz } = useUi();
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
-  useEffect(() => setTheme((document.documentElement.dataset.theme as "dark" | "light") ?? "dark"), []);
-  const flip = () => { const n = theme === "dark" ? "light" : "dark"; setTheme(n); document.documentElement.dataset.theme = n; try { localStorage.setItem("theme", n); } catch { /* private mode */ } };
-  const logout = async () => { await post("/api/auth/logout"); router.push("/login"); };
+export function Shell({ children }: ShellProps) {
+  const pathname = usePathname();
+  const isOnline = useOnline();
+  const initFromStorage = useUi((s) => s.initFromStorage);
+  const chromeGroupRef = useRef<HTMLDivElement>(null);
+
+  // Synchronize persisted preferences upon client mount
+  useEffect(() => {
+    initFromStorage();
+  }, [initFromStorage]);
+
+  // Dynamically measure chrome height (GlassHeader + MegaNav) and write back to --chrome-h
+  useEffect(() => {
+    const el = chromeGroupRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const height = Math.round(entry.contentRect.height);
+        if (height > 0) {
+          document.documentElement.style.setProperty("--chrome-h", `${height}px`);
+        }
+      }
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Determine active tab
+  const getTab = (): "overview" | "tank" | "analytics" | "alerts" | "settings" | "admin" => {
+    if (pathname.startsWith("/tanks")) return "tank";
+    if (pathname.startsWith("/analytics")) return "analytics";
+    if (pathname.startsWith("/alerts")) return "alerts";
+    if (pathname.startsWith("/settings")) return "settings";
+    if (pathname.startsWith("/admin")) return "admin";
+    return "overview";
+  };
+
+  const isAbout = pathname === "/about";
+  const tab = getTab();
 
   return (
-    <div className="min-h-dvh md:grid md:grid-cols-[220px_1fr]">
-      <nav aria-label="Main" className="border-b hairline bg-surface md:sticky md:top-0 md:h-dvh md:border-b-0 md:border-r">
-        <div className="flex items-center gap-2 px-5 py-4"><Droplets className="text-tide" size={22} aria-hidden /><span className="font-semibold">MAMS Water</span></div>
-        <ul className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:overflow-visible">
-          {NAV.filter((n) => !("admin" in n) || user.role === "admin").map(({ href, label, icon: Icon }) => {
-            const on = path === href || path.startsWith(`${href}/`) || (href === "/dashboard" && path.startsWith("/tanks"));
-            return <li key={href}><Link href={href} aria-current={on ? "page" : undefined} className={clsx("flex h-10 items-center gap-3 whitespace-nowrap rounded px-3 text-sm", on ? "bg-raised font-medium" : "text-muted hover:bg-raised hover:text-ink")}><Icon size={18} aria-hidden />{label}</Link></li>;
-          })}
-        </ul>
-      </nav>
-      <div className="min-w-0">
-        <div className="flex items-center justify-end gap-2 border-b hairline px-5 py-2 text-sm">
-          <button className="btn-quiet h-8 px-3" onClick={() => setTz(tz === "IST" ? "UTC" : "IST")} aria-label={`Showing ${tz}. Switch time zone`}>{tz}</button>
-          <button className="btn-quiet h-8 w-8 px-0" onClick={flip} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>
-          <span className="hidden text-muted sm:inline">{user.name}</span>
-          <button className="btn-quiet h-8 px-3" onClick={logout}><LogOut size={14} aria-hidden />Sign out</button>
-        </div>
-        <main className="mx-auto max-w-[1500px] px-5 py-8">{children}</main>
+    <div className="ohtms-app min-h-screen flex flex-col bg-[var(--bg-page)] text-[var(--tx-main)]">
+      {/* M6 Session Expiry Modal Gate */}
+      <SessionGate />
+
+      {/* Offline Status Warning Banner */}
+      {!isOnline && (
+        <aside
+          role="alert"
+          className="bg-amber-600 text-white py-2 px-6 text-center text-[13px] font-bold z-[1300] flex items-center justify-center gap-2"
+        >
+          <WifiOff size={16} aria-hidden />
+          <span>You&apos;re offline. Showing last known state.</span>
+        </aside>
+      )}
+
+      {/* Top Utility Strip (NOT sticky per spec §7.1) */}
+      <UtilityStrip />
+
+      {/* Sticky Chrome Stack: Glass Header + Mega Nav (~158px = --chrome-h) */}
+      <div ref={chromeGroupRef} className="sticky-chrome-group sticky top-0 z-[var(--z-header)]">
+        <GlassHeader />
+        <MegaNav />
       </div>
+
+      {/* Alert Banner (Sticky at top: var(--chrome-h), z 999) */}
+      <GlobalAlertBanner />
+
+      {/* M1 First Load Gate (Prompts admins for unconfirmed tank dimensions) */}
+      <FirstLoadGate />
+
+      {/* App Workspace & Content */}
+      <div className="flex-grow flex flex-col w-full">
+        {isAbout ? (
+          <main id="workspace" className="max-w-[1200px] w-full mx-auto px-5 py-12">
+            {children}
+          </main>
+        ) : (
+          <PageFrame tab={tab}>
+            {children}
+          </PageFrame>
+        )}
+      </div>
+
+      {/* Sticky / Footer Elements */}
+      <div className="max-w-[1600px] w-full mx-auto px-6 md:px-10">
+        <Footer />
+      </div>
+
+      <BackToTop />
     </div>
   );
 }
