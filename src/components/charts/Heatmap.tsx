@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import type { EChartsCoreOption } from "echarts/core";
 import { Download, Grid } from "lucide-react";
 import { EChart } from "./EChart";
@@ -40,6 +40,17 @@ export function Heatmap({
   onRetry,
   className,
 }: HeatmapProps) {
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  useEffect(() => {
+    const checkWidth = () => {
+      setIsNarrow(window.innerWidth < 640);
+    };
+    checkWidth();
+    window.addEventListener("resize", checkWidth);
+    return () => window.removeEventListener("resize", checkWidth);
+  }, []);
+
   const handleExportCsv = () => {
     const rows = grid.cells.map((c) => ({
       date: c.dayKey,
@@ -61,84 +72,191 @@ export function Heatmap({
 
   const option: EChartsCoreOption = useMemo(() => {
     const opt = baseOption(title);
-    opt.title = { show: false }; // Card heading is rendered above
-    const dayNames = grid.days.map((d) => (d.key === activeDayKey ? `{bold|${d.label}}` : d.label));
+    opt.title = { show: false };
+    opt.legend = { show: false };
+
+    // Format day labels: newest at top (ECharts category y-axis places index 0 at bottom and index N at top)
+    const dayNames = grid.days.map((d) => {
+      const isCurrentActive = d.key === activeDayKey;
+      const labelBase = d.label.replace(" (partial)", "");
+      const prefix = isCurrentActive ? `{bold|${labelBase}}` : `{day|${labelBase}}`;
+      return d.partial ? `${prefix} {partial|(partial)}` : prefix;
+    });
+
     const hours = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}:00`);
 
+    // Reserve clean margins: right margin accommodates slim colour bar
     opt.grid = {
-      left: 110,
-      right: 30,
-      top: 44,
-      bottom: 80,
+      left: isNarrow ? 80 : 110,
+      right: isNarrow ? 24 : 76,
+      top: 32,
+      bottom: isNarrow ? 64 : 36,
       containLabel: true,
+    };
+
+    // Dedicated header row for toolbox icons
+    opt.toolbox = {
+      top: 6,
+      right: 14,
+      feature: {
+        saveAsImage: {
+          name: "mams-week-heatmap",
+          title: "Save as PNG",
+          pixelRatio: 2,
+        },
+      },
     };
 
     opt.xAxis = {
       type: "category",
       data: hours,
-      splitArea: { show: true },
+      splitArea: { show: false },
+      splitLine: { show: false },
+      axisLine: { show: false },
+      axisTick: {
+        show: true,
+        alignWithLabel: true,
+        lineStyle: { color: cssVar("--bd", "#cbd5e1") },
+      },
       axisLabel: {
         fontSize: 10,
-        interval: 1, // Show every other hour on smaller displays
-        color: cssVar("--tx-chart", "#294654"),
+        interval: isNarrow ? 3 : 1, // Every 4h on mobile ("00:00", "04:00", ...), every 2h on desktop
+        color: cssVar("--tx-quiet", "#64748b"),
+        fontFamily: "Inter, monospace",
       },
-      axisLine: { lineStyle: { color: cssVar("--bd-strong", "#cbd5e0") } },
     };
 
     opt.yAxis = {
       type: "category",
       data: dayNames,
-      splitArea: { show: true },
+      splitArea: { show: false },
+      splitLine: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
       axisLabel: {
         fontSize: 11,
-        color: cssVar("--tx-chart", "#294654"),
+        align: "right",
+        margin: 12,
         rich: {
+          day: {
+            fontSize: 11,
+            color: cssVar("--tx-main", "#475569"),
+            fontWeight: 500,
+          },
           bold: {
+            fontSize: 11,
             fontWeight: 800,
-            color: cssVar("--brand-800", "#003b6d"),
+            color: cssVar("--brand-900", "#002b4d"),
+          },
+          partial: {
+            fontSize: 9.5,
+            color: cssVar("--tx-quiet", "#94a3b8"),
+            fontStyle: "italic",
           },
         },
       },
-      axisLine: { lineStyle: { color: cssVar("--bd-strong", "#cbd5e0") } },
     };
 
-    // Professional clinical threshold-aligned piecewise scale per Issue 5
+    // Continuous sequential single-hue brand blue scale: #EEF4FA (0%) -> #12365F (100%)
     opt.visualMap = {
-      type: "piecewise",
-      orient: "horizontal",
-      left: "center",
-      bottom: 10,
-      itemWidth: 16,
-      itemHeight: 12,
-      textGap: 6,
-      itemGap: 12,
-      textStyle: {
-        fontSize: 10.5,
-        color: cssVar("--tx-chart", "#294654"),
+      type: "continuous",
+      min: 0,
+      max: 100,
+      calculable: false,
+      orient: isNarrow ? "horizontal" : "vertical",
+      ...(isNarrow
+        ? {
+            left: "center",
+            bottom: 6,
+            itemWidth: 10,
+            itemHeight: 140,
+          }
+        : {
+            right: 18,
+            top: 36,
+            bottom: 40,
+            itemWidth: 11,
+          }),
+      inRange: {
+        color: [
+          "#EEF4FA", // 0%
+          "#C6DBEF", // ~16%
+          "#9ECAE1", // ~33%
+          "#6BAED6", // ~50%
+          "#3182BD", // ~66%
+          "#1F5C99", // ~83%
+          "#12365F", // 100%
+        ],
       },
-      pieces: [
-        { min: 80, max: 100, label: "80–100% (High)", color: "#14365f" }, // deep navy
-        { min: 60, max: 80, label: "60–80%", color: "#286090" },
-        { min: 40, max: 60, label: "40–60% (Normal)", color: "#5c94be" },
-        { min: 20, max: 40, label: "20–40% (Warning)", color: "#e89228" }, // amber
-        { min: 5, max: 20, label: "5–20% (Critical)", color: "#c05a3c" },  // red-orange
-        { min: 0, max: 5, label: "0–5% (Emergency)", color: "#933629" },   // deep red
-      ],
-      outOfRange: {
-        color: "#e2e8f0", // distinct neutral light grey for no-data cells
+      text: ["100%", "0%"],
+      textStyle: {
+        fontSize: 9.5,
+        color: cssVar("--tx-quiet", "#64748b"),
+        fontFamily: "Inter, monospace",
       },
     };
 
-    // Transform cells to [x, y, value]
-    // x = hour (0..23), y = dayIndex
-    const cellData = grid.cells.map((c) => [
-      c.hour,
-      c.dayIndex,
-      c.pct !== null ? c.pct : "-",
-    ]);
+    // Cell data with subtle threshold borders and uniform hatched no-data styling
+    const cellData = grid.cells.map((c) => {
+      const isNull = c.pct === null || c.pct === undefined;
+
+      // Subtle threshold borders: Amber for warning, Red-Orange for critical, Burgundy for emergency
+      let borderColor = cssVar("--bg-card", "#ffffff");
+      let borderWidth = 1;
+
+      if (!isNull && typeof c.pct === "number") {
+        const val = c.pct;
+        if (val <= 5) {
+          borderColor = "#933629"; // Emergency thin border
+          borderWidth = 1.5;
+        } else if (val <= 20) {
+          borderColor = "#c05a3c"; // Critical thin border
+          borderWidth = 1.5;
+        } else if (val <= 40) {
+          borderColor = "#e89228"; // Warning thin border
+          borderWidth = 1.5;
+        }
+      }
+
+      if (isNull) {
+        return {
+          value: [c.hour, c.dayIndex, "-"],
+          itemStyle: {
+            color: "#EEF1F5",
+            borderColor: cssVar("--bg-card", "#ffffff"),
+            borderWidth: 1,
+            borderRadius: 2,
+            decal: {
+              symbol: "rect",
+              dashArrayX: [1, 0],
+              dashArrayY: [2, 5],
+              rotation: 0.785,
+              color: "rgba(148, 163, 184, 0.45)",
+            },
+          },
+        };
+      }
+
+      return {
+        value: [c.hour, c.dayIndex, c.pct],
+        itemStyle: {
+          borderColor,
+          borderWidth,
+          borderRadius: 2,
+        },
+      };
+    });
 
     opt.tooltip = {
       trigger: "item",
+      backgroundColor: "var(--bg-card, #ffffff)",
+      borderColor: "var(--bd, #cbd5e1)",
+      borderWidth: 1,
+      padding: [8, 12],
+      textStyle: {
+        color: "var(--tx-main, #1e293b)",
+      },
+      extraCssText: "box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12); border-radius: 8px;",
       formatter: (p: unknown) => {
         const item = p as { value?: [number, number, unknown] };
         if (!item?.value) return "";
@@ -150,20 +268,48 @@ export function Heatmap({
 
         if (val === "-" || val === null || val === undefined) {
           return `
-            <div style="font-size:12px;">
-              <strong>${day.label}</strong><br/>
-              <span style="color:var(--tx-quiet);">${timeSpan}</span><br/>
-              <span style="color:var(--tx-soft); font-style:italic;">No sensor readings (gap)</span>
+            <div style="font-size:12px; font-family:Inter, sans-serif; line-height:1.4;">
+              <div style="font-weight:700; color:var(--tx-head, #001f3f);">${day.label} · ${timeSpan}</div>
+              <div style="margin-top:6px; display:inline-flex; align-items:center; gap:5px; font-size:11px; padding:2px 8px; border-radius:9999px; background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1;">
+                <span>No sensor data</span>
+              </div>
             </div>
           `;
         }
 
+        const numVal = Number(val);
+        let chipBg = "var(--ok-bg, #ecfdf5)";
+        let chipTx = "var(--ok-tx, #065f46)";
+        let chipBd = "var(--ok-bd, #a7f3d0)";
+        let chipText = "Normal";
+
+        if (numVal <= 5) {
+          chipBg = "var(--emg-bg, #fef2f2)";
+          chipTx = "var(--emg-tx, #991b1b)";
+          chipBd = "var(--emg-bd, #fecaca)";
+          chipText = "Emergency (≤ 5%)";
+        } else if (numVal <= 20) {
+          chipBg = "var(--err-bg, #fff1f2)";
+          chipTx = "var(--err-tx, #9f1239)";
+          chipBd = "var(--err-bd, #fecdd3)";
+          chipText = "Critical (≤ 20%)";
+        } else if (numVal <= 40) {
+          chipBg = "var(--warn-bg, #fffbeb)";
+          chipTx = "var(--warn-tx, #92400e)";
+          chipBd = "var(--warn-bd, #fde68a)";
+          chipText = "Warning (≤ 40%)";
+        }
+
         return `
-          <div style="font-size:12px;">
-            <strong style="color:var(--tx-head);">${day.label}</strong><br/>
-            <span style="color:var(--tx-quiet); font-size:11px;">${timeSpan}</span>
-            <div style="margin-top:4px; font-weight:bold; color:var(--brand-800);">
-              Fill: ${Number(val).toFixed(1)} %
+          <div style="font-size:12px; font-family:Inter, sans-serif; line-height:1.4;">
+            <div style="font-weight:700; color:var(--tx-head, #001f3f);">${day.label} · ${timeSpan}</div>
+            <div style="margin-top:4px; font-size:13px; font-weight:700; color:var(--brand-900, #002b4d);">
+              Average fill: ${numVal.toFixed(1)}%
+            </div>
+            <div style="margin-top:6px;">
+              <span style="display:inline-flex; align-items:center; font-size:11px; font-weight:600; padding:2px 8px; border-radius:9999px; background:${chipBg}; color:${chipTx}; border:1px solid ${chipBd};">
+                ${chipText}
+              </span>
             </div>
           </div>
         `;
@@ -179,23 +325,20 @@ export function Heatmap({
           show: false,
         },
         itemStyle: {
-          borderColor: "#ffffff",
-          borderWidth: 1.5,
           borderRadius: 2,
         },
         emphasis: {
           itemStyle: {
-            borderColor: cssVar("--tx-head", "#003b6d"),
-            borderWidth: 2,
-            shadowBlur: 6,
-            shadowColor: "rgba(0, 0, 0, 0.25)",
+            borderColor: cssVar("--brand-900", "#002b4d"),
+            borderWidth: 1.5,
+            shadowBlur: 0,
           },
         },
       },
     ];
 
     return opt;
-  }, [title, grid, activeDayKey]);
+  }, [title, grid, activeDayKey, isNarrow]);
 
   const handleEvents = useMemo<Record<string, (params: unknown) => void> | undefined>(() => {
     if (!onSelectCell) return undefined;
@@ -221,7 +364,7 @@ export function Heatmap({
             <Skeleton className="w-56 h-6" />
             <Skeleton className="w-20 h-8 rounded-lg" />
           </div>
-          <Skeleton className="w-full h-[320px] rounded-lg" />
+          <Skeleton className="w-full h-[280px] rounded-lg" />
         </div>
       </div>
     );
@@ -280,11 +423,42 @@ export function Heatmap({
           </div>
         )}
 
+        {/* Legend strip: Threshold hints & No-data indicator beside/under chart */}
+        <div className="flex flex-wrap items-center justify-between text-[11px] text-[var(--tx-quiet)] px-1 pt-1">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold text-[var(--tx-main)]">Thresholds:</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-[2px] bg-[#dbeafe] border-[1.5px] border-[#e89228]" />
+              <span>≤ 40% Warning</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-[2px] bg-[#dbeafe] border-[1.5px] border-[#c05a3c]" />
+              <span>≤ 20% Critical</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-[2px] bg-[#dbeafe] border-[1.5px] border-[#933629]" />
+              <span>≤ 5% Emergency</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span
+              className="inline-block w-3 h-3 rounded-[2px] border border-[var(--bd)]"
+              style={{
+                backgroundColor: "#EEF1F5",
+                backgroundImage:
+                  "repeating-linear-gradient(45deg, #cbd5e1 0, #cbd5e1 1px, transparent 0, transparent 4px)",
+              }}
+            />
+            <span>No data</span>
+          </div>
+        </div>
+
         {/* Heatmap Chart */}
         <div className="plot relative rounded-lg border border-[var(--bd-soft)] bg-[var(--bg-card)] overflow-hidden">
           <EChart
             option={option}
-            height={320}
+            height={280}
             label={title}
             onEvents={handleEvents}
           />
@@ -292,7 +466,7 @@ export function Heatmap({
 
         {/* Footnote */}
         {footnote && (
-          <p className="card-foot text-[11.5px] text-[var(--tx-quiet)] border-t border-[var(--bd-soft)] pt-2 mt-1">
+          <p className="card-foot text-[11.5px] text-[var(--tx-quiet)] border-t border-[var(--bd-soft)] pt-2 mt-0">
             {footnote}
           </p>
         )}

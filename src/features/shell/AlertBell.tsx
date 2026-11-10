@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 import { useAlerts, useDashboard, useMe } from "@/lib/hooks";
 import { post } from "@/lib/api";
@@ -14,6 +15,10 @@ export function AlertBell({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const [ackingId, setAckingId] = useState<number | null>(null);
   const toast = useToast();
+  const pathname = usePathname();
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const { data: me } = useMe();
   const { data: dashboard } = useDashboard();
@@ -23,6 +28,45 @@ export function AlertBell({ className }: { className?: string }) {
   const activeAlerts = alertsData || [];
   const count = activeAlerts.length;
   const canAck = me?.role === "operator" || me?.role === "admin";
+
+  // Close on route change
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  // Close on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node | null)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+    };
+  }, []);
+
+  // Keyboard navigation
+  const handleTriggerKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      setOpen((prev) => !prev);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+    }
+  };
+
+  const handlePanelKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+  };
 
   const handleAck = async (id: number) => {
     try {
@@ -38,12 +82,16 @@ export function AlertBell({ className }: { className?: string }) {
   };
 
   return (
-    <div className={`relative inline-block ${className || ""}`}>
+    <div ref={containerRef} className={`relative inline-block ${className || ""}`}>
       <button
+        ref={triggerRef}
         type="button"
+        id="alert-bell-trigger"
         onClick={() => setOpen((prev) => !prev)}
+        onKeyDown={handleTriggerKeyDown}
         aria-label={`Alert notifications: ${count} active`}
         aria-expanded={open}
+        aria-haspopup="dialog"
         className="relative w-9 h-9 rounded-full bg-[var(--bg-card)] border border-[var(--bd)] text-[var(--tx-head)] flex items-center justify-center hover:bg-[var(--bg-subtle)] hover:text-[var(--brand-700)] transition-all shadow-sm"
       >
         <Bell size={18} className="text-[var(--tx-head)]" aria-hidden />
@@ -68,6 +116,8 @@ export function AlertBell({ className }: { className?: string }) {
         <div
           role="region"
           aria-label="Active alerts overview"
+          aria-labelledby="alert-bell-trigger"
+          onKeyDown={handlePanelKeyDown}
           className="absolute right-0 top-full mt-2 w-[360px] max-w-[calc(100vw-32px)] bg-[var(--bg-card)] rounded-[12px] p-3 border border-[var(--bd)] shadow-[var(--sh-shell)] z-[var(--z-dropdown)] border-t-[3px] border-t-[var(--accent-500)] text-[var(--tx-main)] animate-in fade-in slide-in-from-top-2 duration-150"
         >
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--bd)]">

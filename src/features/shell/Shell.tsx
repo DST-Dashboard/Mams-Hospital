@@ -81,7 +81,7 @@ export function Shell({ children }: ShellProps) {
       <UtilityStrip />
 
       {/* Chrome Stack: Glass Header + Mega Nav (static in normal flow, scrolls away with content) */}
-      <div ref={chromeGroupRef} className="sticky-chrome-group chrome-group w-full">
+      <div ref={chromeGroupRef} className="sticky-chrome-group chrome-group w-full relative z-[var(--z-header)]">
         <GlassHeader />
         <MegaNav />
       </div>
