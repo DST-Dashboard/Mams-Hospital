@@ -18,7 +18,6 @@ if (reset) for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { 
 if (fs.existsSync(file) && !reset) { console.log(`db:seed — ${file} already exists (use db:reset to rebuild).`); process.exit(0); }
 
 const db = openDb(file);
-db.exec(fs.readFileSync(SCHEMA_PATH, "utf8"));
 const now = Date.now();
 const manifest = loadManifest();
 const devices = loadDevices();

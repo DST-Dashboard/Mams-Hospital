@@ -47,6 +47,8 @@ export interface Thresholds {
   hysteresisPct: number; // must recover this far above a threshold to clear (default 5)
   noDataMin: number; // silence before NO_DATA (default 15)
   spikeCm: number; // |jump| vs. recent median that counts as a sensor spike
+  quietStart?: string | null; // e.g. "22:00"
+  quietEnd?: string | null; // e.g. "06:00"
 }
 
 export const DEFAULT_THRESHOLDS: Thresholds = {

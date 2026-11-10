@@ -20,6 +20,7 @@ const map = (r: Raw): TankRow => ({
   thresholds: {
     warnPct: r.warn_pct, critPct: r.crit_pct, emptyPct: r.empty_pct, overflowMarginCm: r.overflow_margin_cm,
     persistence: r.persistence, cooldownMin: r.cooldown_min, hysteresisPct: r.hysteresis_pct, noDataMin: r.no_data_min, spikeCm: r.spike_cm,
+    quietStart: r.quiet_start ?? null, quietEnd: r.quiet_end ?? null,
   },
   dimsConfirmed: !!r.dims_confirmed, simulated: !!r.simulated, deletedAt: r.deleted_at,
 });
@@ -42,27 +43,29 @@ export const TankInput = z.object({
   radiusCm: z.number().min(10).max(1000).optional(), widthCm: z.number().min(10).max(5000).optional(), lengthCm: z.number().min(10).max(5000).optional(),
   deadZoneCm: z.number().min(0).max(100).default(25),
   dimsConfirmed: z.boolean().optional(),
+  quietStart: z.string().nullable().optional(),
+  quietEnd: z.string().nullable().optional(),
   warnPct: z.number().min(1).max(99).optional(), critPct: z.number().min(1).max(99).optional(), emptyPct: z.number().min(0).max(50).optional(),
 }).refine((v) => v.deadZoneCm < v.heightCm, "dead zone must be smaller than tank height")
   .refine((v) => (v.shape === "cylinder" ? v.radiusCm != null : v.widthCm != null && v.lengthCm != null), "dimensions missing for chosen shape")
   .refine((v) => (v.warnPct ?? 40) > (v.critPct ?? 20) && (v.critPct ?? 20) > (v.emptyPct ?? 5), "thresholds must satisfy warning > critical > empty");
 export type TankInput = z.infer<typeof TankInput>;
 
-const nullish = { zone: null, location: null, radiusCm: null, widthCm: null, lengthCm: null, deviceId: null };
+const nullish = { zone: null, location: null, radiusCm: null, widthCm: null, lengthCm: null, deviceId: null, quietStart: null, quietEnd: null };
 
 export function createTank(i: TankInput): number {
   const t = Date.now();
-  const r = db().prepare(`INSERT INTO tanks (device_id,label,zone,location,status,shape,height_cm,radius_cm,width_cm,length_cm,dead_zone_cm,dims_confirmed,warn_pct,crit_pct,empty_pct,created_at,updated_at)
-    VALUES (@deviceId,@label,@zone,@location,@status,@shape,@heightCm,@radiusCm,@widthCm,@lengthCm,@deadZoneCm,@dimsConfirmed,@warnPct,@critPct,@emptyPct,@t,@t)`)
+  const r = db().prepare(`INSERT INTO tanks (device_id,label,zone,location,status,shape,height_cm,radius_cm,width_cm,length_cm,dead_zone_cm,dims_confirmed,quiet_start,quiet_end,warn_pct,crit_pct,empty_pct,created_at,updated_at)
+    VALUES (@deviceId,@label,@zone,@location,@status,@shape,@heightCm,@radiusCm,@widthCm,@lengthCm,@deadZoneCm,@dimsConfirmed,@quietStart,@quietEnd,@warnPct,@critPct,@emptyPct,@t,@t)`)
     .run({ ...nullish, ...i, status: i.status ?? "draft", dimsConfirmed: i.dimsConfirmed ? 1 : 0, warnPct: i.warnPct ?? 40, critPct: i.critPct ?? 20, emptyPct: i.emptyPct ?? 5, t });
   return Number(r.lastInsertRowid);
 }
 
-export function updateTank(id: number, i: TankInput): void {
-  db().prepare(`UPDATE tanks SET label=@label, device_id=@deviceId, zone=@zone, location=@location, status=COALESCE(@status,status), shape=@shape,
-    height_cm=@heightCm, radius_cm=@radiusCm, width_cm=@widthCm, length_cm=@lengthCm, dead_zone_cm=@deadZoneCm,
-    dims_confirmed=COALESCE(@dimsConfirmed,dims_confirmed), warn_pct=@warnPct, crit_pct=@critPct, empty_pct=@emptyPct, updated_at=@t WHERE id=@id`)
-    .run({ ...nullish, status: null, ...i, dimsConfirmed: i.dimsConfirmed == null ? null : i.dimsConfirmed ? 1 : 0, warnPct: i.warnPct ?? 40, critPct: i.critPct ?? 20, emptyPct: i.emptyPct ?? 5, t: Date.now(), id });
+export function updateTank(id: number, i: Partial<TankInput>): void {
+  db().prepare(`UPDATE tanks SET label=COALESCE(@label,label), device_id=COALESCE(@deviceId,device_id), zone=COALESCE(@zone,zone), location=COALESCE(@location,location), status=COALESCE(@status,status), shape=COALESCE(@shape,shape),
+    height_cm=COALESCE(@heightCm,height_cm), radius_cm=COALESCE(@radiusCm,radius_cm), width_cm=COALESCE(@widthCm,width_cm), length_cm=COALESCE(@lengthCm,length_cm), dead_zone_cm=COALESCE(@deadZoneCm,dead_zone_cm),
+    dims_confirmed=COALESCE(@dimsConfirmed,dims_confirmed), quiet_start=COALESCE(@quietStart,quiet_start), quiet_end=COALESCE(@quietEnd,quiet_end), warn_pct=COALESCE(@warnPct,warn_pct), crit_pct=COALESCE(@critPct,crit_pct), empty_pct=COALESCE(@emptyPct,empty_pct), updated_at=@t WHERE id=@id`)
+    .run({ ...nullish, status: null, label: null, heightCm: null, deadZoneCm: null, shape: null, warnPct: null, critPct: null, emptyPct: null, ...i, dimsConfirmed: i.dimsConfirmed == null ? null : i.dimsConfirmed ? 1 : 0, t: Date.now(), id });
 }
 export const softDeleteTank = (id: number) => void db().prepare("UPDATE tanks SET deleted_at=?, status='decommissioned', updated_at=? WHERE id=?").run(Date.now(), Date.now(), id);
 export const restoreTank = (id: number) => void db().prepare("UPDATE tanks SET deleted_at=NULL, status='active', updated_at=? WHERE id=?").run(Date.now(), id);
