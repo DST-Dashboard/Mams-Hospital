@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="favWater" x1="0" y1="26" x2="0" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#087e83" />
+      <stop offset="1" stop-color="#06666a" />
+    </linearGradient>
+  </defs>
+  <!-- Background plate -->
+  <rect width="64" height="64" rx="14" fill="#001f3f" />
+  <!-- Sensor unit on lid -->
+  <rect x="25" y="8" width="14" height="6" rx="2" fill="#004d80" />
+  <circle cx="32" cy="11" r="2.5" fill="#f26522" />
+  <!-- Tank cylinder body -->
+  <rect x="12" y="14" width="40" height="42" rx="6" fill="#132540" stroke="#cbd5e0" stroke-width="2.5" />
+  <!-- Water fill -->
+  <path d="M14 34C18 32 24 35 32 34C40 33 46 35 50 34V50C50 53.3 47.3 56 44 56H20C16.7 56 14 53.3 14 50V34Z" fill="url(#favWater)" />
+  <!-- Scale tick -->
+  <line x1="52" y1="26" x2="48" y2="26" stroke="#e2a84a" stroke-width="2" />
+</svg>
+
