@@ -1,0 +1,1219 @@
+[
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-30T05:41:48.804588333Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          },
+          "dev_eui": "2CF7F12063500F93",
+          "join_eui": "526973696E674846",
+          "dev_addr": "27FA91FE"
+        }
+      }
+    ],
+    "data": {
+      "@type": "type.googleapis.com/ttn.lorawan.v3.ApplicationUp",
+      "end_device_ids": {
+        "device_id": "wio-e5-node-01",
+        "application_ids": {
+          "application_id": "mams-hospital"
+        },
+        "dev_eui": "2CF7F12063500F93",
+        "join_eui": "526973696E674846",
+        "dev_addr": "27FA91FE"
+      },
+      "correlation_ids": [
+        "gs:uplink:01M65N87XGQ2XZCRE4G4S48E2D"
+      ],
+      "received_at": "2026-10-30T05:41:48.799443813Z",
+      "uplink_message": {
+        "session_key_id": "AaGLKY5i0ftl3CBdhteyJw==",
+        "f_port": 2,
+        "f_cnt": 10,
+        "frm_payload": "AQEBAAkAyv//AQ==",
+        "decoded_payload": {
+          "Node1_distance_cm": 202,
+          "Node2_distance_cm": null,
+          "Node3_distance_cm": null,
+          "Node4_distance_cm": null,
+          "Node5_distance_cm": null
+        },
+        "rx_metadata": [
+          {
+            "gateway_ids": {
+              "gateway_id": "sensecap-gateway",
+              "eui": "2CF7F11062600294"
+            },
+            "timestamp": 624504826,
+            "rssi": -80,
+            "channel_rssi": -80,
+            "snr": 11.2,
+            "frequency_offset": "-83",
+            "uplink_token": "Ch4KHAoQc2Vuc2VjYXAtZ2F0ZXdheRIILPfxEGJgApQQ+t/kqQIaDAic3JDXBhC/27CaAiCQ0Y27lo8B",
+            "channel_index": 5,
+            "received_at": "2026-10-30T05:41:48.520257712Z"
+          }
+        ],
+        "settings": {
+          "data_rate": {
+            "lora": {
+              "bandwidth": 125000,
+              "spreading_factor": 7,
+              "coding_rate": "4/5"
+            }
+          },
+          "frequency": "867500000",
+          "timestamp": 624504826
+        },
+        "received_at": "2026-10-30T05:41:48.592872563Z",
+        "consumed_airtime": "0.061696s",
+        "locations": {
+          "user": {
+            "latitude": 17.48901585080757,
+            "longitude": 78.32702100276947,
+            "source": "SOURCE_REGISTRY"
+          }
+        },
+        "version_ids": {
+          "brand_id": "seeed",
+          "model_id": "loraeminidevboard-e5",
+          "hardware_version": "1.0",
+          "firmware_version": "1.0",
+          "band_id": "EU_863_870"
+        },
+        "network_ids": {
+          "net_id": "000013",
+          "ns_id": "EC656E00001050A7",
+          "tenant_id": "mams-test",
+          "cluster_id": "eu1",
+          "cluster_address": "eu1.cloud.thethings.industries",
+          "tenant_address": "mams-test.eu1.cloud.thethings.industries"
+        },
+        "last_battery_percentage": {
+          "f_cnt": 3,
+          "value": 100,
+          "received_at": "2026-10-30T05:07:38.124704023Z"
+        }
+      }
+    },
+    "correlation_ids": [
+      "gs:uplink:01M65N87XGQ2XZCRE4G4S48E2D"
+    ],
+    "origin": "ip-10-23-7-179.eu-west-1.compute.internal",
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65N8844RQTA9AE4ME1DGTBJ"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-30T05:36:55.847798274Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          },
+          "dev_eui": "2CF7F12063500F93",
+          "join_eui": "526973696E674846",
+          "dev_addr": "27FA91FE"
+        }
+      }
+    ],
+    "data": {
+      "@type": "type.googleapis.com/ttn.lorawan.v3.ApplicationUp",
+      "end_device_ids": {
+        "device_id": "wio-e5-node-01",
+        "application_ids": {
+          "application_id": "mams-hospital"
+        },
+        "dev_eui": "2CF7F12063500F93",
+        "join_eui": "526973696E674846",
+        "dev_addr": "27FA91FE"
+      },
+      "correlation_ids": [
+        "gs:uplink:01M65MZ9TMYA7CZ9QMDN7B6GCC"
+      ],
+      "received_at": "2026-10-30T05:36:55.843696234Z",
+      "uplink_message": {
+        "session_key_id": "AaGLKY5i0ftl3CBdhteyJw==",
+        "f_port": 2,
+        "f_cnt": 9,
+        "frm_payload": "AQEBAAgAy///AQ==",
+        "decoded_payload": {
+          "Node1_distance_cm": 203,
+          "Node2_distance_cm": null,
+          "Node3_distance_cm": null,
+          "Node4_distance_cm": null,
+          "Node5_distance_cm": null
+        },
+        "rx_metadata": [
+          {
+            "gateway_ids": {
+              "gateway_id": "sensecap-gateway",
+              "eui": "2CF7F11062600294"
+            },
+            "timestamp": 331551872,
+            "rssi": -78,
+            "channel_rssi": -78,
+            "snr": 10.2,
+            "frequency_offset": "-76",
+            "uplink_token": "Ch4KHAoQc2Vuc2VjYXAtZ2F0ZXdheRIILPfxEGJgApQQgKmMngEaDAj32ZDXBhCZtamvAiCAqKCQ04YB",
+            "channel_index": 5,
+            "received_at": "2026-10-30T05:36:55.564380368Z"
+          }
+        ],
+        "settings": {
+          "data_rate": {
+            "lora": {
+              "bandwidth": 125000,
+              "spreading_factor": 7,
+              "coding_rate": "4/5"
+            }
+          },
+          "frequency": "867500000",
+          "timestamp": 331551872
+        },
+        "received_at": "2026-10-30T05:36:55.636834716Z",
+        "consumed_airtime": "0.061696s",
+        "locations": {
+          "user": {
+            "latitude": 17.48901585080757,
+            "longitude": 78.32702100276947,
+            "source": "SOURCE_REGISTRY"
+          }
+        },
+        "version_ids": {
+          "brand_id": "seeed",
+          "model_id": "loraeminidevboard-e5",
+          "hardware_version": "1.0",
+          "firmware_version": "1.0",
+          "band_id": "EU_863_870"
+        },
+        "network_ids": {
+          "net_id": "000013",
+          "ns_id": "EC656E00001050A7",
+          "tenant_id": "mams-test",
+          "cluster_id": "eu1",
+          "cluster_address": "eu1.cloud.thethings.industries",
+          "tenant_address": "mams-test.eu1.cloud.thethings.industries"
+        },
+        "last_battery_percentage": {
+          "f_cnt": 3,
+          "value": 100,
+          "received_at": "2026-10-30T05:07:38.124704023Z"
+        }
+      }
+    },
+    "correlation_ids": [
+      "gs:uplink:01M65MZ9TMYA7CZ9QMDN7B6GCC"
+    ],
+    "origin": "ip-10-23-15-108.eu-west-1.compute.internal",
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65MZA17JZ26BQ2RBVR3QVST"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-30T05:32:02.903240624Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          },
+          "dev_eui": "2CF7F12063500F93",
+          "join_eui": "526973696E674846",
+          "dev_addr": "27FA91FE"
+        }
+      }
+    ],
+    "data": {
+      "@type": "type.googleapis.com/ttn.lorawan.v3.ApplicationUp",
+      "end_device_ids": {
+        "device_id": "wio-e5-node-01",
+        "application_ids": {
+          "application_id": "mams-hospital"
+        },
+        "dev_eui": "2CF7F12063500F93",
+        "join_eui": "526973696E674846",
+        "dev_addr": "27FA91FE"
+      },
+      "correlation_ids": [
+        "gs:uplink:01M65MPBR1EWP2KE5E0512J50G"
+      ],
+      "received_at": "2026-10-30T05:32:02.893888243Z",
+      "uplink_message": {
+        "session_key_id": "AaGLKY5i0ftl3CBdhteyJw==",
+        "f_port": 2,
+        "f_cnt": 8,
+        "frm_payload": "AQEBAAcAyv//AQ==",
+        "decoded_payload": {
+          "Node1_distance_cm": 202,
+          "Node2_distance_cm": null,
+          "Node3_distance_cm": null,
+          "Node4_distance_cm": null,
+          "Node5_distance_cm": null
+        },
+        "rx_metadata": [
+          {
+            "gateway_ids": {
+              "gateway_id": "sensecap-gateway",
+              "eui": "2CF7F11062600294"
+            },
+            "timestamp": 38590997,
+            "rssi": -82,
+            "channel_rssi": -82,
+            "snr": 13.8,
+            "frequency_offset": "-83",
+            "uplink_token": "Ch4KHAoQc2Vuc2VjYXAtZ2F0ZXdheRIILPfxEGJgApQQlbSzEhoMCNLXkNcGENrN08gCIIjEz+GPfg==",
+            "received_at": "2026-10-30T05:32:02.617479404Z"
+          }
+        ],
+        "settings": {
+          "data_rate": {
+            "lora": {
+              "bandwidth": 125000,
+              "spreading_factor": 7,
+              "coding_rate": "4/5"
+            }
+          },
+          "frequency": "868100000",
+          "timestamp": 38590997
+        },
+        "received_at": "2026-10-30T05:32:02.689762028Z",
+        "consumed_airtime": "0.061696s",
+        "locations": {
+          "user": {
+            "latitude": 17.48901585080757,
+            "longitude": 78.32702100276947,
+            "source": "SOURCE_REGISTRY"
+          }
+        },
+        "version_ids": {
+          "brand_id": "seeed",
+          "model_id": "loraeminidevboard-e5",
+          "hardware_version": "1.0",
+          "firmware_version": "1.0",
+          "band_id": "EU_863_870"
+        },
+        "network_ids": {
+          "net_id": "000013",
+          "ns_id": "EC656E00001050A7",
+          "tenant_id": "mams-test",
+          "cluster_id": "eu1",
+          "cluster_address": "eu1.cloud.thethings.industries",
+          "tenant_address": "mams-test.eu1.cloud.thethings.industries"
+        },
+        "last_battery_percentage": {
+          "f_cnt": 3,
+          "value": 100,
+          "received_at": "2026-10-30T05:07:38.124704023Z"
+        }
+      }
+    },
+    "correlation_ids": [
+      "gs:uplink:01M65MPBR1EWP2KE5E0512J50G"
+    ],
+    "origin": "ip-10-23-4-4.eu-west-1.compute.internal",
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65MPBYQR5PZD7W3D2P2SD12"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-30T05:27:10.035826958Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          },
+          "dev_eui": "2CF7F12063500F93",
+          "join_eui": "526973696E674846",
+          "dev_addr": "27FA91FE"
+        }
+      }
+    ],
+    "data": {
+      "@type": "type.googleapis.com/ttn.lorawan.v3.ApplicationUp",
+      "end_device_ids": {
+        "device_id": "wio-e5-node-01",
+        "application_ids": {
+          "application_id": "mams-hospital"
+        },
+        "dev_eui": "2CF7F12063500F93",
+        "join_eui": "526973696E674846",
+        "dev_addr": "27FA91FE"
+      },
+      "correlation_ids": [
+        "gs:uplink:01M65MDDQXC70DVS9TGEMC5MH8"
+      ],
+      "received_at": "2026-10-30T05:27:10.029112489Z",
+      "uplink_message": {
+        "session_key_id": "AaGLKY5i0ftl3CBdhteyJw==",
+        "f_port": 2,
+        "f_cnt": 7,
+        "frm_payload": "AQEBAAYAyv//AQ==",
+        "decoded_payload": {
+          "Node1_distance_cm": 202,
+          "Node2_distance_cm": null,
+          "Node3_distance_cm": null,
+          "Node4_distance_cm": null,
+          "Node5_distance_cm": null
+        },
+        "rx_metadata": [
+          {
+            "gateway_ids": {
+              "gateway_id": "sensecap-gateway",
+              "eui": "2CF7F11062600294"
+            },
+            "timestamp": 4040701752,
+            "rssi": -83,
+            "channel_rssi": -83,
+            "snr": 13.5,
+            "frequency_offset": "-92",
+            "uplink_token": "Ch4KHAoQc2Vuc2VjYXAtZ2F0ZXdheRIILPfxEGJgApQQuO7ghg8aDAit1ZDXBhCi5cOHAyDA5d7kzHU=",
+            "channel_index": 7,
+            "received_at": "2026-10-30T05:27:09.749393822Z"
+          }
+        ],
+        "settings": {
+          "data_rate": {
+            "lora": {
+              "bandwidth": 125000,
+              "spreading_factor": 7,
+              "coding_rate": "4/5"
+            }
+          },
+          "frequency": "867900000",
+          "timestamp": 4040701752
+        },
+        "received_at": "2026-10-30T05:27:09.824298352Z",
+        "consumed_airtime": "0.061696s",
+        "locations": {
+          "user": {
+            "latitude": 17.48901585080757,
+            "longitude": 78.32702100276947,
+            "source": "SOURCE_REGISTRY"
+          }
+        },
+        "version_ids": {
+          "brand_id": "seeed",
+          "model_id": "loraeminidevboard-e5",
+          "hardware_version": "1.0",
+          "firmware_version": "1.0",
+          "band_id": "EU_863_870"
+        },
+        "network_ids": {
+          "net_id": "000013",
+          "ns_id": "EC656E00001050A7",
+          "tenant_id": "mams-test",
+          "cluster_id": "eu1",
+          "cluster_address": "eu1.cloud.thethings.industries",
+          "tenant_address": "mams-test.eu1.cloud.thethings.industries"
+        },
+        "last_battery_percentage": {
+          "f_cnt": 3,
+          "value": 100,
+          "received_at": "2026-10-30T05:07:38.124704023Z"
+        }
+      }
+    },
+    "correlation_ids": [
+      "gs:uplink:01M65MDDQXC70DVS9TGEMC5MH8"
+    ],
+    "origin": "ip-10-23-4-4.eu-west-1.compute.internal",
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65MDDYKB868545E8AG1QAKC"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-30T05:22:17.073002432Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          },
+          "dev_eui": "2CF7F12063500F93",
+          "join_eui": "526973696E674846",
+          "dev_addr": "27FA91FE"
+        }
+      }
+    ],
+    "data": {
+      "@type": "type.googleapis.com/ttn.lorawan.v3.ApplicationUp",
+      "end_device_ids": {
+        "device_id": "wio-e5-node-01",
+        "application_ids": {
+          "application_id": "mams-hospital"
+        },
+        "dev_eui": "2CF7F12063500F93",
+        "join_eui": "526973696E674846",
+        "dev_addr": "27FA91FE"
+      },
+      "correlation_ids": [
+        "gs:uplink:01M65M4FMYBET1678TQYXZ5ASC"
+      ],
+      "received_at": "2026-10-30T05:22:17.066902395Z",
+      "uplink_message": {
+        "session_key_id": "AaGLKY5i0ftl3CBdhteyJw==",
+        "f_port": 2,
+        "f_cnt": 6,
+        "frm_payload": "AQEBAAUAy///AQ==",
+        "decoded_payload": {
+          "Node1_distance_cm": 203,
+          "Node2_distance_cm": null,
+          "Node3_distance_cm": null,
+          "Node4_distance_cm": null,
+          "Node5_distance_cm": null
+        },
+        "rx_metadata": [
+          {
+            "gateway_ids": {
+              "gateway_id": "sensecap-gateway",
+              "eui": "2CF7F11062600294"
+            },
+            "timestamp": 3747747657,
+            "rssi": -79,
+            "channel_rssi": -79,
+            "snr": 10.2,
+            "frequency_offset": "-83",
+            "uplink_token": "Ch4KHAoQc2Vuc2VjYXAtZ2F0ZXdheRIILPfxEGJgApQQya6I+w0aDAiI05DXBhCE8qCbAyCo6qu5iW0=",
+            "channel_index": 2,
+            "received_at": "2026-10-30T05:22:16.790759423Z"
+          }
+        ],
+        "settings": {
+          "data_rate": {
+            "lora": {
+              "bandwidth": 125000,
+              "spreading_factor": 7,
+              "coding_rate": "4/5"
+            }
+          },
+          "frequency": "868500000",
+          "timestamp": 3747747657
+        },
+        "received_at": "2026-10-30T05:22:16.863073046Z",
+        "consumed_airtime": "0.061696s",
+        "locations": {
+          "user": {
+            "latitude": 17.48901585080757,
+            "longitude": 78.32702100276947,
+            "source": "SOURCE_REGISTRY"
+          }
+        },
+        "version_ids": {
+          "brand_id": "seeed",
+          "model_id": "loraeminidevboard-e5",
+          "hardware_version": "1.0",
+          "firmware_version": "1.0",
+          "band_id": "EU_863_870"
+        },
+        "network_ids": {
+          "net_id": "000013",
+          "ns_id": "EC656E00001050A7",
+          "tenant_id": "mams-test",
+          "cluster_id": "eu1",
+          "cluster_address": "eu1.cloud.thethings.industries",
+          "tenant_address": "mams-test.eu1.cloud.thethings.industries"
+        },
+        "last_battery_percentage": {
+          "f_cnt": 3,
+          "value": 100,
+          "received_at": "2026-10-30T05:07:38.124704023Z"
+        }
+      }
+    },
+    "correlation_ids": [
+      "gs:uplink:01M65M4FMYBET1678TQYXZ5ASC"
+    ],
+    "origin": "ip-10-23-4-4.eu-west-1.compute.internal",
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65M4FVGREBWPKP06D1X97PG"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-30T05:17:24.196645703Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          },
+          "dev_eui": "2CF7F12063500F93",
+          "join_eui": "526973696E674846",
+          "dev_addr": "27FA91FE"
+        }
+      }
+    ],
+    "data": {
+      "@type": "type.googleapis.com/ttn.lorawan.v3.ApplicationUp",
+      "end_device_ids": {
+        "device_id": "wio-e5-node-01",
+        "application_ids": {
+          "application_id": "mams-hospital"
+        },
+        "dev_eui": "2CF7F12063500F93",
+        "join_eui": "526973696E674846",
+        "dev_addr": "27FA91FE"
+      },
+      "correlation_ids": [
+        "gs:uplink:01M65KVHK9HVKATB6NWCF668MV"
+      ],
+      "received_at": "2026-10-30T05:17:24.193988169Z",
+      "uplink_message": {
+        "session_key_id": "AaGLKY5i0ftl3CBdhteyJw==",
+        "f_port": 2,
+        "f_cnt": 5,
+        "frm_payload": "AQEBAAQAyv//AQ==",
+        "decoded_payload": {
+          "Node1_distance_cm": 202,
+          "Node2_distance_cm": null,
+          "Node3_distance_cm": null,
+          "Node4_distance_cm": null,
+          "Node5_distance_cm": null
+        },
+        "rx_metadata": [
+          {
+            "gateway_ids": {
+              "gateway_id": "sensecap-gateway",
+              "eui": "2CF7F11062600294"
+            },
+            "timestamp": 3454800392,
+            "rssi": -80,
+            "channel_rssi": -80,
+            "snr": 13.8,
+            "frequency_offset": "-91",
+            "uplink_token": "Ch4KHAoQc2Vuc2VjYXAtZ2F0ZXdheRIILPfxEGJgApQQiKSw7wwaDAjj0JDXBhD58Ku+AyDA3pmRxmQ=",
+            "received_at": "2026-10-30T05:17:23.864342645Z"
+          }
+        ],
+        "settings": {
+          "data_rate": {
+            "lora": {
+              "bandwidth": 125000,
+              "spreading_factor": 7,
+              "coding_rate": "4/5"
+            }
+          },
+          "frequency": "868100000",
+          "timestamp": 3454800392
+        },
+        "received_at": "2026-10-30T05:17:23.984342846Z",
+        "consumed_airtime": "0.061696s",
+        "locations": {
+          "user": {
+            "latitude": 17.48901585080757,
+            "longitude": 78.32702100276947,
+            "source": "SOURCE_REGISTRY"
+          }
+        },
+        "version_ids": {
+          "brand_id": "seeed",
+          "model_id": "loraeminidevboard-e5",
+          "hardware_version": "1.0",
+          "firmware_version": "1.0",
+          "band_id": "EU_863_870"
+        },
+        "network_ids": {
+          "net_id": "000013",
+          "ns_id": "EC656E00001050A7",
+          "tenant_id": "mams-test",
+          "cluster_id": "eu1",
+          "cluster_address": "eu1.cloud.thethings.industries",
+          "tenant_address": "mams-test.eu1.cloud.thethings.industries"
+        },
+        "last_battery_percentage": {
+          "f_cnt": 3,
+          "value": 100,
+          "received_at": "2026-10-30T05:07:38.124704023Z"
+        }
+      }
+    },
+    "correlation_ids": [
+      "gs:uplink:01M65KVHK9HVKATB6NWCF668MV"
+    ],
+    "origin": "ip-10-23-15-108.eu-west-1.compute.internal",
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65KVHV4C3G4R8TWZ7ZMRDYK"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-30T05:12:31.281919886Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          },
+          "dev_eui": "2CF7F12063500F93",
+          "join_eui": "526973696E674846",
+          "dev_addr": "27FA91FE"
+        }
+      }
+    ],
+    "data": {
+      "@type": "type.googleapis.com/ttn.lorawan.v3.ApplicationUp",
+      "end_device_ids": {
+        "device_id": "wio-e5-node-01",
+        "application_ids": {
+          "application_id": "mams-hospital"
+        },
+        "dev_eui": "2CF7F12063500F93",
+        "join_eui": "526973696E674846",
+        "dev_addr": "27FA91FE"
+      },
+      "correlation_ids": [
+        "gs:uplink:01M65KJKK1SJ64TSZBGCF9V6RN"
+      ],
+      "received_at": "2026-10-30T05:12:31.278519219Z",
+      "uplink_message": {
+        "session_key_id": "AaGLKY5i0ftl3CBdhteyJw==",
+        "f_port": 2,
+        "f_cnt": 4,
+        "frm_payload": "AQEBAAMAy///AQ==",
+        "decoded_payload": {
+          "Node1_distance_cm": 203,
+          "Node2_distance_cm": null,
+          "Node3_distance_cm": null,
+          "Node4_distance_cm": null,
+          "Node5_distance_cm": null
+        },
+        "rx_metadata": [
+          {
+            "gateway_ids": {
+              "gateway_id": "sensecap-gateway",
+              "eui": "2CF7F11062600294"
+            },
+            "timestamp": 3161954382,
+            "rssi": -73,
+            "channel_rssi": -73,
+            "snr": 12.8,
+            "frequency_offset": "-98",
+            "uplink_token": "Ch4KHAoQc2Vuc2VjYXAtZ2F0ZXdheRIILPfxEGJgApQQzrDe4wsaCwi/zpDXBhD1l/AiILDhq5mDXA==",
+            "channel_index": 3,
+            "received_at": "2026-10-30T05:12:31.001432304Z"
+          }
+        ],
+        "settings": {
+          "data_rate": {
+            "lora": {
+              "bandwidth": 125000,
+              "spreading_factor": 7,
+              "coding_rate": "4/5"
+            }
+          },
+          "frequency": "867100000",
+          "timestamp": 3161954382
+        },
+        "received_at": "2026-10-30T05:12:31.073857638Z",
+        "consumed_airtime": "0.061696s",
+        "locations": {
+          "user": {
+            "latitude": 17.48901585080757,
+            "longitude": 78.32702100276947,
+            "source": "SOURCE_REGISTRY"
+          }
+        },
+        "version_ids": {
+          "brand_id": "seeed",
+          "model_id": "loraeminidevboard-e5",
+          "hardware_version": "1.0",
+          "firmware_version": "1.0",
+          "band_id": "EU_863_870"
+        },
+        "network_ids": {
+          "net_id": "000013",
+          "ns_id": "EC656E00001050A7",
+          "tenant_id": "mams-test",
+          "cluster_id": "eu1",
+          "cluster_address": "eu1.cloud.thethings.industries",
+          "tenant_address": "mams-test.eu1.cloud.thethings.industries"
+        },
+        "last_battery_percentage": {
+          "f_cnt": 3,
+          "value": 100,
+          "received_at": "2026-10-30T05:07:38.124704023Z"
+        }
+      }
+    },
+    "correlation_ids": [
+      "gs:uplink:01M65KJKK1SJ64TSZBGCF9V6RN"
+    ],
+    "origin": "ip-10-23-15-108.eu-west-1.compute.internal",
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65KJKSHEZMCJY63WENM9R3N"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-30T05:07:38.334753862Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65K9NPYG9WYSNBCQC029961"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-30T05:05:17.538548223Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65K5C72JQ1Y0CQRFZ4W1A09"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-30T04:57:53.897033820Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65JQTZ9AYCFAAWT71QRFYVE"
+  },
+  {
+    "name": "as.up.join.forward",
+    "time": "2026-10-30T04:55:20.689682610Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65JK5BHZV8YSZAAYVTCRCYH"
+  },
+  {
+    "name": "ns.up.join.process",
+    "time": "2026-10-30T04:55:19.078547409Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65JK3S69N149CEJ5WB3TTQT"
+  },
+  {
+    "name": "js.join.accept",
+    "time": "2026-10-30T04:55:18.886419568Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65JK3K6Y9ER6YH5SYH06A2Q"
+  },
+  {
+    "name": "as.up.join.forward",
+    "time": "2026-10-30T04:53:18.394325693Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65JFDXTY1M9MCK56D3JNTHB"
+  },
+  {
+    "name": "ns.up.join.process",
+    "time": "2026-10-30T04:53:16.785754149Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65JFCBHSCH7YK46MXWEPQ2B"
+  },
+  {
+    "name": "js.join.accept",
+    "time": "2026-10-30T04:53:16.600212869Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M65JFC5RR0TANJW281PYCQQM"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-29T11:25:09.641151130Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M63PG7497CJFKA0BCGA4WHJY"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-29T11:20:16.740084428Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M63P7934J1ACTNF8BJH4T9G2"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-29T11:15:23.806108736Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M63NYB0YJE9EDF9FRKQNP084"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-29T11:10:30.889065502Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M63NNCZ9F4E5GB316TYH2584"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-29T11:05:37.970637836Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M63NCEXJP8DXX8268VE1HM03"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-29T11:02:50.535333987Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M63N7BD7P7MVC82REEEVB38C"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-29T10:55:52.141952389Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M63MTJTDPYKHJ156FBHWQ5SP"
+  },
+  {
+    "name": "as.up.data.forward",
+    "time": "2026-10-29T10:51:00.992168322Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M63MHPG09E9GDXMJNV81HDSH"
+  },
+  {
+    "name": "as.up.join.forward",
+    "time": "2026-10-29T10:48:27.439361557Z",
+    "identifiers": [
+      {
+        "device_ids": {
+          "device_id": "wio-e5-node-01",
+          "application_ids": {
+            "application_id": "mams-hospital"
+          }
+        }
+      }
+    ],
+    "context": {
+      "tenant-id": "CgltYW1zLXRlc3Q="
+    },
+    "visibility": {
+      "rights": [
+        "RIGHT_APPLICATION_TRAFFIC_READ"
+      ]
+    },
+    "unique_id": "01M63MD0HFF03DFJSN0J64TCSG"
+  }
+]

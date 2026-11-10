@@ -1,0 +1,2 @@
+-- [BE-06] OWNER: backend · Tables: zones, threshold_templates; tanks.zone_id.
+-- STATUS: TODO

@@ -1,0 +1,2 @@
+-- [BE-03] OWNER: backend · Tables: sessions(id,user_id,created,expires,revoked), password_resets(token_hash,user_id,expires), api_keys.
+-- STATUS: TODO
