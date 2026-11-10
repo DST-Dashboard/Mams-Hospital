@@ -44,20 +44,20 @@ export function AlertBell({ className }: { className?: string }) {
         onClick={() => setOpen((prev) => !prev)}
         aria-label={`Alert notifications: ${count} active`}
         aria-expanded={open}
-        className="relative w-9 h-9 rounded-full bg-[rgba(255,255,255,0.15)] border border-[rgba(255,255,255,0.20)] text-white flex items-center justify-center hover:bg-white/25 transition-all"
+        className="relative w-9 h-9 rounded-full bg-[var(--bg-card)] border border-[var(--bd)] text-[var(--tx-head)] flex items-center justify-center hover:bg-[var(--bg-subtle)] hover:text-[var(--brand-700)] transition-all shadow-sm"
       >
-        <Bell size={18} aria-hidden />
+        <Bell size={18} className="text-[var(--tx-head)]" aria-hidden />
 
         {count > 0 && (
           <>
             <span
-              className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[var(--accent-500)] text-white text-[10px] font-bold flex items-center justify-center leading-none"
+              className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--accent-500)] text-white text-[10px] font-bold flex items-center justify-center leading-none shadow-sm z-10"
               aria-hidden
             >
               {count > 9 ? "9+" : count}
             </span>
             <span
-              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--accent-500)] opacity-75 animate-ping"
+              className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-[var(--accent-500)] opacity-75 animate-ping pointer-events-none"
               aria-hidden
             />
           </>

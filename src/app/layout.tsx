@@ -9,13 +9,14 @@ import { ToastProvider } from "@/components/ui/Toast";
 
 export const metadata: Metadata = {
   title: {
-    default: "MAMS Hospital | OHTMS",
-    template: "%s · MAMS Hospital OHTMS",
+    default: "Overhead Tank Management System | MAMS Hospital",
+    template: "%s · MAMS Hospital",
   },
   description:
     "Real-time rooftop water monitoring for MAMS Hospital Overhead Tank Management System",
   icons: {
-    icon: "/favicon.svg",
+    icon: "/assets/mams-logo.png",
+    apple: "/assets/mams-logo.png",
   },
   manifest: "/manifest.webmanifest",
   robots: { index: false },

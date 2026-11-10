@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import type { EChartsCoreOption } from "echarts/core";
 import { Download, Grid } from "lucide-react";
 import { EChart } from "./EChart";
-import { baseOption, scales, cssVar } from "./chart-theme";
+import { baseOption, cssVar } from "./chart-theme";
 import { Button } from "@/components/ui/Button";
 import { SampleDataBadge } from "@/components/status/badges";
 import { Skeleton, ErrorState } from "@/components/ui/primitives";
@@ -49,7 +49,7 @@ export function Heatmap({
       avgLevelPct: c.pct !== null ? c.pct.toFixed(1) : "",
       readingCount: c.count,
     }));
-    downloadCsv(`week-heatmap-${Date.now()}`, rows, [
+    downloadCsv(`mams-week-heatmap-${Date.now()}`, rows, [
       "date",
       "dayLabel",
       "hour",
@@ -61,14 +61,15 @@ export function Heatmap({
 
   const option: EChartsCoreOption = useMemo(() => {
     const opt = baseOption(title);
+    opt.title = { show: false }; // Card heading is rendered above
     const dayNames = grid.days.map((d) => (d.key === activeDayKey ? `{bold|${d.label}}` : d.label));
     const hours = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}:00`);
 
     opt.grid = {
       left: 110,
       right: 30,
-      top: 50,
-      bottom: 50,
+      top: 44,
+      bottom: 80,
       containLabel: true,
     };
 
@@ -101,22 +102,30 @@ export function Heatmap({
       axisLine: { lineStyle: { color: cssVar("--bd-strong", "#cbd5e0") } },
     };
 
+    // Professional clinical threshold-aligned piecewise scale per Issue 5
     opt.visualMap = {
-      min: 0,
-      max: 100,
-      calculable: true,
+      type: "piecewise",
       orient: "horizontal",
       left: "center",
-      bottom: 6,
-      itemWidth: 14,
-      itemHeight: 140,
-      inRange: {
-        color: scales.thermal,
-      },
-      text: ["100 %", "0 %"],
+      bottom: 10,
+      itemWidth: 16,
+      itemHeight: 12,
+      textGap: 6,
+      itemGap: 12,
       textStyle: {
-        fontSize: 10,
-        color: cssVar("--tx-quiet", "#627985"),
+        fontSize: 10.5,
+        color: cssVar("--tx-chart", "#294654"),
+      },
+      pieces: [
+        { min: 80, max: 100, label: "80–100% (High)", color: "#14365f" }, // deep navy
+        { min: 60, max: 80, label: "60–80%", color: "#286090" },
+        { min: 40, max: 60, label: "40–60% (Normal)", color: "#5c94be" },
+        { min: 20, max: 40, label: "20–40% (Warning)", color: "#e89228" }, // amber
+        { min: 5, max: 20, label: "5–20% (Critical)", color: "#c05a3c" },  // red-orange
+        { min: 0, max: 5, label: "0–5% (Emergency)", color: "#933629" },   // deep red
+      ],
+      outOfRange: {
+        color: "#e2e8f0", // distinct neutral light grey for no-data cells
       },
     };
 
@@ -169,10 +178,17 @@ export function Heatmap({
         label: {
           show: false,
         },
+        itemStyle: {
+          borderColor: "#ffffff",
+          borderWidth: 1.5,
+          borderRadius: 2,
+        },
         emphasis: {
           itemStyle: {
-            shadowBlur: 8,
-            shadowColor: "rgba(0, 0, 0, 0.4)",
+            borderColor: cssVar("--tx-head", "#003b6d"),
+            borderWidth: 2,
+            shadowBlur: 6,
+            shadowColor: "rgba(0, 0, 0, 0.25)",
           },
         },
       },

@@ -1,6 +1,6 @@
 {
   "name": "MAMS Hospital Overhead Tank Management System",
-  "short_name": "OHTMS",
+  "short_name": "MAMS Hospital",
   "description": "Real-time rooftop water monitoring for MAMS Hospital",
   "start_url": "/dashboard",
   "display": "standalone",
@@ -8,9 +8,9 @@
   "theme_color": "#003b6d",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/assets/mams-logo.png",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/png"
     }
   ]
 }

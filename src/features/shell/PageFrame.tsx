@@ -33,7 +33,7 @@ export function PageFrame({ tab, hero, children }: PageFrameProps) {
           {/* Workspace Content Area */}
           <main
             id="workspace"
-            className="workspace flex-grow p-5 sm:p-7 md:p-10 bg-[var(--bg-work)] min-w-0 scroll-mt-[215px]"
+            className="workspace flex-grow p-5 sm:p-7 md:p-10 bg-[var(--bg-work)] min-w-0 scroll-mt-6"
           >
             {children}
           </main>

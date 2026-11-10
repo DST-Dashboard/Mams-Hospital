@@ -30,7 +30,13 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [typedText, setTypedText] = useState("");
 
-  const isConfirmedDisabled = busy || (requireText ? typedText !== requireText : false);
+  // Tolerant comparison: trim, collapse whitespace and case-insensitive
+  const isMatch = requireText
+    ? typedText.trim().replace(/\s+/g, " ").toLowerCase() ===
+      requireText.trim().replace(/\s+/g, " ").toLowerCase()
+    : true;
+
+  const isConfirmedDisabled = busy || !isMatch;
 
   const handleConfirm = async () => {
     if (isConfirmedDisabled) return;
@@ -42,6 +48,13 @@ export function ConfirmDialog({
     if (busy) return;
     setTypedText("");
     onClose();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !isConfirmedDisabled) {
+      e.preventDefault();
+      handleConfirm();
+    }
   };
 
   return (
@@ -77,6 +90,7 @@ export function ConfirmDialog({
             <Input
               value={typedText}
               onChange={(e) => setTypedText(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder={requireText}
               disabled={busy}
               autoFocus

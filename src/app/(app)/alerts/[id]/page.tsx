@@ -4,7 +4,7 @@ import { ViewGuide } from "@/components/ui/primitives";
 import { AlertDetail } from "@/features/alerts/AlertDetail";
 
 export const metadata = {
-  title: "Alert Detail · MAMS Hospital OHTMS",
+  title: "Alert Detail · MAMS Hospital",
 };
 
 export default async function AlertDetailPage({ params }: { params: Promise<{ id: string }> }) {

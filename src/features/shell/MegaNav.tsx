@@ -63,24 +63,24 @@ export function MegaNav() {
   return (
     <nav
       aria-label="Primary navigation"
-      className="mega-nav bg-[var(--g-ocean)] text-white px-6 md:px-10 flex items-center justify-between select-none"
+      className="mega-nav bg-[var(--bg-subtle)] border-b border-[var(--bd-soft)] px-6 md:px-10 flex items-center justify-between select-none min-h-[52px]"
     >
       {/* Left Navigation Links */}
-      <ul className="flex items-center gap-7 list-none m-0 p-0 overflow-x-auto">
+      <ul className="flex items-center gap-2 list-none m-0 p-0 overflow-x-auto">
         {/* Home Icon */}
         <li className="relative">
           <Link
             href="/dashboard"
             aria-label="Home overview"
             className={clsx(
-              "flex items-center py-4 text-white/90 hover:text-white transition-opacity relative",
-              isHomeActive && "text-white opacity-100"
+              "flex items-center px-3 py-3.5 text-[var(--tx-head)] hover:text-[var(--brand-700)] hover:bg-[var(--bg-pill)]/60 rounded-lg transition-colors relative",
+              isHomeActive && "font-bold text-[var(--brand-900)]"
             )}
           >
             <Home size={18} aria-hidden />
             {isHomeActive && (
               <span
-                className="absolute bottom-0 left-0 right-0 h-1 bg-[var(--accent-500)] rounded-t-[2px]"
+                className="absolute bottom-0 left-2 right-2 h-[3px] bg-[var(--accent-500)] rounded-t-[2px]"
                 aria-hidden
               />
             )}
@@ -92,21 +92,21 @@ export function MegaNav() {
           <Link
             href="/dashboard"
             className={clsx(
-              "flex items-center py-4 text-[15.2px] font-medium text-white/90 hover:text-white transition-opacity relative",
-              isDashboardActive && "text-white opacity-100 font-semibold"
+              "flex items-center gap-1.5 px-3 py-3.5 text-[14.5px] font-medium text-[var(--tx-head)] hover:text-[var(--brand-700)] hover:bg-[var(--bg-pill)]/60 rounded-lg transition-colors relative",
+              isDashboardActive && "font-bold text-[var(--brand-900)]"
             )}
           >
             <span>Dashboard</span>
             {/* Live pulsing dot (hidden in Demo mode per spec §8.3) */}
             {!isDemo && (
-              <span className="relative flex h-2 w-2 ml-2">
+              <span className="relative flex h-2 w-2 ml-1">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--live)] opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--live)]" />
               </span>
             )}
             {isDashboardActive && (
               <span
-                className="absolute bottom-0 left-0 right-0 h-1 bg-[var(--accent-500)] rounded-t-[2px]"
+                className="absolute bottom-0 left-3 right-3 h-[3px] bg-[var(--accent-500)] rounded-t-[2px]"
                 aria-hidden
               />
             )}
@@ -125,15 +125,15 @@ export function MegaNav() {
               onClick={() => setAdminMenuOpen((prev) => !prev)}
               aria-expanded={adminMenuOpen}
               className={clsx(
-                "flex items-center gap-1.5 py-4 text-[15.2px] font-medium text-white/90 hover:text-white transition-opacity relative",
-                isAdminActive && "text-white opacity-100 font-semibold"
+                "flex items-center gap-1.5 px-3 py-3.5 text-[14.5px] font-medium text-[var(--tx-head)] hover:text-[var(--brand-700)] hover:bg-[var(--bg-pill)]/60 rounded-lg transition-colors relative",
+                isAdminActive && "font-bold text-[var(--brand-900)]"
               )}
             >
               <span>Administration</span>
-              <ChevronDown size={14} aria-hidden />
+              <ChevronDown size={14} className="text-[var(--tx-quiet)]" aria-hidden />
               {isAdminActive && (
                 <span
-                  className="absolute bottom-0 left-0 right-0 h-1 bg-[var(--accent-500)] rounded-t-[2px]"
+                  className="absolute bottom-0 left-3 right-3 h-[3px] bg-[var(--accent-500)] rounded-t-[2px]"
                   aria-hidden
                 />
               )}
@@ -181,14 +181,14 @@ export function MegaNav() {
           <Link
             href="/about"
             className={clsx(
-              "flex items-center py-4 text-[15.2px] font-medium text-white/90 hover:text-white transition-opacity relative",
-              isAboutActive && "text-white opacity-100 font-semibold"
+              "flex items-center px-3 py-3.5 text-[14.5px] font-medium text-[var(--tx-head)] hover:text-[var(--brand-700)] hover:bg-[var(--bg-pill)]/60 rounded-lg transition-colors relative",
+              isAboutActive && "font-bold text-[var(--brand-900)]"
             )}
           >
             <span>About</span>
             {isAboutActive && (
               <span
-                className="absolute bottom-0 left-0 right-0 h-1 bg-[var(--accent-500)] rounded-t-[2px]"
+                className="absolute bottom-0 left-3 right-3 h-[3px] bg-[var(--accent-500)] rounded-t-[2px]"
                 aria-hidden
               />
             )}
@@ -197,7 +197,7 @@ export function MegaNav() {
       </ul>
 
       {/* Right End: Bell + User Menu */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 py-2">
         {/* Quick Alert Bell */}
         <AlertBell />
 
@@ -211,23 +211,26 @@ export function MegaNav() {
             type="button"
             onClick={() => setUserMenuOpen((prev) => !prev)}
             aria-expanded={userMenuOpen}
-            className="flex items-center gap-2 py-1 px-1.5 rounded-full hover:bg-white/10 transition-colors"
+            className="flex items-center gap-2.5 py-1 px-3 rounded-full bg-[var(--bg-card)] border border-[var(--bd)] text-[var(--tx-head)] hover:bg-[var(--bg-subtle)] hover:border-[var(--bd-strong)] transition-all shadow-sm"
           >
-            <div className="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.15)] border border-[rgba(255,255,255,0.25)] flex items-center justify-center font-bold text-[12px] text-white">
+            <div className="w-7 h-7 rounded-full bg-[var(--brand-100)] border border-[var(--brand-200)] flex items-center justify-center font-bold text-[11.5px] text-[var(--brand-800)] flex-shrink-0">
               {userInitials}
             </div>
-            {me?.role && <RoleChip role={me.role as Role} className="hidden sm:inline-flex" />}
-            <ChevronDown size={14} className="text-white/80" aria-hidden />
+            <div className="flex items-center gap-1 text-[13px] font-semibold text-[var(--tx-head)]">
+              <ShieldCheck size={14} className="text-[var(--brand-600)]" aria-hidden />
+              <span>{me?.role === "admin" ? "Admin" : me?.role === "operator" ? "Operator" : "Viewer"}</span>
+            </div>
+            <ChevronDown size={13} className="text-[var(--tx-quiet)] flex-shrink-0" aria-hidden />
           </button>
 
           {userMenuOpen && (
             <div
               role="menu"
-              className="absolute right-0 top-full mt-1 min-w-[220px] bg-[var(--bg-card)] text-[var(--tx-main)] rounded-[12px] p-3 shadow-[var(--sh-shell)] border border-[var(--bd)] border-t-[3px] border-t-[var(--accent-500)] z-[var(--z-dropdown)] animate-in fade-in duration-150"
+              className="absolute right-0 top-full mt-1.5 min-w-[220px] bg-[var(--bg-card)] text-[var(--tx-main)] rounded-[12px] p-3 shadow-[var(--sh-shell)] border border-[var(--bd)] border-t-[3px] border-t-[var(--accent-500)] z-[var(--z-dropdown)] animate-in fade-in duration-150"
             >
               <div className="pb-2.5 mb-2 border-b border-[var(--bd)]">
                 <p className="font-bold text-[14px] text-[var(--tx-head)] m-0 truncate">
-                  {me?.name || "OHTMS User"}
+                  {me?.name || "MAMS User"}
                 </p>
                 <div className="mt-1">
                   {me?.role && <RoleChip role={me.role as Role} />}

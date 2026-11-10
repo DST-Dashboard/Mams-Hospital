@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { HospitalMark, OhtmsMark } from "@/components/ui/Logos";
+import Image from "next/image";
 import { LoginForm } from "@/features/auth/LoginForm";
 
 export const metadata: Metadata = {
-  title: "Sign in",
+  title: "Sign in · MAMS Hospital",
 };
 
 export default function LoginPage() {
@@ -25,10 +25,17 @@ export default function LoginPage() {
           {/* Header branding */}
           <div className="flex flex-col items-center text-center mb-8">
             <div className="mb-4">
-              <HospitalMark size={64} />
+              <Image
+                src="/assets/mams-logo.png"
+                alt="MAMS Hospital"
+                width={64}
+                height={64}
+                priority
+                className="rounded-2xl object-contain"
+              />
             </div>
             <h1 className="font-display font-black text-[24px] text-[var(--tx-head)] m-0">
-              MAMS Hospital OHTMS
+              MAMS Hospital
             </h1>
             <p className="text-[14px] text-[var(--tx-muted)] mt-1.5 m-0">
               Sign in to monitor rooftop water tanks in real time
@@ -38,10 +45,6 @@ export default function LoginPage() {
           <Suspense fallback={<div className="h-48 skeleton" />}>
             <LoginForm />
           </Suspense>
-
-          <div className="mt-8 pt-6 border-t border-[var(--bd-soft)] flex items-center justify-center">
-            <OhtmsMark size={32} wordmark={true} />
-          </div>
         </div>
       </div>
     </main>

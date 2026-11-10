@@ -19,11 +19,13 @@ export function DeleteNodeDialog({ open, tank, onClose, onSuccess }: DeleteNodeD
 
   if (!tank) return null;
 
+  const cleanLabel = tank.label.trim().replace(/\s+/g, " ");
+
   const handleConfirm = async () => {
     try {
       setBusy(true);
       await del(`/api/tanks/${tank.id}`);
-      toast.success(`${tank.label} moved to deleted nodes archive.`);
+      toast.success(`${cleanLabel} moved to deleted nodes archive.`);
       onSuccess();
       onClose();
     } catch {
@@ -37,15 +39,15 @@ export function DeleteNodeDialog({ open, tank, onClose, onSuccess }: DeleteNodeD
     <ConfirmDialog
       open={open}
       onClose={onClose}
-      title={`Delete Node ${tank.label} (Modal M4)`}
-      requireText={tank.label}
+      title={`Delete Node ${cleanLabel}`}
+      requireText={cleanLabel}
       confirmLabel="Delete node"
       danger={true}
       busy={busy}
       onConfirm={handleConfirm}
       body={
         <p style={{ margin: 0, color: "var(--tx-body)", fontSize: "14px" }}>
-          This hides <strong>{tank.label}</strong> from the dashboard. History is kept for 90 days and you can restore it until then.
+          This hides <strong>{cleanLabel}</strong> from the dashboard. History is kept for 90 days and you can restore it until then.
         </p>
       }
     />

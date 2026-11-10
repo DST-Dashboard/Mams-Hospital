@@ -28,6 +28,7 @@ export function ConsumptionRanking() {
 
     return {
       ...base,
+      title: { show: false }, // In-chart title hidden; card heading is visible
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "shadow" },
@@ -39,9 +40,10 @@ export function ConsumptionRanking() {
       legend: {
         data: tanks.map((t) => t.label),
         textStyle: { color: cssVar("--tx-chart"), fontSize: 11 },
-        top: 0,
+        top: 10,
+        left: 16,
       },
-      grid: { left: 50, right: 20, top: 35, bottom: 25 },
+      grid: { left: 64, right: 24, top: 52, bottom: 35, containLabel: true },
       xAxis: {
         type: "category",
         data: days,
@@ -51,6 +53,8 @@ export function ConsumptionRanking() {
       yAxis: {
         type: "value",
         name: "Litres (L)",
+        nameLocation: "middle",
+        nameGap: 56,
         axisLine: { lineStyle: { color: "#becfd6" } },
         splitLine: { lineStyle: { color: "#e8eff2" } },
         axisLabel: { color: cssVar("--tx-chart"), fontSize: 10 },
@@ -91,8 +95,12 @@ export function ConsumptionRanking() {
     addEvents(t2Analytics, 1);
     addEvents(t4Analytics, 3);
 
+    // Add 4-hour padding to min/max on x-axis so bubbles never overrun y-axis category labels
+    const padMs = 4 * 3600 * 1000;
+
     return {
       ...base,
+      title: { show: false }, // In-chart title hidden; card heading is visible
       tooltip: {
         formatter: (params: unknown) => {
           const p = params as { data: [number, number, number, string, number] };
@@ -100,11 +108,11 @@ export function ConsumptionRanking() {
           return `<strong>${kind === "fill" ? "Pump Fill" : "Tank Drain"}</strong><br/>Delta: ${Math.abs(deltaCm)} cm<br/>Volume: ${litres.toLocaleString()} L`;
         },
       },
-      grid: { left: 60, right: 30, top: 20, bottom: 30 },
+      grid: { left: 76, right: 32, top: 44, bottom: 40, containLabel: true },
       xAxis: {
         type: "time",
-        min: weekWin.from,
-        max: weekWin.to,
+        min: weekWin.from - padMs,
+        max: weekWin.to + padMs,
         axisLine: { lineStyle: { color: "#becfd6" } },
         splitLine: { lineStyle: { color: "#e8eff2" } },
       },
@@ -121,10 +129,11 @@ export function ConsumptionRanking() {
           data: allEvents.map((e) => [e.t, e.tankIndex, e.deltaCm, e.kind, e.litres]),
           symbolSize: (data: unknown) => {
             const arr = data as [number, number, number];
-            const size = Math.min(Math.max(Math.abs(arr[2]) / 2, 8), 30);
+            const size = Math.min(Math.max(Math.abs(arr[2]) / 2.5, 7), 20);
             return size;
           },
           itemStyle: {
+            opacity: 0.85,
             color: (params: unknown) => {
               const p = params as { data: [number, number, number, string] };
               return p.data[3] === "fill" ? cssVar("--data-600") : cssVar("--warn-tx");

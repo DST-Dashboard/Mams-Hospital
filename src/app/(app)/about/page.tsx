@@ -1,7 +1,7 @@
 import { AboutView } from "@/features/about/AboutView";
 
 export const metadata = {
-  title: "About · MAMS Hospital OHTMS",
+  title: "About · MAMS Hospital",
   description: "Architecture, physical telemetry methodology, and technical glossary.",
 };
 

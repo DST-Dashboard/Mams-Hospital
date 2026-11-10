@@ -112,29 +112,26 @@ export function baseOption(title = ""): EChartsCoreOption {
       fontSize: 11,
     },
     title: {
+      show: false, // In-chart title hidden; cards have visible semantic HTML headings
       text: title,
-      left: "4%",
-      textStyle: {
-        fontSize: 12,
-        fontWeight: 600,
-        color: cssVar("--tx-chart", "#294654"),
-        fontFamily: "Merriweather, serif",
-      },
     },
     grid: {
-      left: 54,
-      right: 30,
-      top: 44,
-      bottom: 50,
+      left: 56,
+      right: 32,
+      top: 52,
+      bottom: 56,
       containLabel: true,
     },
     legend: {
-      top: 8,
-      left: 0,
+      top: 12,
+      left: 16,
+      right: 120, // Leave room for toolbox icons on the right
+      type: "scroll",
       orient: "horizontal",
       itemWidth: 14,
+      itemHeight: 10,
       textStyle: {
-        fontSize: 10,
+        fontSize: 11,
         color: cssVar("--tx-chart", "#294654"),
       },
     },
@@ -150,17 +147,17 @@ export function baseOption(title = ""): EChartsCoreOption {
       extraCssText: "border-radius:12px;box-shadow:var(--sh-shell);",
     },
     toolbox: {
-      right: 8,
-      top: 4,
-      itemSize: 14,
+      right: 16,
+      top: 10,
+      itemSize: 15,
       iconStyle: {
         borderColor: cssVar("--tx-quiet", "#627985"),
-        opacity: 0.6,
+        opacity: 0.7,
       },
       feature: {
         dataZoom: { yAxisIndex: "none" },
         restore: {},
-        saveAsImage: { pixelRatio: 2, name: "ohtms-figure" },
+        saveAsImage: { pixelRatio: 2, name: "mams-figure" },
       },
     },
     xAxis: {
@@ -169,6 +166,8 @@ export function baseOption(title = ""): EChartsCoreOption {
     },
     yAxis: {
       type: "value",
+      nameLocation: "middle",
+      nameGap: 56,
       ...axisTheme(),
     },
   };
@@ -197,6 +196,8 @@ export function thresholdMarkLines(th: {
         label: {
           formatter: `Warning ${th.warnPct} %`,
           position: "insideEndTop",
+          distance: 6,
+          padding: [0, 4],
           fontSize: 10,
           color: cssVar("--warn-tx", "#795314"),
         },
@@ -212,6 +213,8 @@ export function thresholdMarkLines(th: {
         label: {
           formatter: `Critical ${th.critPct} %`,
           position: "insideEndTop",
+          distance: 6,
+          padding: [0, 4],
           fontSize: 10,
           color: cssVar("--err-tx", "#933629"),
         },
@@ -227,6 +230,8 @@ export function thresholdMarkLines(th: {
         label: {
           formatter: `Emergency ${th.emptyPct} %`,
           position: "insideEndTop",
+          distance: 6,
+          padding: [0, 4],
           fontSize: 10,
           color: cssVar("--emg-bg", "#933629"),
         },

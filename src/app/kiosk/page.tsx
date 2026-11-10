@@ -119,7 +119,7 @@ export default function KioskPage() {
 
       {/* Kiosk Footer */}
       <footer className="pt-6 mt-6 border-t border-[var(--bd)] flex items-center justify-between text-[11px] text-[var(--tx-quiet)]">
-        <span>MAMS Hospital Overhead Tank Management System (OHTMS)</span>
+        <span>MAMS Hospital Overhead Tank Management System</span>
         <span>Snapshot as of {stamp(asOf, tz)} · Press ESC or click exit to return</span>
       </footer>
     </div>

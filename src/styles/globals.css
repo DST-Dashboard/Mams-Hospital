@@ -40,10 +40,36 @@
     min-height: 100dvh;
   }
 
-  /* Accessible focus indicators */
+  /* Global anchor reset (Issue 3): inherit text color, no default underline */
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: none;
+  }
+
+  /* Global button reset (Issue 2): remove native browser button box and borders */
+  button {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-align: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* Accessible focus indicators: only on keyboard focus */
+  :focus {
+    outline: none;
+  }
   :focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 3px;
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
 
   /* Selection style */

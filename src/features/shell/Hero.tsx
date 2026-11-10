@@ -29,7 +29,7 @@ export function Hero() {
   }, []);
 
   return (
-    <section className="hero relative min-h-[340px] flex items-center overflow-hidden bg-[var(--brand-950)] text-white select-none">
+    <section className="hero relative min-h-[388px] flex items-center overflow-hidden bg-[var(--brand-950)] text-white select-none">
       {/* Layer 1 & 2: Background Gradients */}
       <div
         className="absolute inset-0 pointer-events-none"
@@ -56,8 +56,8 @@ export function Hero() {
         ))}
       </div>
 
-      {/* Layer 4: Content Wrapper */}
-      <div className="relative z-10 max-w-[1600px] w-full mx-auto px-6 md:px-10 py-10 md:py-14 flex items-center justify-between flex-wrap gap-8">
+      {/* Layer 4: Content Wrapper (extended bottom padding per Issue 7) */}
+      <div className="relative z-10 max-w-[1600px] w-full mx-auto px-6 md:px-10 pt-10 pb-20 md:pt-14 md:pb-24 flex items-center justify-between flex-wrap gap-8">
         {/* Left: Text Block */}
         <div className="max-w-[700px] reveal-up">
           <div className="inline-block bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.30)] px-3 py-1 rounded-full backdrop-blur-sm text-[12px] font-bold tracking-[1px] uppercase mb-3.5">

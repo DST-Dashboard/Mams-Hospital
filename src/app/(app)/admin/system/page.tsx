@@ -25,7 +25,7 @@ export default function SystemAdminPage() {
   const asOf = dashboard?.asOf ?? Date.now();
 
   const sys = status ?? {
-    version: "v1.2.0-ohtms",
+    version: "v1.2.0",
     clockMode: "anchored" as const,
     asOf,
     uptimeS: 345600,

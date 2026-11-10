@@ -40,10 +40,19 @@ export function trapFocus(container: HTMLElement | null): () => void {
     );
 
   const focusables = getFocusable();
-  if (focusables.length > 0) {
-    focusables[0]?.focus();
-  } else {
-    container.focus();
+  // Only shift focus if the current active element is outside the container
+  if (!container.contains(document.activeElement)) {
+    // Prefer focusing an input, textarea or autofocus element before the close button
+    const preferred =
+      focusables.find(
+        (el) => el.hasAttribute("autofocus") || el.tagName === "INPUT" || el.tagName === "TEXTAREA"
+      ) || focusables[0];
+
+    if (preferred) {
+      preferred.focus();
+    } else {
+      container.focus();
+    }
   }
 
   const handleKeyDown = (e: KeyboardEvent) => {

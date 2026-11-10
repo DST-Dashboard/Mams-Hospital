@@ -149,7 +149,7 @@ export function AuditTable() {
             columns={columns}
             rows={filtered}
             rowKey={(r: AuditEntryDTO) => r.id}
-            caption="OHTMS regulatory audit log"
+            caption="Regulatory audit log"
           />
         )}
       </Card>

@@ -80,13 +80,13 @@ export function Shell({ children }: ShellProps) {
       {/* Top Utility Strip (NOT sticky per spec §7.1) */}
       <UtilityStrip />
 
-      {/* Sticky Chrome Stack: Glass Header + Mega Nav (~158px = --chrome-h) */}
-      <div ref={chromeGroupRef} className="sticky-chrome-group sticky top-0 z-[var(--z-header)]">
+      {/* Chrome Stack: Glass Header + Mega Nav (static in normal flow, scrolls away with content) */}
+      <div ref={chromeGroupRef} className="sticky-chrome-group chrome-group w-full">
         <GlassHeader />
         <MegaNav />
       </div>
 
-      {/* Alert Banner (Sticky at top: var(--chrome-h), z 999) */}
+      {/* Alert Banner (Static in normal flow, scrolls away with content) */}
       <GlobalAlertBanner />
 
       {/* M1 First Load Gate (Prompts admins for unconfirmed tank dimensions) */}

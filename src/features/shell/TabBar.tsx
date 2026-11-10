@@ -12,7 +12,6 @@ import {
   Shield,
   Sliders,
 } from "lucide-react";
-import { OhtmsMark } from "@/components/ui/Logos";
 import { useAlerts, useMe } from "@/lib/hooks";
 import { useUi } from "@/lib/store";
 
@@ -86,12 +85,7 @@ export function TabBar() {
   });
 
   return (
-    <div className="tab-bar w-full bg-[var(--bg-card)] px-6 py-3 border-b border-[var(--bd-rail)] flex items-center justify-between flex-wrap gap-4 z-20">
-      {/* Brand Logo */}
-      <div className="hidden md:block flex-shrink-0">
-        <OhtmsMark size={38} wordmark={true} />
-      </div>
-
+    <div className="tab-bar w-full bg-[var(--bg-card)] px-6 py-3 border-b border-[var(--bd-rail)] flex items-center justify-start flex-wrap gap-4 z-20">
       {/* Numbered Pill Tabs */}
       <div role="tablist" aria-label="Main views" className="flex items-center flex-wrap gap-2">
         {allowedTabs.map((tab) => {

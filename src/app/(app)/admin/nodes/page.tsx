@@ -1,7 +1,7 @@
 import { NodesAdminView } from "@/features/nodes-admin/NodesAdminView";
 
 export const metadata = {
-  title: "Nodes Administration · MAMS Hospital OHTMS",
+  title: "Nodes Administration · MAMS Hospital",
   description: "Hardware node provisioning, LoRaWAN Device EUI calibration and telemetry status.",
 };
 

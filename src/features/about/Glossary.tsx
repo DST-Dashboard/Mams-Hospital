@@ -87,7 +87,7 @@ export function Glossary() {
     <Card
       id="glossary"
       eyebrow={{ icon: ICON.glossary, text: "TERMINOLOGY & STANDARDS" }}
-      title="OHTMS Technical Glossary (19 Standard Terms)"
+      title="Technical Glossary (19 Standard Terms)"
     >
       <div
         style={{

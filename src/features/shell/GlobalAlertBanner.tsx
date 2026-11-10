@@ -56,14 +56,14 @@ export function GlobalAlertBanner({ className }: { className?: string }) {
       role="status"
       aria-live={isEmergency ? "assertive" : "polite"}
       className={clsx(
-        "alert-banner sticky top-[var(--chrome-h)] z-[var(--z-banner)] border-b text-[13.6px] font-semibold min-h-[44px] flex items-center transition-colors duration-300",
+        "alert-banner border-b text-[13.6px] font-semibold min-h-[44px] flex items-center transition-colors duration-300 w-full overflow-hidden",
         rowBg,
         className
       )}
     >
-      <div className="flex items-center flex-wrap w-full">
+      <div className="flex items-center flex-wrap w-full max-w-full">
         {/* Left Badge */}
-        <div className="bg-[var(--accent-500)] text-white font-bold py-2.5 px-5 whitespace-nowrap z-10 flex items-center gap-2">
+        <div className="bg-[var(--accent-500)] text-white font-bold py-2.5 px-5 whitespace-nowrap flex items-center gap-2 flex-shrink-0">
           {isEmergency ? (
             <AlertOctagon size={16} className="animate-spin" aria-hidden />
           ) : hasAlerts ? (
@@ -75,19 +75,19 @@ export function GlobalAlertBanner({ className }: { className?: string }) {
         </div>
 
         {/* Middle Track */}
-        <div className="flex-1 flex items-center flex-wrap gap-2 px-4 py-1.5 min-w-0">
+        <div className="flex-1 flex items-center flex-wrap gap-2 px-4 py-1.5 min-w-0 max-w-full">
           {/* Unconfirmed Dimensions Notice (O4-3: suppresses green all-clear) */}
           {unconfirmedCount > 0 && (
-            <span className="chip chip--info">
-              <Info size={12} aria-hidden />
-              <span>Dimensions not confirmed: alerts paused</span>
+            <span className="chip chip--info max-w-full">
+              <Info size={12} className="shrink-0" aria-hidden />
+              <span className="truncate">Dimensions not confirmed: alerts paused</span>
             </span>
           )}
 
           {/* Maintenance tanks notice */}
           {maintenanceTanks.map((tank) => (
-            <span key={tank.id} className="chip chip--neutral">
-              <span>{tank.label} in maintenance — alerts suppressed</span>
+            <span key={tank.id} className="chip chip--neutral max-w-full">
+              <span className="truncate">{tank.label} in maintenance — alerts suppressed</span>
             </span>
           ))}
 
@@ -98,11 +98,13 @@ export function GlobalAlertBanner({ className }: { className?: string }) {
               <Link
                 key={alert.id}
                 href={`/alerts/${alert.id}`}
-                className="hover:opacity-90 transition-opacity"
+                className="hover:opacity-85 transition-opacity no-underline text-inherit max-w-full"
               >
-                <span className="chip shadow-sm">
+                <span className="chip shadow-sm max-w-full">
                   <SeverityChip severity={sev} />
-                  <span className="ml-1 font-semibold">{alert.message}</span>
+                  <span className="ml-1.5 font-semibold text-[var(--tx-main)] truncate max-w-[200px] sm:max-w-none">
+                    {alert.message}
+                  </span>
                 </span>
               </Link>
             );
@@ -110,25 +112,25 @@ export function GlobalAlertBanner({ className }: { className?: string }) {
 
           {/* More chips indicator */}
           {remainingCount > 0 && (
-            <Link href="/alerts" className="chip chip--neutral hover:bg-white/40">
+            <Link href="/alerts" className="chip chip--neutral hover:bg-white/40 no-underline text-inherit shrink-0">
               +{remainingCount} more
             </Link>
           )}
 
           {/* All clear state - only when 0 alerts AND 0 unconfirmed */}
           {!hasAlerts && unconfirmedCount === 0 && (
-            <div className="flex items-center gap-2 text-[var(--ok-tx)] font-semibold">
-              <CheckCircle2 size={16} aria-hidden />
-              <span>All {totalTanks} tanks within thresholds. No active alerts.</span>
+            <div className="flex items-center gap-2 text-[var(--ok-tx)] font-semibold truncate">
+              <CheckCircle2 size={16} className="shrink-0" aria-hidden />
+              <span className="truncate">All {totalTanks} tanks within thresholds. No active alerts.</span>
             </div>
           )}
         </div>
 
         {/* Right Action */}
-        <div className="px-5 py-1 ml-auto whitespace-nowrap">
+        <div className="px-5 py-1 ml-auto whitespace-nowrap shrink-0">
           <Link
             href="/alerts"
-            className="text-[var(--brand-500)] font-bold text-[13px] hover:underline"
+            className="text-[var(--accent-500)] font-bold text-[13px] hover:underline"
           >
             View all alerts →
           </Link>

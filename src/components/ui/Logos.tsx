@@ -1,32 +1,16 @@
 import React from "react";
+import Image from "next/image";
 
 export function HospitalMark({ size = 75 }: { size?: number }) {
-  const r = (size * 16) / 75; // proportional radius
   return (
-    <svg
+    <Image
+      src="/assets/mams-logo.png"
+      alt="MAMS Hospital"
       width={size}
       height={size}
-      viewBox="0 0 75 75"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      role="img"
-      aria-label="MAMS Hospital Mark"
-      style={{ filter: "drop-shadow(0 4px 6px rgba(0,0,0,0.1))" }}
-    >
-      <defs>
-        <linearGradient id="hospOceanGrad" x1="0" y1="0" x2="75" y2="75" gradientUnits="userSpaceOnUse">
-          <stop stopColor="var(--brand-950, #001f3f)" />
-          <stop offset="0.5" stopColor="var(--brand-700, #004d80)" />
-          <stop offset="1" stopColor="var(--brand-500, #0073bc)" />
-        </linearGradient>
-      </defs>
-      <rect width="75" height="75" rx={r} fill="url(#hospOceanGrad)" />
-      {/* Centered White Medical Cross */}
-      <path
-        d="M32 18H43V32H57V43H43V57H32V43H18V32H32V18Z"
-        fill="#ffffff"
-      />
-    </svg>
+      priority
+      className="rounded-2xl object-contain"
+    />
   );
 }
 

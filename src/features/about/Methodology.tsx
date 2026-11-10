@@ -14,7 +14,7 @@ export function Methodology() {
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)", fontSize: "14px", lineHeight: 1.7, color: "var(--tx-body)" }}>
           <p style={{ margin: 0 }}>
-            OHTMS operates on strict data honesty principles. Hospital water infrastructure is critical: false certainty can cause water stockouts during surgical procedures, while false alarms create alert fatigue.
+            This monitoring platform operates on strict data honesty principles. Hospital water infrastructure is critical: false certainty can cause water stockouts during surgical procedures, while false alarms create alert fatigue.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-6)", marginTop: "var(--sp-2)" }}>

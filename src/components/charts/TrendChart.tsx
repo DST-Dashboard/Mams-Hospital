@@ -113,7 +113,7 @@ export function TrendChart({
         });
       }
     }
-    downloadCsv(`water-level-trend-${Date.now()}`, rows, [
+    downloadCsv(`mams-water-level-trend-${Date.now()}`, rows, [
       "tankId",
       "tankLabel",
       "simulated",
@@ -142,6 +142,8 @@ export function TrendChart({
       min: 0,
       max: 100,
       name: "Fill %",
+      nameLocation: "middle",
+      nameGap: 56,
       axisLabel: {
         ...((opt.yAxis as Record<string, unknown>)?.axisLabel as Record<string, unknown> | undefined),
         formatter: "{value}%",

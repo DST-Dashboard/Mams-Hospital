@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { HospitalMark, OhtmsMark } from "@/components/ui/Logos";
+import Image from "next/image";
 import { ResetForm } from "@/features/auth/ResetForm";
 
 export const metadata: Metadata = {
-  title: "Set New Password · MAMS Hospital OHTMS",
+  title: "Set New Password · MAMS Hospital",
 };
 
 export default function ResetPasswordPage() {
@@ -31,7 +31,14 @@ export default function ResetPasswordPage() {
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: "var(--sp-6)" }}>
-            <HospitalMark size={56} />
+            <Image
+              src="/assets/mams-logo.png"
+              alt="MAMS Hospital"
+              width={56}
+              height={56}
+              priority
+              className="rounded-xl object-contain"
+            />
             <h1 style={{ fontSize: "22px", fontWeight: 900, fontFamily: "var(--f-display)", color: "var(--tx-head)", marginTop: "var(--sp-3)", marginBottom: "4px" }}>
               Set New Password
             </h1>
@@ -43,10 +50,6 @@ export default function ResetPasswordPage() {
           <Suspense fallback={<div className="skeleton" style={{ height: "160px" }} />}>
             <ResetForm />
           </Suspense>
-
-          <div style={{ marginTop: "var(--sp-6)", paddingTop: "var(--sp-4)", borderTop: "1px solid var(--bd-soft)", display: "flex", justifyContent: "center" }}>
-            <OhtmsMark size={28} wordmark={true} />
-          </div>
         </div>
       </div>
     </main>

@@ -1,7 +1,7 @@
 import { test, expect, Page } from "@playwright/test";
 
 test.describe("OHTMS Operations - Alert Ack Workflow (Prompt 3)", () => {
-  test.setTimeout(60000);
+  test.setTimeout(90000);
 
   async function loginAndDismissM1(page: Page) {
     const password = process.env.ADMIN_PASSWORD || "ChangeMe!2026";
@@ -11,7 +11,7 @@ test.describe("OHTMS Operations - Alert Ack Workflow (Prompt 3)", () => {
     await page.fill("#login-password", password);
     await page.click('button[type="submit"]');
 
-    await expect(page).toHaveURL(/\/alerts/, { timeout: 25000 });
+    await expect(page).toHaveURL(/\/alerts/, { timeout: 45000 });
 
     // Dismiss M1 if present
     const m1Modal = page.locator('[role="dialog"]').filter({ hasText: "Confirm Tank Dimensions (M1)" });

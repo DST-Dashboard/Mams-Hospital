@@ -9,7 +9,7 @@ export function SystemDiagram() {
         xmlns="http://www.w3.org/2000/svg"
         style={{ width: "100%", height: "auto", display: "block" }}
         role="img"
-        aria-label="Physical to Cloud Architecture Diagram: Rooftop ultrasonic sensor transmitting via LoRaWAN to SenseCap gateway, forwarded to The Things Stack and ingested into OHTMS within 1 to 2 seconds."
+        aria-label="Physical to Cloud Architecture Diagram: Rooftop ultrasonic sensor transmitting via LoRaWAN to SenseCap gateway, forwarded to The Things Stack and ingested into the monitoring system within 1 to 2 seconds."
       >
         <defs>
           <linearGradient id="boxGrad" x1="0" y1="0" x2="1" y2="1">
@@ -91,7 +91,7 @@ export function SystemDiagram() {
           <rect width="180" height="130" rx="12" fill="var(--brand-950)" stroke="var(--brand-600)" strokeWidth="2" filter="url(#shadow)" />
           <circle cx="90" cy="40" r="18" fill="var(--brand-700)" stroke="var(--live)" strokeWidth="2" />
           <text x="90" y="44" textAnchor="middle" fontSize="11" fontWeight="800" fill="#ffffff">5</text>
-          <text x="90" y="80" textAnchor="middle" fontSize="14" fontWeight="900" fill="#ffffff">OHTMS Server</text>
+          <text x="90" y="80" textAnchor="middle" fontSize="14" fontWeight="900" fill="#ffffff">MAMS Server</text>
           <text x="90" y="100" textAnchor="middle" fontSize="10" fill="#becfd6">Next.js 15 App Router</text>
           <text x="90" y="115" textAnchor="middle" fontSize="9" fill="var(--live)">Real-time Webhook</text>
           <text x="90" y="145" textAnchor="middle" fontSize="10" fontWeight="700" fill="#ffffff">Hospital Dashboard</text>

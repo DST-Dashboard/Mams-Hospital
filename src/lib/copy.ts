@@ -6,17 +6,17 @@ export const BRAND = {
   hospital: "MAMS Hospital",
   system: "Overhead Tank Management System",
   tagline: "Real-time rooftop water monitoring",
-  short: "OHTMS",
+  short: "",
   gateway: "SenseCap gateway",
 };
 
 export const HERO_COPY = {
   badgeLive: "LIVE WATER MONITORING",
   badgeDemo: "DEMONSTRATION MODE",
-  headline: "MAMS Hospital OHTMS",
+  headline: "MAMS Hospital",
   subheadline: "Know every tank's level before a tap runs dry.",
   description:
-    "Ultrasonic sensors on each rooftop tank report over LoRaWAN about every 5 minutes. OHTMS turns each distance into level, litres and alerts within 1–2 seconds.",
+    "Ultrasonic sensors on each rooftop tank report over LoRaWAN about every 5 minutes. The monitoring system turns each distance into level, litres and alerts within 1–2 seconds.",
   viewTanks: "View tanks",
   howItWorks: "How it works",
   stats: [

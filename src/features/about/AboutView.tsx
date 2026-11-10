@@ -45,14 +45,14 @@ export function AboutView() {
               color: "var(--tx-muted)",
             }}
           >
-            OHTMS delivers continuous, sub-second visibility into rooftop water reserves across clinical wings, ensuring hospital taps never run dry during critical operations.
+            Continuous, sub-second visibility into rooftop water reserves across clinical wings, ensuring hospital taps never run dry during critical operations.
           </p>
         </div>
 
         {/* Section 1: The Analogy */}
         <div style={{ marginBottom: "var(--sp-8)" }}>
           <Card
-            eyebrow={{ icon: ICON.info, text: "WHAT OHTMS DOES" }}
+            eyebrow={{ icon: ICON.info, text: "WHAT THE SYSTEM DOES" }}
             title="The Five Glasses and a Ruler"
           >
             <div style={{ fontSize: "15px", lineHeight: 1.8, color: "var(--tx-body)" }}>

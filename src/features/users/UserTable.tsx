@@ -198,7 +198,7 @@ export function UserTable() {
             columns={columns}
             rows={userList}
             rowKey={(r: UserDTO) => r.id}
-            caption="OHTMS authorized users"
+            caption="Authorized user accounts"
           />
         )}
       </Card>
@@ -227,7 +227,7 @@ export function UserTable() {
           onConfirm={handleDelete}
           body={
             <p style={{ margin: 0, color: "var(--tx-body)", fontSize: "14px" }}>
-              Are you sure you want to delete <strong>{deletingUser.name}</strong> ({deletingUser.email})? They will lose access to OHTMS immediately.
+              Are you sure you want to delete <strong>{deletingUser.name}</strong> ({deletingUser.email})? They will lose access to the system immediately.
             </p>
           }
         />

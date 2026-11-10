@@ -193,7 +193,7 @@ export function UserForm({ open, user, adminCount, onClose, onSuccess }: UserFor
             disabled={isLastAdmin}
             onChange={setActive}
             label="Active Account"
-            hint="Disabled users cannot log into OHTMS."
+            hint="Disabled users cannot log into the system."
           />
         </div>
       </form>

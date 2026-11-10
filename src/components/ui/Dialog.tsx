@@ -33,6 +33,11 @@ export function Dialog({
   className,
 }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -41,13 +46,13 @@ export function Dialog({
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    // Focus trap
+    // Focus trap: run once on mount of open dialog
     const cleanupFocus = trapFocus(panelRef.current);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !mandatory) {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
       }
     };
 
@@ -58,7 +63,7 @@ export function Dialog({
       cleanupFocus();
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open, mandatory, onClose]);
+  }, [open, mandatory]);
 
   if (!open) return null;
 
@@ -68,7 +73,7 @@ export function Dialog({
       className="modal-overlay"
       onClick={(e) => {
         if (!mandatory && e.target === e.currentTarget) {
-          onClose();
+          onCloseRef.current();
         }
       }}
     >
@@ -100,9 +105,9 @@ export function Dialog({
           {!mandatory && (
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => onCloseRef.current()}
               aria-label="Close dialog"
-              className="btn btn-outline btn-icon rounded-full w-9 h-9 p-0 inline-flex items-center justify-center text-[var(--tx-label)] hover:text-[var(--tx-head)]"
+              className="btn btn-outline btn-icon rounded-full w-9 h-9 p-0 inline-flex items-center justify-center text-[var(--tx-label)] hover:text-[var(--tx-head)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
             >
               <X size={18} aria-hidden />
             </button>

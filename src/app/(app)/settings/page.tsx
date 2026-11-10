@@ -1,7 +1,7 @@
 import { SettingsView } from "@/features/settings/SettingsView";
 
 export const metadata = {
-  title: "Settings · MAMS Hospital OHTMS",
+  title: "Settings · MAMS Hospital",
   description: "Alert thresholds, physical tank calibration, and system preferences.",
 };
 

@@ -1,7 +1,7 @@
 import { AlertsView } from "@/features/alerts/AlertsView";
 
 export const metadata = {
-  title: "Alerts · MAMS Hospital OHTMS",
+  title: "Alerts · MAMS Hospital",
   description: "Real-time incident response log and threshold violation alerts.",
 };
 

@@ -47,7 +47,7 @@ export function DistanceChart({
       distanceCm: p.distanceCm !== null ? p.distanceCm : "",
       quality: p.quality || "good",
     }));
-    downloadCsv(`sensor-distance-${Date.now()}`, rows, [
+    downloadCsv(`mams-sensor-distance-${Date.now()}`, rows, [
       "timestampUtc",
       "timestampFormatted",
       "distanceCm",
@@ -71,7 +71,7 @@ export function DistanceChart({
       inverse: true, // Inverted Y-Axis per Spec §13.1
       name: "Distance to water (cm) — larger means less water",
       nameLocation: "middle",
-      nameGap: 38,
+      nameGap: 56,
       axisLabel: {
         ...((opt.yAxis as Record<string, unknown>)?.axisLabel as Record<string, unknown> | undefined),
         formatter: "{value} cm",
