@@ -47,17 +47,31 @@ export class SqliteCompat {
 
   prepare(sql: string) {
     const stmt = this.db.prepare(sql);
+    const cleanParams = (params: any[]) => {
+      if (params.length === 1 && typeof params[0] === "object" && params[0] !== null) {
+        if (Array.isArray(params[0])) {
+          return params[0].map((v) => (v === undefined ? null : v));
+        }
+        const obj: Record<string, any> = {};
+        for (const [k, v] of Object.entries(params[0])) {
+          obj[k] = v === undefined ? null : v;
+        }
+        return obj;
+      }
+      return params.map((v) => (v === undefined ? null : v));
+    };
+
     return {
       all: (...params: any[]) => {
-        const arg = params.length === 1 && typeof params[0] === "object" && params[0] !== null ? params[0] : params;
+        const arg = cleanParams(params);
         return Array.isArray(arg) ? stmt.all(...arg) : stmt.all(arg);
       },
       get: (...params: any[]) => {
-        const arg = params.length === 1 && typeof params[0] === "object" && params[0] !== null ? params[0] : params;
+        const arg = cleanParams(params);
         return Array.isArray(arg) ? stmt.get(...arg) : stmt.get(arg);
       },
       run: (...params: any[]) => {
-        const arg = params.length === 1 && typeof params[0] === "object" && params[0] !== null ? params[0] : params;
+        const arg = cleanParams(params);
         const res = Array.isArray(arg) ? stmt.run(...arg) : stmt.run(arg);
         return {
           changes: Number(res.changes),
