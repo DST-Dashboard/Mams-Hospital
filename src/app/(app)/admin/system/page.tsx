@@ -1,6 +1,5 @@
 "use client";
 
-import { PageFrame } from "@/features/shell/PageFrame";
 import { PageHeader, Card } from "@/components/ui/primitives";
 import { SecondaryTabs } from "@/components/ui/Tabs";
 import { SampleDataBadge } from "@/components/status/badges";
@@ -47,7 +46,7 @@ export default function SystemAdminPage() {
   };
 
   return (
-    <PageFrame tab="admin">
+    <>
       <PageHeader
         eyebrow={{ icon: ICON.gateway, text: "ADMINISTRATION" }}
         title="System Status & Telemetry Ingestion"
@@ -182,6 +181,6 @@ export default function SystemAdminPage() {
           )}
         </Card>
       </div>
-    </PageFrame>
+    </>
   );
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { PageFrame } from "@/features/shell/PageFrame";
 import { Card } from "@/components/ui/primitives";
 import { SystemDiagram } from "./SystemDiagram";
 import { Methodology } from "./Methodology";
@@ -9,8 +8,7 @@ import { ICON } from "@/components/ui/icons";
 
 export function AboutView() {
   return (
-    <PageFrame tab="admin">
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}>
+    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}>
         {/* Header Block */}
         <div style={{ textAlign: "center", marginBottom: "var(--sp-8)" }}>
           <div
@@ -158,7 +156,6 @@ export function AboutView() {
           <Glossary />
         </div>
       </div>
-    </PageFrame>
   );
 }
 

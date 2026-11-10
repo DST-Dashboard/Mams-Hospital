@@ -11,6 +11,74 @@ import { Skeleton, ErrorState } from "@/components/ui/primitives";
 import { downloadCsv } from "@/lib/csv";
 import type { HeatmapGrid } from "@/lib/heatmap";
 
+// Authoritative hospital threshold constants
+export const THRESHOLDS = {
+  emergency: 5,
+  critical: 20,
+  warning: 40,
+} as const;
+
+/**
+ * Single source of truth for fill level colour mapping.
+ * Below warning threshold: FILLED warm alert colours (no selective borders):
+ * - 0 - 5%: Deep red (#7A1F14 -> #B42318)
+ * - 5 - 20%: Critical (#B42318 -> #E4572E)
+ * - 20 - <40%: Warning amber (#E4572E -> #F2B13C)
+ * At and above 40%: Clean sequential blue ramp with wide dynamic range:
+ * - 40%: #D6E6F5 -> 55%: #A9CBE8 -> 70%: #6FA6D6 -> 85%: #2F6FAE -> 100%: #0F2F5C
+ */
+function interpolateHex(c1: string, c2: string, t: number): string {
+  const clampedT = Math.max(0, Math.min(1, t));
+  const r1 = parseInt(c1.slice(1, 3), 16);
+  const g1 = parseInt(c1.slice(3, 5), 16);
+  const b1 = parseInt(c1.slice(5, 7), 16);
+
+  const r2 = parseInt(c2.slice(1, 3), 16);
+  const g2 = parseInt(c2.slice(3, 5), 16);
+  const b2 = parseInt(c2.slice(5, 7), 16);
+
+  const r = Math.round(r1 + (r2 - r1) * clampedT);
+  const g = Math.round(g1 + (g2 - g1) * clampedT);
+  const b = Math.round(b1 + (b2 - b1) * clampedT);
+
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
+export function fillColor(v: number): string {
+  const val = Math.max(0, Math.min(100, v));
+
+  // Emergency zone: 0 - 5% (#7A1F14 to #B42318)
+  if (val <= THRESHOLDS.emergency) {
+    return interpolateHex("#7A1F14", "#B42318", val / THRESHOLDS.emergency);
+  }
+  // Critical zone: 5 - 20% (#B42318 to #E4572E)
+  if (val <= THRESHOLDS.critical) {
+    return interpolateHex("#B42318", "#E4572E", (val - THRESHOLDS.emergency) / (THRESHOLDS.critical - THRESHOLDS.emergency));
+  }
+  // Warning zone: 20 - <40% (#E4572E to #F2B13C amber)
+  if (val < THRESHOLDS.warning) {
+    return interpolateHex("#E4572E", "#F2B13C", (val - THRESHOLDS.critical) / (THRESHOLDS.warning - THRESHOLDS.critical));
+  }
+  // Crisp color break at 40%: Wide dynamic range sequential blue ramp
+  // 40% - 55% (#D6E6F5 to #A9CBE8)
+  if (val <= 55) {
+    return interpolateHex("#D6E6F5", "#A9CBE8", (val - 40) / 15);
+  }
+  // 55% - 70% (#A9CBE8 to #6FA6D6)
+  if (val <= 70) {
+    return interpolateHex("#A9CBE8", "#6FA6D6", (val - 55) / 15);
+  }
+  // 70% - 85% (#6FA6D6 to #2F6FAE)
+  if (val <= 85) {
+    return interpolateHex("#6FA6D6", "#2F6FAE", (val - 70) / 15);
+  }
+  // 85% - 100% (#2F6FAE to #0F2F5C)
+  return interpolateHex("#2F6FAE", "#0F2F5C", (val - 85) / 15);
+}
+
+// 101 sample stops (0% to 100%) for exact 1:1 color matching between cells and visualMap
+export const FILL_STOPS: string[] = Array.from({ length: 101 }, (_, i) => fillColor(i));
+
 export interface HeatmapProps {
   title?: string;
   eyebrow?: string;
@@ -75,7 +143,7 @@ export function Heatmap({
     opt.title = { show: false };
     opt.legend = { show: false };
 
-    // Format day labels: newest at top (ECharts category y-axis places index 0 at bottom and index N at top)
+    // Y-axis day names: newest at top (ECharts category y-axis places index 0 at bottom, index N at top)
     const dayNames = grid.days.map((d) => {
       const isCurrentActive = d.key === activeDayKey;
       const labelBase = d.label.replace(" (partial)", "");
@@ -85,18 +153,18 @@ export function Heatmap({
 
     const hours = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}:00`);
 
-    // Reserve clean margins: right margin accommodates slim colour bar
+    // Clean grid margins: right margin accommodates slim colour bar
     opt.grid = {
-      left: isNarrow ? 80 : 110,
-      right: isNarrow ? 24 : 76,
-      top: 32,
-      bottom: isNarrow ? 64 : 36,
+      left: isNarrow ? 76 : 100,
+      right: isNarrow ? 20 : 76,
+      top: 36,
+      bottom: isNarrow ? 60 : 36,
       containLabel: true,
     };
 
-    // Dedicated header row for toolbox icons
+    // Dedicated header row for toolbox icons at top right (never overlapping the color bar or plot)
     opt.toolbox = {
-      top: 6,
+      top: 4,
       right: 14,
       feature: {
         saveAsImage: {
@@ -122,7 +190,7 @@ export function Heatmap({
         fontSize: 10,
         interval: isNarrow ? 3 : 1, // Every 4h on mobile ("00:00", "04:00", ...), every 2h on desktop
         color: cssVar("--tx-quiet", "#64748b"),
-        fontFamily: "Inter, monospace",
+        fontFamily: "Inter, sans-serif",
       },
     };
 
@@ -136,28 +204,31 @@ export function Heatmap({
       axisLabel: {
         fontSize: 11,
         align: "right",
-        margin: 12,
+        margin: 10,
         rich: {
           day: {
             fontSize: 11,
             color: cssVar("--tx-main", "#475569"),
             fontWeight: 500,
+            fontFamily: "Inter, sans-serif",
           },
           bold: {
             fontSize: 11,
             fontWeight: 800,
             color: cssVar("--brand-900", "#002b4d"),
+            fontFamily: "Inter, sans-serif",
           },
           partial: {
             fontSize: 9.5,
             color: cssVar("--tx-quiet", "#94a3b8"),
             fontStyle: "italic",
+            fontFamily: "Inter, sans-serif",
           },
         },
       },
     };
 
-    // Continuous sequential single-hue brand blue scale: #EEF4FA (0%) -> #12365F (100%)
+    // Continuous visualMap using FILL_STOPS (101 colors)
     opt.visualMap = {
       type: "continuous",
       min: 0,
@@ -178,45 +249,20 @@ export function Heatmap({
             itemWidth: 11,
           }),
       inRange: {
-        color: [
-          "#EEF4FA", // 0%
-          "#C6DBEF", // ~16%
-          "#9ECAE1", // ~33%
-          "#6BAED6", // ~50%
-          "#3182BD", // ~66%
-          "#1F5C99", // ~83%
-          "#12365F", // 100%
-        ],
+        color: FILL_STOPS,
       },
       text: ["100%", "0%"],
       textStyle: {
         fontSize: 9.5,
         color: cssVar("--tx-quiet", "#64748b"),
-        fontFamily: "Inter, monospace",
+        fontFamily: "Inter, sans-serif",
       },
     };
 
-    // Cell data with subtle threshold borders and uniform hatched no-data styling
+    // Uniform cell gap: every cell has the EXACT SAME 1px gap matching card background.
+    // Zero per-cell conditional borders anywhere.
     const cellData = grid.cells.map((c) => {
       const isNull = c.pct === null || c.pct === undefined;
-
-      // Subtle threshold borders: Amber for warning, Red-Orange for critical, Burgundy for emergency
-      let borderColor = cssVar("--bg-card", "#ffffff");
-      let borderWidth = 1;
-
-      if (!isNull && typeof c.pct === "number") {
-        const val = c.pct;
-        if (val <= 5) {
-          borderColor = "#933629"; // Emergency thin border
-          borderWidth = 1.5;
-        } else if (val <= 20) {
-          borderColor = "#c05a3c"; // Critical thin border
-          borderWidth = 1.5;
-        } else if (val <= 40) {
-          borderColor = "#e89228"; // Warning thin border
-          borderWidth = 1.5;
-        }
-      }
 
       if (isNull) {
         return {
@@ -237,11 +283,13 @@ export function Heatmap({
         };
       }
 
+      const val = c.pct as number;
       return {
-        value: [c.hour, c.dayIndex, c.pct],
+        value: [c.hour, c.dayIndex, val],
         itemStyle: {
-          borderColor,
-          borderWidth,
+          color: fillColor(val),
+          borderColor: cssVar("--bg-card", "#ffffff"),
+          borderWidth: 1,
           borderRadius: 2,
         },
       };
@@ -255,6 +303,7 @@ export function Heatmap({
       padding: [8, 12],
       textStyle: {
         color: "var(--tx-main, #1e293b)",
+        fontFamily: "Inter, sans-serif",
       },
       extraCssText: "box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12); border-radius: 8px;",
       formatter: (p: unknown) => {
@@ -283,21 +332,21 @@ export function Heatmap({
         let chipBd = "var(--ok-bd, #a7f3d0)";
         let chipText = "Normal";
 
-        if (numVal <= 5) {
-          chipBg = "var(--emg-bg, #fef2f2)";
-          chipTx = "var(--emg-tx, #991b1b)";
-          chipBd = "var(--emg-bd, #fecaca)";
+        if (numVal <= THRESHOLDS.emergency) {
+          chipBg = "#fef2f2";
+          chipTx = "#7A1F14";
+          chipBd = "#B42318";
           chipText = "Emergency (≤ 5%)";
-        } else if (numVal <= 20) {
-          chipBg = "var(--err-bg, #fff1f2)";
-          chipTx = "var(--err-tx, #9f1239)";
-          chipBd = "var(--err-bd, #fecdd3)";
+        } else if (numVal <= THRESHOLDS.critical) {
+          chipBg = "#fff1f2";
+          chipTx = "#9f1239";
+          chipBd = "#E4572E";
           chipText = "Critical (≤ 20%)";
-        } else if (numVal <= 40) {
-          chipBg = "var(--warn-bg, #fffbeb)";
-          chipTx = "var(--warn-tx, #92400e)";
-          chipBd = "var(--warn-bd, #fde68a)";
-          chipText = "Warning (≤ 40%)";
+        } else if (numVal < THRESHOLDS.warning) {
+          chipBg = "#fffbeb";
+          chipTx = "#92400e";
+          chipBd = "#F2B13C";
+          chipText = "Warning (< 40%)";
         }
 
         return `
@@ -329,7 +378,7 @@ export function Heatmap({
         },
         emphasis: {
           itemStyle: {
-            borderColor: cssVar("--brand-900", "#002b4d"),
+            borderColor: "#0F2F5C",
             borderWidth: 1.5,
             shadowBlur: 0,
           },
@@ -423,32 +472,45 @@ export function Heatmap({
           </div>
         )}
 
-        {/* Legend strip: Threshold hints & No-data indicator beside/under chart */}
-        <div className="flex flex-wrap items-center justify-between text-[11px] text-[var(--tx-quiet)] px-1 pt-1">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold text-[var(--tx-main)]">Thresholds:</span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-[2px] bg-[#dbeafe] border-[1.5px] border-[#e89228]" />
-              <span>≤ 40% Warning</span>
+        {/* Legend strip: Solid threshold chips & No-data indicator with exact zone colors */}
+        <div className="flex flex-wrap items-center justify-between text-[12px] text-[var(--tx-main)] px-1 py-0.5">
+          <div className="flex items-center flex-wrap gap-4">
+            <span className="font-semibold text-[var(--tx-head)]">Thresholds:</span>
+            <span className="inline-flex items-center gap-1.5 font-medium">
+              <span
+                className="w-3 h-3 rounded-[3px] border border-black/15 shadow-sm inline-block flex-shrink-0"
+                style={{ backgroundColor: "#F2B13C" }}
+                aria-hidden
+              />
+              <span>Warning ≤ 40%</span>
             </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-[2px] bg-[#dbeafe] border-[1.5px] border-[#c05a3c]" />
-              <span>≤ 20% Critical</span>
+            <span className="inline-flex items-center gap-1.5 font-medium">
+              <span
+                className="w-3 h-3 rounded-[3px] border border-black/15 shadow-sm inline-block flex-shrink-0"
+                style={{ backgroundColor: "#E4572E" }}
+                aria-hidden
+              />
+              <span>Critical ≤ 20%</span>
             </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-[2px] bg-[#dbeafe] border-[1.5px] border-[#933629]" />
-              <span>≤ 5% Emergency</span>
+            <span className="inline-flex items-center gap-1.5 font-medium">
+              <span
+                className="w-3 h-3 rounded-[3px] border border-black/15 shadow-sm inline-block flex-shrink-0"
+                style={{ backgroundColor: "#B42318" }}
+                aria-hidden
+              />
+              <span>Emergency ≤ 5%</span>
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 font-medium">
             <span
-              className="inline-block w-3 h-3 rounded-[2px] border border-[var(--bd)]"
+              className="w-3 h-3 rounded-[3px] border border-[var(--bd-strong)] shadow-sm inline-block flex-shrink-0"
               style={{
                 backgroundColor: "#EEF1F5",
                 backgroundImage:
-                  "repeating-linear-gradient(45deg, #cbd5e1 0, #cbd5e1 1px, transparent 0, transparent 4px)",
+                  "repeating-linear-gradient(45deg, #cbd5e1 0, #cbd5e1 1.5px, transparent 0, transparent 4px)",
               }}
+              aria-hidden
             />
             <span>No data</span>
           </div>

@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { PageFrame } from "@/features/shell/PageFrame";
 import { ViewGuide } from "@/components/ui/primitives";
 import { AlertDetail } from "@/features/alerts/AlertDetail";
 
@@ -15,7 +14,7 @@ export default async function AlertDetailPage({ params }: { params: Promise<{ id
   }
 
   return (
-    <PageFrame tab="alerts">
+    <>
       <ViewGuide
         question="Is this alert real?"
         description="The reading that triggered the alert, the sensor's health, and the response so far."
@@ -29,6 +28,6 @@ export default async function AlertDetailPage({ params }: { params: Promise<{ id
       />
 
       <AlertDetail alertId={alertId} />
-    </PageFrame>
+    </>
   );
 }
