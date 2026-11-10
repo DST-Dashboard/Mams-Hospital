@@ -1,19 +1,72 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import "@fontsource-variable/schibsted-grotesk"; // self-hosted from node_modules — no CDN, works offline
+import "@fontsource-variable/inter";
+import "@fontsource/merriweather";
+import "@fontsource-variable/schibsted-grotesk";
 import "@/styles/globals.css";
+import "@/styles/print.css";
+import { ToastProvider } from "@/components/ui/Toast";
 
-export const metadata: Metadata = { title: { default: "MAMS Water", template: "%s · MAMS Water" }, description: "Overhead tank monitoring for MAMS Hospital", robots: { index: false } };
-export const viewport: Viewport = { themeColor: "#091820", width: "device-width", initialScale: 1 };
+export const metadata: Metadata = {
+  title: {
+    default: "MAMS Hospital | OHTMS",
+    template: "%s · MAMS Hospital OHTMS",
+  },
+  description:
+    "Real-time rooftop water monitoring for MAMS Hospital Overhead Tank Management System",
+  icons: {
+    icon: "/favicon.svg",
+  },
+  manifest: "/manifest.webmanifest",
+  robots: { index: false },
+};
 
-// Runs before paint: dark by default (control-room use), user's saved choice wins. No flash.
-const THEME = `try{document.documentElement.dataset.theme=localStorage.getItem("theme")||"dark"}catch(e){}`;
+export const viewport: Viewport = {
+  themeColor: "#003b6d", // --brand-800 per spec §6.2
+  width: "device-width",
+  initialScale: 1,
+};
+
+// Pre-paint theme bootstrap script: defaults to light per Override O1
+const BOOTSTRAP_SCRIPT = `
+  try {
+    var theme = localStorage.getItem("theme") || localStorage.getItem("ohtms:theme") || "light";
+    document.documentElement.dataset.theme = theme;
+    var size = localStorage.getItem("ohtms:text-size");
+    if (size) {
+      document.documentElement.dataset.textSize = size;
+    }
+  } catch (e) {}
+`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: THEME }} /></head>
-      <body>{children}</body>
+    <html lang="en" data-theme="light" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: BOOTSTRAP_SCRIPT }} />
+      </head>
+      <body>
+        <ToastProvider>
+          {children}
+        </ToastProvider>
+
+        {/* PWA Service Worker Registration in Production */}
+        {process.env.NODE_ENV === "production" && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                if ('serviceWorker' in navigator) {
+                  window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                      console.warn('SW registration failed:', err);
+                    });
+                  });
+                }
+              `,
+            }}
+          />
+        )}
+      </body>
     </html>
   );
 }

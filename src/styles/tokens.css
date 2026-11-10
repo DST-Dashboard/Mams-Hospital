@@ -1,18 +1,327 @@
-/* Design tokens. "Hydrographic chart": deep harbour water, sea-glass signal colours, chalk-paper light theme.
-   Channels are space-separated RGB so Tailwind can apply alpha (bg-tide/20). */
-:root, [data-theme="dark"] {
-  --bg: 9 24 31; --surface: 15 36 45; --raised: 22 49 60; --line: 38 70 80;
-  --ink: 231 241 238; --muted: 140 168 168;
-  --tide: 62 182 201; --ok: 108 196 154; --warn: 240 185 74; --crit: 238 122 92; --emerg: 229 72 77; --info: 138 160 235;
-  color-scheme: dark;
-}
-[data-theme="light"] {
-  --bg: 238 243 241; --surface: 247 250 249; --raised: 255 255 255; --line: 201 215 213;
-  --ink: 14 38 46; --muted: 84 110 114;
-  --tide: 12 124 150; --ok: 26 132 88; --warn: 168 108 6; --crit: 196 70 38; --emerg: 187 30 42; --info: 70 90 190;
-  color-scheme: light;
-}
+/* OHTMS-DS Design Tokens (docs/DESIGN-SPEC.md §4 + §3 overrides)
+   Light theme default under :root; dark theme under :root[data-theme="dark"] */
+
 :root {
-  --font-sans: "Schibsted Grotesk Variable";
-  --focus: 0 0 0 2px rgb(var(--bg)), 0 0 0 4px rgb(var(--tide));
+  color-scheme: light;
+
+  /* BRAND (blue family) */
+  --brand-950: #001f3f;  /* gradient start, hero overlay start */
+  --brand-800: #003b6d;  /* PRIMARY BRAND: H1/H2, key numbers, hover text */
+  --brand-700: #004d80;  /* gradient mid, hero overlay end */
+  --brand-600: #1a5594;  /* ACTIVE TAB bg, guide accent, About titles */
+  --brand-500: #0073bc;  /* bright blue: gradient end, input focus border, pill text */
+
+  /* ACCENT (orange family): every primary action */
+  --accent-500: #f26522; /* CTA bg, eyebrows, active-nav underline, banner label */
+  --accent-600: #e05310; /* CTA hover */
+  --accent-700: #d84b04; /* deep: highlight text on amber, CTA gradient end */
+  --gold-500: #e2a84a;   /* highlight on dark surfaces */
+
+  /* DATA (teal family) = water */
+  --data-600: #087e83;   /* data accent, primary chart colour, water fill, teal button */
+  --data-700: #06666a;   /* teal hover, water fill deep end */
+  --live: #00ff88;       /* live/online dot */
+  --focus: #df9c24;      /* keyboard focus ring */
+
+  /* SURFACES */
+  --bg-page: #f0f4f8;
+  --bg-strip: #f8f9fa;
+  --bg-work: #fbfdff;
+  --bg-card: #ffffff;
+  --bg-subtle: #f8fafc;  /* inputs, tank body, rail-bottom */
+  --bg-panel: #dfe9f0;   /* control panels */
+  --bg-tab: #f0f5fa;
+  --bg-tab-hover: #e1ecf7;
+  --bg-guide: #f1f6fc;
+  --bg-help: #edf6f8;
+  --bg-gloss: #eef5fa;
+  --bg-plot: #eef2f3;    /* chart plotting area */
+  --bg-th: #f6f9fa;
+  --bg-pill: #e6f6ff;
+  --bg-code: #1a202c;
+  --bg-scroll: #f1f5f9;
+  --bg-glass: rgba(255, 255, 255, 0.9);
+  --glass-1: rgba(255, 255, 255, 0.05);
+  --glass-2: rgba(255, 255, 255, 0.10);
+  --glass-3: rgba(255, 255, 255, 0.15);
+  --glass-line: rgba(255, 255, 255, 0.20);
+  --glass-line-2: rgba(255, 255, 255, 0.30);
+
+  /* TEXT */
+  --tx-main: #2c3e50;
+  --tx-head: var(--brand-800);
+  --tx-label: #4a5568;
+  --tx-body: #52677c;
+  --tx-muted: #666666;
+  --tx-quiet: #627985;
+  --tx-soft: #718096;
+  --tx-faint: #a0aec0;
+  --tx-tab: #5a6b7c;
+  --tx-input: #2d3748;
+  --tx-note: #37556e;
+  --tx-link: #285680;
+  --tx-guide: #173d6c;
+  --tx-sub: #1e466f;
+  --tx-code: #a0aec0;
+  --tx-chart: #294654;
+
+  /* BORDERS */
+  --bd: #e2e8f0;
+  --bd-soft: #edf2f7;
+  --bd-strong: #cbd5e0;
+  --bd-panel: #b8d0e0;
+  --bd-tab: #dbe6f0;
+  --bd-tab-hover: #c9ddec;
+  --bd-rail: #eaedf3;
+  --bd-strip: #e0e6ed;
+  --bd-guide: #d8e4f1;
+  --bd-gloss: #c9dfed;
+  --bd-table: #dae5e9;
+  --bd-code: #2d3748;
+
+  /* STATUS (bg / text / border) */
+  --info-bg: #eff6ff;
+  --info-tx: #1d4ed8;
+  --info-bd: #bfdbfe;
+  --ok-bg: #dcefe9;
+  --ok-tx: #286a57;
+  --ok-bd: #bddbd1;
+  --warn-bg: #fff5dd;
+  --warn-tx: #795314;
+  --warn-bd: #e8d092;
+  --err-bg: #fff1ef;
+  --err-tx: #933629;
+  --err-bd: #e7aaa3;
+
+  /* GRADIENTS */
+  --g-ocean: linear-gradient(135deg, #001f3f 0%, #004d80 50%, #0073bc 100%); /* = brand-950 → 700 → 500 */
+  --g-hero: linear-gradient(to right, rgba(0, 31, 63, 0.95) 0%, rgba(0, 77, 128, 0.7) 100%);
+  --g-cta: linear-gradient(135deg, #f26522, #d84b04);   /* = accent-500 → 700 */
+  --g-banner: linear-gradient(135deg, #fff4e6 0%, #ffe5c4 100%);
+  --g-bar: linear-gradient(to bottom, #003b6d, #f26522); /* 4px accent bar utility */
+
+  /* SHADOWS */
+  --sh-sm: 0 4px 6px rgba(0, 0, 0, 0.05);
+  --sh-header: 0 4px 30px rgba(0, 0, 0, 0.08);
+  --sh-shell: 0 20px 40px rgba(0, 30, 80, 0.1);
+  --sh-card-hover: 0 20px 40px rgba(0, 0, 0, 0.06);
+  --sh-panel: 0 4px 15px rgba(8, 126, 131, 0.06);
+  --sh-glass: 0 25px 50px rgba(0, 0, 0, 0.3);
+  --sh-cta: 0 4px 15px rgba(242, 101, 34, 0.3);
+  --sh-cta-hover: 0 8px 25px rgba(242, 101, 34, 0.4);
+  --sh-data: 0 4px 15px rgba(8, 126, 131, 0.3);
+  --sh-data-hover: 0 8px 25px rgba(8, 126, 131, 0.4);
+  --sh-tab: 0 2px 5px rgba(0, 0, 0, 0.03);
+  --sh-tab-hover: 0 4px 8px rgba(8, 126, 131, 0.08);
+  --sh-tab-active: 0 4px 10px rgba(26, 85, 148, 0.3);
+  --sh-tile-hover: 0 10px 20px rgba(0, 0, 0, 0.03);
+  --ring-field: 0 0 0 3px rgba(0, 115, 188, 0.1);
+
+  /* RADII */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 12px;
+  --r-2xl: 16px;
+  --r-pill: 20px;
+  --r-cta: 25px;
+  --r-full: 50px;
+
+  /* SPACE (px) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 10px;
+  --sp-4: 12px;
+  --sp-5: 15px;
+  --sp-6: 20px;
+  --sp-7: 25px;
+  --sp-8: 30px;
+  --sp-9: 40px;
+  --sp-10: 50px;
+  --sp-11: 60px;
+
+  /* LAYOUT */
+  --max: 1600px;
+  --gutter: 40px;
+  --shell-pad: 20px;
+  --work-pad: 40px;
+  --card-pad: 30px;
+  --panel-pad: 20px;
+
+  /* TYPE */
+  --f-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-display: 'Merriweather', Georgia, 'Times New Roman', serif;
+  --f-mono: 'Menlo', ui-monospace, Consolas, monospace;
+
+  /* MOTION */
+  --ease: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --t-fast: 0.2s ease;
+  --t-base: 0.3s ease;
+  --t-card: 0.4s var(--ease);
+  --t-reveal: 1s var(--ease);
+
+  /* Z-INDEX */
+  --z-ticker-label: 2;
+  --z-hero-content: 2;
+  --z-wave: 3;
+  --z-shell: 10;
+  --z-tabs: 20;
+  --z-header: 1000;
+
+  /* TOKEN ADDENDUM */
+  --bg-explain: #f6f8fb;
+  --bd-explain: #6795be;   /* chart explainer */
+  --bg-bubble: #fff5f0;                           /* 60px icon bubble */
+  --bd-adv: #e3eaf2;
+  --bd-step: #dce6f0;
+  --tx-step: #2e445a;  /* advanced block, guide step cards */
+  --tx-strip: #555555;                            /* utility strip */
+
+  /* OHTMS: severity. Info/Warning/Critical reuse status sets; Emergency is solid. */
+  --emg-bg: #933629;
+  --emg-tx: #ffffff;
+  --neutral-bg: #edf2f7;
+  --neutral-tx: #4a5568;
+  --neutral-bd: #cbd5e0;   /* SIM chip, decommissioned, draft, suppressed */
+
+  /* OHTMS: tank drawing */
+  --tank-body: var(--bg-subtle);
+  --tank-edge: var(--bd-strong);
+  --tank-dead: var(--bd-soft);
+  --water-a: var(--data-600);
+  --water-b: var(--data-700);
+
+  /* OHTMS: stable series colours per tank (assigned by Tank.colorIndex, never by list order) */
+  --series-1: var(--data-600);
+  --series-2: #6a82a4;
+  --series-3: #ad684c;
+  --series-4: var(--brand-800);
+  --series-5: var(--gold-500);
+  --series-6: var(--accent-500);
+  --series-7: #208c91;
+  --series-8: #8a9ba3;
+
+  /* OHTMS: layers */
+  --z-banner: 999;
+  --z-dropdown: 1050;
+  --z-modal: 1100;
+  --z-toast: 1200;
+  --chrome-h: 158px;   /* header + nav height; measured with ResizeObserver and updated */
+
+  /* LEGACY ALIASES: delete after Prompt 3 */
+  --bg: 240 244 248;
+  --surface: 255 255 255;
+  --raised: 255 255 255;
+  --line: 226 232 240;
+  --ink: 44 62 80;
+  --muted: 102 102 102;
+  --tide: 8 126 131;
+  --ok: 40 106 87;
+  --warn: 121 83 20;
+  --crit: 147 54 41;
+  --emerg: 147 54 41;
+  --info: 29 78 216;
+  --font-sans: var(--f-ui);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* SURFACES */
+  --bg-page: #0b1626;
+  --bg-strip: #0e1c30;
+  --bg-work: #0f1e33;
+  --bg-card: #132540;
+  --bg-subtle: #172b47;
+  --bg-panel: #1a3050;
+  --bg-tab: #172b47;
+  --bg-tab-hover: #1f3a5e;
+  --bg-guide: #14294a;
+  --bg-help: #102a38;
+  --bg-gloss: #12283f;
+  --bg-plot: #0f1e33;
+  --bg-th: #16294a;
+  --bg-pill: #12304f;
+  --bg-scroll: #0f1e33;
+  --bg-glass: rgba(11, 22, 38, 0.88);
+  --bg-explain: #12263f;
+  --bg-bubble: #2a1d17;
+
+  /* TEXT */
+  --tx-main: #e2e8f0;
+  --tx-head: #ffffff;
+  --tx-label: #b6c4d6;
+  --tx-body: #a9bdd3;
+  --tx-muted: #9fb2c8;
+  --tx-quiet: #8aa0b8;
+  --tx-soft: #8aa0b8;
+  --tx-faint: #6f879f;
+  --tx-tab: #b6c4d6;
+  --tx-input: #e2e8f0;
+  --tx-note: #a9c3d8;
+  --tx-link: #8fc1ea;
+  --tx-guide: #dbe9f7;
+  --tx-sub: #cfe2f4;
+  --tx-chart: #cdd9e8;
+  --tx-strip: #b6c4d6;
+  --tx-step: #cfe0f0;
+
+  /* BORDERS */
+  --bd: #243b5a;
+  --bd-soft: #1d3250;
+  --bd-strong: #35507a;
+  --bd-panel: #2a4468;
+  --bd-tab: #27415f;
+  --bd-tab-hover: #35507a;
+  --bd-rail: #1d3250;
+  --bd-strip: #1d3250;
+  --bd-guide: #27415f;
+  --bd-gloss: #2a4468;
+  --bd-table: #223a5a;
+  --bd-adv: #243b5a;
+  --bd-step: #27415f;
+  --bd-explain: #4b7fae;
+
+  /* STATUS */
+  --info-bg: #10264a;
+  --info-tx: #93c5fd;
+  --info-bd: #1e3a6e;
+  --ok-bg: #0f2f27;
+  --ok-tx: #7fd3b4;
+  --ok-bd: #1f5a49;
+  --warn-bg: #33270b;
+  --warn-tx: #f2c566;
+  --warn-bd: #6b5218;
+  --err-bg: #3a1512;
+  --err-tx: #f3a59b;
+  --err-bd: #7a2c24;
+  --neutral-bg: #1b2f4d;
+  --neutral-tx: #b6c4d6;
+  --neutral-bd: #35507a;
+
+  /* SERIES OVERRIDES */
+  --series-4: #5aa2dd;
+
+  /* SHADOWS */
+  --sh-sm: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --sh-header: 0 4px 30px rgba(0, 0, 0, 0.4);
+  --sh-shell: 0 20px 40px rgba(0, 0, 0, 0.4);
+  --sh-card-hover: 0 20px 40px rgba(0, 0, 0, 0.4);
+  --sh-panel: 0 4px 15px rgba(0, 0, 0, 0.4);
+  --sh-tile-hover: 0 10px 20px rgba(0, 0, 0, 0.4);
+
+  /* LEGACY ALIASES: delete after Prompt 3 */
+  --bg: 11 22 38;
+  --surface: 19 37 64;
+  --raised: 23 43 71;
+  --line: 36 59 90;
+  --ink: 226 232 240;
+  --muted: 159 178 200;
+  --tide: 8 126 131;
+  --ok: 127 211 180;
+  --warn: 242 197 102;
+  --crit: 243 165 155;
+  --emerg: 147 54 41;
+  --info: 147 197 253;
 }

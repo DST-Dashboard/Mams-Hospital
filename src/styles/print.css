@@ -1,1 +1,75 @@
-/* [FE-15] OWNER: frontend · Print styles for reports.  * STATUS: TODO */
+/* Print styles for OHTMS (spec §20) */
+
+@media print {
+  /* Hide non-printable navigation, chrome, and controls */
+  .utility-strip,
+  .glass-header,
+  .mega-nav,
+  .alert-banner,
+  .tab-bar,
+  .control-panel,
+  .context-bar,
+  .card-actions,
+  .back-to-top,
+  .toast-stack,
+  button,
+  .btn {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 12pt;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Shell and containers */
+  .app-shell,
+  .shell-wrapper {
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .workspace {
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Cards lose shadows and keep clean borders */
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #cccccc !important;
+    break-inside: avoid;
+    margin-bottom: 20pt !important;
+    padding: 16pt !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Plots keep full width */
+  .plot {
+    width: 100% !important;
+    box-shadow: none !important;
+    border: 1px solid #cccccc !important;
+    break-inside: avoid;
+  }
+
+  /* Tables */
+  .table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  .table th,
+  .table td {
+    border: 1px solid #dddddd !important;
+    color: #000000 !important;
+  }
+}
