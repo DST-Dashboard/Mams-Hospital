@@ -1,0 +1,233 @@
+@layer views {
+  /* ==========================================================================
+     MONITORING CORE (Prompt 2) VIEW-SPECIFIC STYLES
+     Prefix: mon-
+     ========================================================================== */
+
+  /* Dual Counter-Drifting Water Surface Waves */
+  @keyframes waveDriftLeft {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-60px);
+    }
+  }
+
+  @keyframes waveDriftRight {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(60px);
+    }
+  }
+
+  .wave-primary {
+    animation: waveDriftLeft 6s linear infinite;
+  }
+
+  .wave-secondary {
+    animation: waveDriftRight 9s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wave-primary,
+    .wave-secondary {
+      animation: none !important;
+    }
+  }
+
+  /* Tank Grid Responsive Layout (§12.2, §17) */
+  .mon-tank-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 20px;
+    width: 100%;
+  }
+
+  @media (max-width: 1280px) {
+    .mon-tank-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .mon-tank-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 767px) {
+    .mon-tank-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Tank Tile Card (§12.2) */
+  .mon-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card);
+    border: 1px solid var(--bd);
+    border-radius: var(--r-card, 16px);
+    padding: 20px;
+    box-shadow: var(--sh-sm);
+    transition: border-color var(--t-fast, 150ms) var(--ease),
+      box-shadow var(--t-card, 250ms) var(--ease);
+    text-decoration: none;
+    color: inherit;
+    overflow: hidden;
+  }
+
+  .mon-tile:hover {
+    border-color: var(--bd-strong);
+    box-shadow: var(--sh-card-hover);
+    /* Standard cards do not lift/translate on hover per Anti-patterns §21 */
+  }
+
+  .mon-tile:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  /* Top 4px Status Bar */
+  .mon-status-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--bd);
+    transition: background-color var(--t-base, 200ms) var(--ease);
+  }
+
+  .mon-status-bar--ok {
+    background: var(--ok-bd);
+  }
+
+  .mon-status-bar--warn {
+    background: var(--warn-bd);
+  }
+
+  .mon-status-bar--crit {
+    background: var(--err-bd);
+  }
+
+  .mon-status-bar--emg {
+    background: var(--emg-bg);
+  }
+
+  .mon-status-bar--neutral {
+    background: var(--neutral-bd);
+  }
+
+  /* Value Flash on Data Refresh (§16, §20) */
+  @keyframes monValueFlash {
+    0% {
+      background-color: var(--bg-pill);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  .mon-tile-flash {
+    animation: monValueFlash 0.6s ease-out;
+  }
+
+  /* Horizontal Compact Variant on Mobile (<768px) */
+  @media (max-width: 767px) {
+    .mon-tile--responsive {
+      flex-direction: row;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .mon-tile--responsive .mon-tile-visual {
+      flex-shrink: 0;
+      width: 96px;
+    }
+
+    .mon-tile--responsive .mon-tile-details {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+  }
+
+  /* Sparkline in Tank Tile */
+  .mon-sparkline-wrap {
+    width: 100%;
+    height: 36px;
+    margin-top: 10px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--bd-soft);
+  }
+
+  /* Kiosk Mode Fullscreen Layout (§20) */
+  .mon-kiosk-page {
+    min-height: 100vh;
+    width: 100vw;
+    background: var(--bg-page);
+    color: var(--tx-main);
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  .mon-kiosk-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    width: 100%;
+    zoom: 1.15;
+  }
+
+  /* Heatmap Cell Styling */
+  .mon-heatmap-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+
+  .mon-heatmap-cell {
+    height: 24px;
+    min-width: 20px;
+    border: 1px solid var(--bd-table);
+    cursor: pointer;
+    transition: transform var(--t-fast) var(--ease), outline var(--t-fast) var(--ease);
+  }
+
+  .mon-heatmap-cell:hover {
+    outline: 2px solid var(--brand-500);
+    outline-offset: -1px;
+    z-index: 2;
+  }
+
+  .mon-heatmap-cell--blank {
+    background: transparent;
+    cursor: default;
+  }
+
+  .mon-heatmap-cell--blank:hover {
+    outline: none;
+  }
+
+  /* Two-Up Node Health & Signal Cards */
+  .mon-twoup-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  @media (max-width: 1023px) {
+    .mon-twoup-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
