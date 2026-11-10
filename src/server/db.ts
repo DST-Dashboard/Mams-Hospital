@@ -16,14 +16,23 @@ function createDbInstance(file: string): any {
   }
 }
 
-export function openDb(file = env().DB_PATH): any {
+export function openDb(file = env().DB_PATH, skipMigrations = false): any {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = createDbInstance(file);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  db.pragma("busy_timeout = 5000");
-  runMigrations(db);
-  return db;
+  try {
+    db.pragma("journal_mode = WAL");
+    db.pragma("foreign_keys = ON");
+    db.pragma("busy_timeout = 5000");
+    if (!skipMigrations) {
+      runMigrations(db);
+    }
+    return db;
+  } catch (err) {
+    try {
+      db.close();
+    } catch {}
+    throw err;
+  }
 }
 
 /** Singleton (survives Next dev hot-reload). Throws a helpful error if the DB hasn't been seeded. */

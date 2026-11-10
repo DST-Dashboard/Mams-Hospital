@@ -28,7 +28,11 @@ export class SqliteCompat {
   }
 
   close(): void {
-    this.db.close();
+    try {
+      this.db.close();
+    } catch {
+      // Ignore if already closed
+    }
   }
 
   transaction<T extends (...args: any[]) => any>(fn: T): (...args: Parameters<T>) => ReturnType<T> {
