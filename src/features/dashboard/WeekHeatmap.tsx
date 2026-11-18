@@ -1,51 +1,79 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Heatmap } from "@/components/charts/Heatmap";
+import { aggregateHeatmap, type PointLike } from "@/lib/heatmap";
 import { Select } from "@/components/ui/Select";
-import { useHeatmap, useTanks } from "@/lib/hooks";
 import { useUi } from "@/lib/store";
+import type { CalendarDayItem } from "@/lib/windows";
+import type { TankCardData } from "@/lib/types";
 
-export function WeekHeatmap({ defaultTankId = 1 }: { defaultTankId?: number }) {
-  const [tankId, setTankId] = useState<number>(defaultTankId);
+export interface WeekHeatmapProps {
+  tanks: TankCardData[];
+  readingsMap: Map<number, PointLike[]>;
+  calendarDays: CalendarDayItem[];
+  activeDayKey?: string;
+  onSelectCell?: (dayKey: string, hour: number) => void;
+  isLoading?: boolean;
+  className?: string;
+}
+
+export function WeekHeatmap({
+  tanks,
+  readingsMap,
+  calendarDays,
+  activeDayKey,
+  onSelectCell,
+  isLoading = false,
+  className,
+}: WeekHeatmapProps) {
   const tz = useUi((s) => s.tz);
-  const { data: tanks } = useTanks();
-  const { data: heatmapData, error, isLoading } = useHeatmap(tankId, { tz });
+  const [selectedTankId, setSelectedTankId] = useState<string>("all");
 
-  const activeTanks = tanks ?? [];
+  const options = [
+    { value: "all", label: "All tanks (Average)" },
+    ...tanks.map((t) => ({
+      value: String(t.id),
+      label: `${t.label}${t.simulated ? " (SIM)" : ""}`,
+    })),
+  ];
+
+  // Aggregate points based on chosen tank
+  const pointsToAggregate = useMemo(() => {
+    if (selectedTankId === "all") {
+      const all: PointLike[] = [];
+      readingsMap.forEach((pts) => {
+        all.push(...pts);
+      });
+      return all;
+    }
+    const id = Number(selectedTankId);
+    return readingsMap.get(id) || [];
+  }, [selectedTankId, readingsMap]);
+
+  const grid = useMemo(() => {
+    return aggregateHeatmap(pointsToAggregate, tz, calendarDays);
+  }, [pointsToAggregate, tz, calendarDays]);
 
   return (
-    <div className="rounded-xl border hairline bg-surface p-5 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b hairline pb-3">
-        <div>
-          <h3 className="text-base font-semibold text-ink">Weekly Level Heatmap</h3>
-          <p className="text-xs text-muted">
-            Hourly water level distribution across 7 days to identify recurring consumption patterns
-          </p>
+    <div className={className}>
+      <div className="flex justify-end mb-2">
+        <div className="w-56">
+          <Select
+            value={selectedTankId}
+            onChange={(e) => setSelectedTankId(e.target.value)}
+            options={options}
+            aria-label="Filter heatmap by tank"
+          />
         </div>
-
-        {activeTanks.length > 0 ? (
-          <div className="w-44">
-            <Select
-              value={tankId}
-              onChange={(e) => setTankId(Number(e.target.value))}
-              options={activeTanks.map((t) => ({ value: t.id, label: t.label }))}
-            />
-          </div>
-        ) : null}
       </div>
 
-      {isLoading ? (
-        <div className="flex h-56 items-center justify-center text-xs text-muted">
-          Loading weekly heatmap analysis...
-        </div>
-      ) : error ? (
-        <div role="alert" className="p-4 text-xs text-crit">
-          Failed to load heatmap: {error.message}
-        </div>
-      ) : heatmapData ? (
-        <Heatmap data={heatmapData} />
-      ) : null}
+      <Heatmap
+        grid={grid}
+        activeDayKey={activeDayKey}
+        onSelectCell={onSelectCell}
+        isLoading={isLoading}
+      />
     </div>
   );
 }

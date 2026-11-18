@@ -1,146 +1,155 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Download, Eye, Table as TableIcon } from "lucide-react";
 import React, { useState } from "react";
+import { ChevronDown, ChevronRight, Binary } from "lucide-react";
+import { DistanceChart } from "@/components/charts/DistanceChart";
 import { Button } from "@/components/ui/Button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/Table";
-import { exportToCsv } from "@/lib/csv";
-import { cm, litres, pct, stamp } from "@/lib/format";
+import { fmtCm, fmtFill, fmtLitres, stampSeconds } from "@/lib/format";
 import { useUi } from "@/lib/store";
-import type { ReadingsResponse } from "@/lib/types";
+import type { Win } from "@/lib/windows";
 
-export function RawInspector({
-  readings,
-  tankLabel,
-}: {
-  readings: ReadingsResponse | undefined;
-  tankLabel: string;
-}) {
-  const [open, setOpen] = useState(false);
+export interface RawReadingItem {
+  t: number;
+  distanceCm: number | null;
+  levelCm: number | null;
+  levelPct: number | null;
+  volumeL: number | null;
+  quality: string;
+}
+
+export interface RawInspectorProps {
+  points: RawReadingItem[];
+  win: Win;
+  className?: string;
+}
+
+export function RawInspector({ points, win, className }: RawInspectorProps) {
   const tz = useUi((s) => s.tz);
+  const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const pageSize = 25;
 
-  const points = readings?.points ?? [];
-
-  const handleExport = () => {
-    exportToCsv(
-      `${tankLabel.toLowerCase().replace(/\s+/g, "_")}_telemetry_raw`,
-      [
-        { key: "t", label: "Timestamp (Epoch UTC)" },
-        {
-          key: "t",
-          label: `Timestamp (${tz})`,
-          format: (val) => stamp(val as number, tz),
-        },
-        { key: "distanceCm", label: "Ultrasonic Distance (cm)" },
-        { key: "levelCm", label: "Water Level (cm)" },
-        { key: "levelPct", label: "Water Level (%)" },
-        { key: "volumeL", label: "Estimated Volume (L)" },
-        { key: "quality", label: "Quality Assessment" },
-      ],
-      points as unknown as Record<string, unknown>[]
-    );
-  };
+  const totalPages = Math.ceil(points.length / pageSize);
+  const paginated = points.slice(page * pageSize, (page + 1) * pageSize);
 
   return (
-    <div className="rounded-xl border hairline bg-surface overflow-hidden">
-      <div className="flex items-center justify-between p-4 bg-raised/30">
+    <div className={className}>
+      <div className="card p-6 flex flex-col gap-4">
+        {/* Accordion Trigger Header */}
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-2 text-left font-semibold text-sm text-ink hover:text-tide transition-colors"
+          className="flex items-center justify-between w-full text-left focus:outline-none"
+          aria-expanded={open}
         >
-          <TableIcon size={16} className="text-tide" />
-          <span>Raw Sensor Telemetry Inspector</span>
-          <span className="rounded bg-raised px-2 py-0.5 text-xs font-mono font-normal text-muted">
-            {points.length} readings in window
-          </span>
-          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[var(--bg-subtle)] flex items-center justify-center text-[var(--accent-500)] border border-[var(--bd-soft)]">
+              <Binary size={16} />
+            </div>
+            <div>
+              <h3 className="card-title text-[18px] font-bold text-[var(--tx-head)] font-['Merriweather',serif]">
+                Raw sensor readings & telemetry inspector
+              </h3>
+              <p className="text-[12px] text-[var(--tx-quiet)]">
+                Inverted distance graph and raw packet table with second-level timestamps.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--brand-800)]">
+            <span>{open ? "Hide raw inspector" : "Open raw inspector"}</span>
+            {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </div>
         </button>
 
-        <div className="flex items-center gap-2">
-          {points.length > 0 ? (
-            <Button
-              variant="quiet"
-              size="sm"
-              onClick={handleExport}
-              icon={<Download size={14} />}
-            >
-              Export CSV
-            </Button>
-          ) : null}
-        </div>
-      </div>
+        {/* Collapsible Content */}
+        {open && (
+          <div className="flex flex-col gap-6 pt-4 border-t border-[var(--bd-soft)]">
+            {/* Inverted Distance Chart */}
+            <DistanceChart
+              title="Raw distance to water (inverted axis)"
+              points={points}
+              win={win}
+              height={280}
+            />
 
-      {open ? (
-        <div className="border-t hairline p-4 space-y-3">
-          <p className="text-xs text-muted">
-            Inspect raw ultrasonic distance values and mathematically derived level metrics.
-          </p>
+            {/* Paged Raw Table */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-bold text-[var(--tx-head)]">
+                  Telemetry frame log ({points.length} readings recorded)
+                </span>
 
-          <div className="max-h-96 overflow-y-auto rounded-lg border hairline">
-            <Table containerClassName="border-0">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Time ({tz})</TableHead>
-                  <TableHead>Raw Sensor Distance</TableHead>
-                  <TableHead>Derived Water Depth</TableHead>
-                  <TableHead>Level %</TableHead>
-                  <TableHead>Volume</TableHead>
-                  <TableHead>Quality</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {points.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-xs text-muted">
-                      No readings found in the selected time range.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  points
-                    .slice()
-                    .reverse()
-                    .slice(0, 100)
-                    .map((p, idx) => (
-                      <TableRow key={p.t ?? idx}>
-                        <TableCell className="font-mono text-xs whitespace-nowrap">
-                          {stamp(p.t, tz)}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs font-medium text-ink">
-                          {cm(p.distanceCm)}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{cm(p.levelCm)}</TableCell>
-                        <TableCell className="font-mono text-xs font-semibold text-tide">
-                          {pct(p.levelPct)}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{litres(p.volumeL)}</TableCell>
-                        <TableCell>
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2 text-[12px]">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page === 0}
+                      onClick={() => setPage(page - 1)}
+                    >
+                      Previous
+                    </Button>
+                    <span className="font-mono text-[var(--tx-quiet)]">
+                      Page {page + 1} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page >= totalPages - 1}
+                      onClick={() => setPage(page + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="table-wrap max-h-[360px] overflow-auto border border-[var(--bd)] rounded-lg">
+                <table className="table w-full text-[12px]">
+                  <thead>
+                    <tr className="bg-[var(--bg-th)] border-b border-[var(--bd-table)]">
+                      <th className="p-2 text-left">Time ({tz})</th>
+                      <th className="p-2 text-right">Distance</th>
+                      <th className="p-2 text-right">Level</th>
+                      <th className="p-2 text-right">Fill %</th>
+                      <th className="p-2 text-right">Volume</th>
+                      <th className="p-2 text-right">Quality</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginated.map((p, idx) => (
+                      <tr key={`${p.t}-${idx}`} className="border-b border-[var(--bd-table)]">
+                        <td className="p-2 font-mono text-[11px]">{stampSeconds(p.t, tz)}</td>
+                        <td className="p-2 text-right font-mono font-bold text-[var(--accent-700)]">
+                          {fmtCm(p.distanceCm)}
+                        </td>
+                        <td className="p-2 text-right font-mono">{fmtCm(p.levelCm)}</td>
+                        <td className="p-2 text-right font-mono font-bold text-[var(--tx-head)]">
+                          {fmtFill(p.levelPct)}
+                        </td>
+                        <td className="p-2 text-right font-mono">{fmtLitres(p.volumeL)}</td>
+                        <td className="p-2 text-right">
                           <span
-                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
-                              p.quality === "ok"
-                                ? "bg-ok/10 text-ok"
-                                : p.quality === "dead_zone"
-                                ? "bg-warn/15 text-warn"
-                                : "bg-crit/15 text-crit"
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              p.quality === "good"
+                                ? "bg-[var(--ok-bg)] text-[var(--ok-tx)]"
+                                : "bg-[var(--warn-bg)] text-[var(--warn-tx)]"
                             }`}
                           >
                             {p.quality}
                           </span>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                )}
-              </TableBody>
-            </Table>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-
-          {points.length > 100 ? (
-            <p className="text-[11px] text-muted text-right font-mono">
-              Showing latest 100 of {points.length} records. Use &ldquo;Export CSV&rdquo; for complete dataset.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+        )}
+      </div>
     </div>
   );
 }

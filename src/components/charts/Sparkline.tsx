@@ -1,63 +1,82 @@
-"use client";
-
-import clsx from "clsx";
 import React from "react";
+import clsx from "clsx";
 
-export interface SparkPoint {
+export interface SparklinePoint {
   t: number;
   pct: number | null;
 }
 
 export interface SparklineProps {
-  points: SparkPoint[];
-  height?: number;
+  points?: SparklinePoint[];
   color?: string;
-  fill?: boolean;
+  height?: number;
   className?: string;
   label?: string;
 }
 
+/**
+ * Lightweight SVG sparkline for tank cards, tiles, and kiosk mode.
+ * Draws continuous segments and respects null data gaps.
+ */
 export function Sparkline({
-  points,
-  height = 32,
-  color = "rgb(var(--tide))",
-  fill = false,
+  points = [],
+  color = "var(--data-600)",
+  height = 28,
   className,
-  label = "Water level trend",
+  label = "24-hour fill trend sparkline",
 }: SparklineProps) {
-  const valid = points.filter((p) => p.pct != null);
+  const valid = points.filter((p) => p.pct !== null && !Number.isNaN(p.pct));
 
-  if (valid.length < 2) {
-    return <div style={{ height }} className={clsx("w-full opacity-40", className)} aria-hidden />;
+  if (!points || points.length === 0 || valid.length < 2) {
+    return (
+      <div
+        className={clsx("flex items-center justify-center text-[11px] text-[var(--tx-quiet)]", className)}
+        style={{ height }}
+        aria-hidden
+      >
+        —
+      </div>
+    );
   }
 
-  const t0 = valid[0]!.t;
-  const span = valid.at(-1)!.t - t0 || 1;
+  const t0 = points[0]!.t;
+  const tEnd = points[points.length - 1]!.t;
+  const timeSpan = tEnd - t0 || 1;
 
-  // Map points to SVG coordinates (0..100 x 0..30)
-  const coords = valid.map((p) => {
-    const x = Number((((p.t - t0) / span) * 100).toFixed(1));
-    const y = Number((30 - ((p.pct as number) / 100) * 28).toFixed(1));
-    return { x, y };
-  });
+  // Build SVG path commands, creating new M (move) segments across null gaps
+  let d = "";
+  let inSegment = false;
 
-  const linePath = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x} ${c.y}`).join(" ");
-  const areaPath = `${linePath} L100 30 L0 30 Z`;
+  for (let i = 0; i < points.length; i++) {
+    const pt = points[i]!;
+    if (pt.pct === null || Number.isNaN(pt.pct)) {
+      inSegment = false;
+      continue;
+    }
+
+    const x = (((pt.t - t0) / timeSpan) * 100).toFixed(1);
+    // Y maps 0% to bottom (height - 2) and 100% to top (2)
+    const y = ((1 - Math.max(0, Math.min(100, pt.pct)) / 100) * (height - 4) + 2).toFixed(1);
+
+    if (!inSegment) {
+      d += ` M ${x} ${y}`;
+      inSegment = true;
+    } else {
+      d += ` L ${x} ${y}`;
+    }
+  }
 
   return (
     <svg
-      viewBox="0 0 100 30"
+      viewBox={`0 0 100 ${height}`}
       preserveAspectRatio="none"
+      className={clsx("w-full select-none overflow-visible", className)}
       style={{ height }}
-      className={clsx("w-full overflow-visible", className)}
       role="img"
       aria-label={label}
     >
-      {fill ? (
-        <path d={areaPath} fill={color} fillOpacity="0.12" vectorEffect="non-scaling-stroke" />
-      ) : null}
       <path
-        d={linePath}
+        d={d}
         fill="none"
         stroke={color}
         strokeWidth="1.5"

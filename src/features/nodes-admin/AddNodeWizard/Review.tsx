@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Edit, Loader2 } from "lucide-react";
+import { Check, Edit } from "lucide-react";
 import React from "react";
 import { Button } from "@/components/ui/Button";
 import { litres } from "@/lib/format";
@@ -164,7 +164,7 @@ export function ReviewStep({
           variant="primary"
           onClick={onSubmit}
           loading={loading}
-          icon={<Check size={16} />}
+          icon={Check}
         >
           Commission Tank Node
         </Button>

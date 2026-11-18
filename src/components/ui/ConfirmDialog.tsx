@@ -1,96 +1,102 @@
 "use client";
 
-import React, { useState, type ReactNode } from "react";
-import { Dialog, DialogFooter } from "./Dialog";
+import React, { useState } from "react";
+import { Dialog } from "./Dialog";
 import { Button } from "./Button";
+import { Input } from "./Field";
 
 export interface ConfirmDialogProps {
   open: boolean;
-  onClose: () => void;
+  title: string;
+  body: React.ReactNode;
+  confirmLabel: string;
+  danger?: boolean;
+  requireText?: string;
+  busy?: boolean;
   onConfirm: () => void | Promise<void>;
-  title: ReactNode;
-  description: ReactNode;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  variant?: "danger" | "primary";
-  /** If provided, user must type this exact string to enable the confirm button (e.g. node label for deletion) */
-  confirmKeyword?: string;
-  loading?: boolean;
+  onClose: () => void;
 }
 
 export function ConfirmDialog({
   open,
-  onClose,
-  onConfirm,
   title,
-  description,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
-  variant = "danger",
-  confirmKeyword,
-  loading = false,
+  body,
+  confirmLabel,
+  danger = false,
+  requireText,
+  busy = false,
+  onConfirm,
+  onClose,
 }: ConfirmDialogProps) {
-  const [typedInput, setTypedInput] = useState("");
-  const [internalLoading, setInternalLoading] = useState(false);
+  const [typedText, setTypedText] = useState("");
 
-  const isConfirmedAllowed = confirmKeyword ? typedInput === confirmKeyword : true;
-  const isLoading = loading || internalLoading;
+  // Tolerant comparison: trim, collapse whitespace and case-insensitive
+  const isMatch = requireText
+    ? typedText.trim().replace(/\s+/g, " ").toLowerCase() ===
+      requireText.trim().replace(/\s+/g, " ").toLowerCase()
+    : true;
+
+  const isConfirmedDisabled = busy || !isMatch;
 
   const handleConfirm = async () => {
-    if (!isConfirmedAllowed || isLoading) return;
-    try {
-      setInternalLoading(true);
-      await onConfirm();
-      setTypedInput("");
-      onClose();
-    } catch {
-      // Error handled by caller
-    } finally {
-      setInternalLoading(false);
-    }
+    if (isConfirmedDisabled) return;
+    await onConfirm();
+    setTypedText("");
   };
 
   const handleClose = () => {
-    if (isLoading) return;
-    setTypedInput("");
+    if (busy) return;
+    setTypedText("");
     onClose();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !isConfirmedDisabled) {
+      e.preventDefault();
+      handleConfirm();
+    }
+  };
+
   return (
-    <Dialog open={open} onClose={handleClose} title={title} maxWidth="md">
-      <div className="space-y-4">
-        <div className="text-sm text-muted">{description}</div>
-
-        {confirmKeyword ? (
-          <div className="rounded border hairline bg-raised/40 p-3 space-y-2">
-            <label className="block text-xs font-medium text-ink">
-              Type <span className="font-mono font-bold text-crit select-all">{confirmKeyword}</span> to confirm:
-            </label>
-            <input
-              type="text"
-              value={typedInput}
-              onChange={(e) => setTypedInput(e.target.value)}
-              placeholder={confirmKeyword}
-              disabled={isLoading}
-              className="field w-full font-mono text-sm"
-              autoFocus
-            />
-          </div>
-        ) : null}
-
-        <DialogFooter>
-          <Button variant="quiet" onClick={handleClose} disabled={isLoading}>
-            {cancelLabel}
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      title={title}
+      size="md"
+      footer={
+        <>
+          <Button variant="outline" onClick={handleClose} disabled={busy}>
+            Cancel
           </Button>
           <Button
-            variant={variant}
+            variant={danger ? "danger" : "primary"}
+            loading={busy}
+            disabled={isConfirmedDisabled}
             onClick={handleConfirm}
-            loading={isLoading}
-            disabled={!isConfirmedAllowed}
           >
             {confirmLabel}
           </Button>
-        </DialogFooter>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div>{body}</div>
+
+        {requireText && (
+          <div className="pt-2">
+            <p className="text-[13px] text-[var(--tx-muted)] mb-2">
+              Type <strong className="font-mono text-[var(--tx-main)]">{requireText}</strong> to confirm:
+            </p>
+            <Input
+              value={typedText}
+              onChange={(e) => setTypedText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={requireText}
+              disabled={busy}
+              autoFocus
+            />
+          </div>
+        )}
       </div>
     </Dialog>
   );

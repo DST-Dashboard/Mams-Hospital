@@ -1,8 +1,7 @@
 "use client";
 
+import React, { forwardRef } from "react";
 import clsx from "clsx";
-import { ChevronDown } from "lucide-react";
-import React, { forwardRef, type SelectHTMLAttributes, type ReactNode } from "react";
 
 export interface SelectOption {
   value: string | number;
@@ -10,71 +9,29 @@ export interface SelectOption {
   disabled?: boolean;
 }
 
-export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
-  label?: ReactNode;
+export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   options?: SelectOption[];
-  error?: ReactNode;
-  hint?: ReactNode;
-  placeholder?: string;
+  error?: boolean | string;
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { className, label, options, error, hint, placeholder, children, id, disabled, ...props },
+  { options, error, className, children, ...props },
   ref
 ) {
-  const generatedId = React.useId();
-  const selectId = id || generatedId;
-
   return (
-    <div className="w-full space-y-1.5">
-      {label ? (
-        <label htmlFor={selectId} className="block text-xs font-medium text-ink">
-          {label}
-        </label>
-      ) : null}
-
-      <div className="relative">
-        <select
-          ref={ref}
-          id={selectId}
-          disabled={disabled}
-          className={clsx(
-            "field appearance-none pr-9 text-ink bg-surface transition-colors",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tide focus-visible:ring-offset-1",
-            "disabled:opacity-50 disabled:cursor-not-allowed",
-            error ? "border-crit focus-visible:ring-crit" : "border hairline focus-visible:ring-tide",
-            className
-          )}
-          {...props}
-        >
-          {placeholder ? (
-            <option value="" disabled>
-              {placeholder}
+    <select
+      ref={ref}
+      aria-invalid={Boolean(error) ? "true" : undefined}
+      className={clsx("select", className)}
+      {...props}
+    >
+      {options
+        ? options.map((opt) => (
+            <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+              {opt.label}
             </option>
-          ) : null}
-          {options
-            ? options.map((opt) => (
-                <option key={opt.value} value={opt.value} disabled={opt.disabled}>
-                  {opt.label}
-                </option>
-              ))
-            : children}
-        </select>
-        <ChevronDown
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted"
-          aria-hidden="true"
-        />
-      </div>
-
-      {error ? (
-        <p className="text-xs text-crit" role="alert">
-          {error}
-        </p>
-      ) : hint ? (
-        <p className="text-xs text-muted">{hint}</p>
-      ) : null}
-    </div>
+          ))
+        : children}
+    </select>
   );
 });
-
-Select.displayName = "Select";

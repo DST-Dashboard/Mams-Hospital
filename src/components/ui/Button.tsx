@@ -1,84 +1,195 @@
 "use client";
 
+import React, { forwardRef } from "react";
+import Link from "next/link";
 import clsx from "clsx";
-import { Loader2 } from "lucide-react";
-import React, { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 
-export type ButtonVariant = "primary" | "quiet" | "danger" | "outline" | "ghost";
-export type ButtonSize = "sm" | "md" | "lg";
+export type ButtonVariant =
+  | "primary"
+  | "cta"
+  | "data"
+  | "accent"
+  | "outline"
+  | "secondary"
+  | "glass"
+  | "danger";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonBaseProps {
   variant?: ButtonVariant;
-  size?: ButtonSize;
+  size?: "md" | "sm";
+  icon?: LucideIcon;
   loading?: boolean;
-  icon?: ReactNode;
-  iconPosition?: "left" | "right";
-  children?: ReactNode;
+  iconOnly?: boolean;
+  lock?: 2 | 3;
 }
 
-const variantStyles: Record<ButtonVariant, string> = {
-  primary: "bg-tide text-bg font-medium hover:bg-tide/85 shadow-sm active:translate-y-px",
-  quiet: "border hairline bg-surface hover:bg-raised text-ink active:translate-y-px",
-  danger: "bg-crit text-white hover:bg-crit/90 active:translate-y-px shadow-sm",
-  outline: "border hairline bg-transparent hover:bg-surface text-ink",
-  ghost: "bg-transparent hover:bg-raised/60 text-ink",
-};
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    ButtonBaseProps {}
 
-const sizeStyles: Record<ButtonSize, string> = {
-  sm: "h-8 px-2.5 text-xs rounded gap-1.5",
-  md: "h-10 px-4 text-sm rounded gap-2",
-  lg: "h-12 px-6 text-base rounded-md gap-2.5",
+export interface LinkButtonProps
+  extends React.AnchorHTMLAttributes<HTMLAnchorElement>,
+    ButtonBaseProps {
+  href: string;
+}
+
+const variantClassMap: Record<ButtonVariant, string> = {
+  primary: "btn-primary",
+  cta: "btn-cta",
+  data: "btn-data",
+  accent: "btn-accent",
+  outline: "btn-outline",
+  secondary: "btn-secondary",
+  glass: "btn-glass",
+  danger: "btn-danger",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
     variant = "primary",
     size = "md",
+    icon: Icon,
     loading = false,
-    disabled = false,
-    icon,
-    iconPosition = "left",
-    children,
+    iconOnly = false,
+    lock,
     className,
-    type = "button",
+    disabled,
+    children,
+    onClick,
     ...props
   },
   ref
 ) {
-  const isDisabled = disabled || loading;
+  const isDisabled = disabled || loading || Boolean(lock);
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isDisabled) {
+      e.preventDefault();
+      return;
+    }
+    // Radial ripple effect (§11.2, §16)
+    if (!lock && variant === "primary") {
+      const button = e.currentTarget;
+      const rect = button.getBoundingClientRect();
+      const circle = document.createElement("span");
+      const diameter = Math.max(rect.width, rect.height);
+      const radius = diameter / 2;
+
+      circle.style.width = circle.style.height = `${diameter}px`;
+      circle.style.left = `${e.clientX - rect.left - radius}px`;
+      circle.style.top = `${e.clientY - rect.top - radius}px`;
+      circle.style.position = "absolute";
+      circle.style.borderRadius = "50%";
+      circle.style.transform = "scale(0)";
+      circle.style.animation = "ripple 600ms linear";
+      circle.style.backgroundColor = "rgba(255, 255, 255, 0.4)";
+      circle.style.pointerEvents = "none";
+
+      const ripple = button.getElementsByClassName("btn-ripple")[0];
+      if (ripple) ripple.remove();
+
+      circle.className = "btn-ripple";
+      button.appendChild(circle);
+      setTimeout(() => circle.remove(), 600);
+    }
+
+    onClick?.(e);
+  };
 
   return (
     <button
       ref={ref}
-      type={type}
       disabled={isDisabled}
-      aria-busy={loading}
+      aria-busy={loading ? "true" : undefined}
+      aria-disabled={isDisabled ? "true" : undefined}
+      onClick={handleClick}
       className={clsx(
-        "inline-flex items-center justify-center font-medium transition-all select-none",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tide focus-visible:ring-offset-2",
-        "disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed",
-        variantStyles[variant],
-        sizeStyles[size],
+        "btn",
+        variantClassMap[variant],
+        size === "sm" && "btn-sm",
+        iconOnly && "btn-icon",
         className
       )}
       {...props}
     >
       {loading ? (
-        <Loader2
-          className={clsx("animate-spin shrink-0", size === "sm" ? "w-3.5 h-3.5" : size === "lg" ? "w-5 h-5" : "w-4 h-4")}
-          aria-hidden="true"
-        />
-      ) : icon && iconPosition === "left" ? (
-        <span className="shrink-0">{icon}</span>
+        <Loader2 className="animate-spin" size={size === "sm" ? 14 : 16} aria-hidden />
+      ) : lock ? (
+        <Lock size={size === "sm" ? 14 : 16} aria-hidden />
+      ) : Icon ? (
+        <Icon size={size === "sm" ? 14 : 16} aria-hidden />
       ) : null}
 
-      {children ? <span>{children}</span> : null}
+      {!iconOnly && children}
 
-      {!loading && icon && iconPosition === "right" ? (
-        <span className="shrink-0">{icon}</span>
-      ) : null}
+      {lock && (
+        <span className="chip chip--phase ml-1" aria-hidden>
+          PHASE {lock}
+        </span>
+      )}
     </button>
   );
 });
 
-Button.displayName = "Button";
+export const LinkButton = forwardRef<HTMLAnchorElement, LinkButtonProps>(function LinkButton(
+  {
+    href,
+    variant = "primary",
+    size = "md",
+    icon: Icon,
+    loading = false,
+    iconOnly = false,
+    lock,
+    className,
+    children,
+    ...props
+  },
+  ref
+) {
+  if (lock) {
+    return (
+      <span
+        ref={ref}
+        aria-disabled="true"
+        className={clsx(
+          "btn",
+          variantClassMap[variant],
+          size === "sm" && "btn-sm",
+          iconOnly && "btn-icon",
+          "opacity-50 cursor-not-allowed pointer-events-none",
+          className
+        )}
+      >
+        <Lock size={size === "sm" ? 14 : 16} aria-hidden />
+        {!iconOnly && children}
+        <span className="chip chip--phase ml-1" aria-hidden>
+          PHASE {lock}
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      ref={ref}
+      href={href}
+      className={clsx(
+        "btn",
+        variantClassMap[variant],
+        size === "sm" && "btn-sm",
+        iconOnly && "btn-icon",
+        className
+      )}
+      {...props}
+    >
+      {loading ? (
+        <Loader2 className="animate-spin" size={size === "sm" ? 14 : 16} aria-hidden />
+      ) : Icon ? (
+        <Icon size={size === "sm" ? 14 : 16} aria-hidden />
+      ) : null}
+      {!iconOnly && children}
+    </Link>
+  );
+});

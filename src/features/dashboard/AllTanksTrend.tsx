@@ -1,50 +1,61 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { MultiTankChart } from "@/components/charts/MultiTankChart";
-import { useCompare } from "@/lib/hooks";
+import type { TrendSeries, FillDrainEvent, AlertMarker } from "@/components/charts/TrendChart";
+import type { Win } from "@/lib/windows";
 
-export function AllTanksTrend() {
-  const [res, setRes] = useState<"15m" | "1h" | "1d">("1h");
-  const { data: compare, error, isLoading } = useCompare({ res });
+export interface AllTanksTrendProps {
+  mode: "day" | "week";
+  series: TrendSeries[];
+  win: Win;
+  events?: FillDrainEvent[];
+  alerts?: AlertMarker[];
+  enableBrush?: boolean;
+  onBrushEnd?: (range: { from: number; to: number }) => void;
+  isLoading?: boolean;
+  error?: Error | null;
+  onRetry?: () => void;
+  className?: string;
+}
+
+export function AllTanksTrend({
+  mode,
+  series,
+  win,
+  events,
+  alerts,
+  enableBrush = false,
+  onBrushEnd,
+  isLoading = false,
+  error = null,
+  onRetry,
+  className,
+}: AllTanksTrendProps) {
+  const isDay = mode === "day";
+  const title = isDay ? "Last 24 hours · All tanks" : "Last 7 days · All tanks";
+  const eyebrow = isDay ? "DAY TREND (5-MIN CADENCE)" : "WEEK TREND (1-HOUR AVERAGES)";
+  const explainer = isDay
+    ? "High-cadence time-series showing water level percentage across all 5 rooftop tanks. The horizontal time axis spans the full 24-hour cycle."
+    : "Hourly aggregated trend for the entire 7-day monitoring window. Click and drag across any period to zoom the day panel above.";
 
   return (
-    <div className="rounded-xl border hairline bg-surface p-5 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b hairline pb-3">
-        <div>
-          <h3 className="text-base font-semibold text-ink">All Tanks Water Level Trends</h3>
-          <p className="text-xs text-muted">
-            Simultaneous multi-tank comparative water level % across hospital overhead storage
-          </p>
-        </div>
-
-        <div className="flex items-center gap-1 rounded-md border hairline p-0.5 bg-raised/30">
-          {(["15m", "1h", "1d"] as const).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setRes(r)}
-              className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
-                res === r ? "bg-raised text-tide shadow-xs font-bold" : "text-muted hover:text-ink"
-              }`}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="flex h-72 items-center justify-center text-xs text-muted">
-          Loading comparative trend telemetry...
-        </div>
-      ) : error ? (
-        <div role="alert" className="p-4 text-xs text-crit">
-          Failed to load trend: {error.message}
-        </div>
-      ) : compare ? (
-        <MultiTankChart compare={compare} height={320} />
-      ) : null}
-    </div>
+    <MultiTankChart
+      title={title}
+      eyebrow={eyebrow}
+      explainer={explainer}
+      footnote="Multi-tank hospital overview. Alert threshold dotted lines indicate standard hospital warning (40%), critical (20%), and emergency (5%) levels."
+      series={series}
+      win={win}
+      events={events}
+      alerts={alerts}
+      height={380}
+      enableBrush={enableBrush}
+      onBrushEnd={onBrushEnd}
+      isLoading={isLoading}
+      error={error}
+      onRetry={onRetry}
+      className={className}
+    />
   );
 }

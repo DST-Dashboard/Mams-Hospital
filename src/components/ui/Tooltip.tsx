@@ -1,52 +1,67 @@
 "use client";
 
+import React, { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import React, { useId, useState, type ReactNode } from "react";
 
 export interface TooltipProps {
-  content: ReactNode;
-  children: ReactNode;
+  text: string;
+  children: React.ReactElement;
   className?: string;
-  side?: "top" | "bottom" | "left" | "right";
 }
 
-const sideStyles: Record<NonNullable<TooltipProps["side"]>, string> = {
-  top: "bottom-full left-1/2 -translate-x-1/2 mb-2",
-  bottom: "top-full left-1/2 -translate-x-1/2 mt-2",
-  left: "right-full top-1/2 -translate-y-1/2 mr-2",
-  right: "left-full top-1/2 -translate-y-1/2 ml-2",
-};
-
-export function Tooltip({ content, children, className, side = "top" }: TooltipProps) {
+export function Tooltip({ text, children, className }: TooltipProps) {
   const [visible, setVisible] = useState(false);
-  const id = useId();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  if (!content) return <>{children}</>;
+  const show = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setVisible(true);
+    }, 150); // 150ms delay per spec §20
+  };
+
+  const hide = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setVisible(false);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && visible) {
+        hide();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [visible]);
 
   return (
-    <span
-      className="relative inline-flex"
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
-      onFocus={() => setVisible(true)}
-      onBlur={() => setVisible(false)}
+    <div
+      className={clsx("relative inline-flex", className)}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
     >
-      <span aria-describedby={visible ? id : undefined}>{children}</span>
-
-      {visible ? (
-        <span
-          id={id}
+      {children}
+      {visible && text && (
+        <div
           role="tooltip"
-          className={clsx(
-            "pointer-events-none absolute z-50 whitespace-nowrap rounded bg-ink px-2 py-1 text-xs font-normal text-bg shadow-md",
-            "animate-in fade-in-50 zoom-in-95 duration-100",
-            sideStyles[side],
-            className
-          )}
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[1150] px-2.5 py-1.5 rounded-[6px] text-white text-[12px] leading-[1.5] max-w-[240px] whitespace-normal pointer-events-none shadow-md animate-in fade-in duration-150"
+          style={{ backgroundColor: "var(--bg-code, #1a202c)" }}
         >
-          {content}
-        </span>
-      ) : null}
-    </span>
+          {text}
+          {/* Arrow */}
+          <span
+            className="absolute top-full left-1/2 -translate-x-1/2 border-x-4 border-x-transparent border-t-4"
+            style={{ borderTopColor: "var(--bg-code, #1a202c)" }}
+            aria-hidden
+          />
+        </div>
+      )}
+    </div>
   );
 }

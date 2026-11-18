@@ -1,55 +1,91 @@
 "use client";
 
-import clsx from "clsx";
 import React from "react";
+import clsx from "clsx";
 
-export function SignalBars({
-  rssi,
-  snr,
-  showValues = true,
-  className,
-}: {
-  rssi: number | null | undefined;
-  snr?: number | null | undefined;
-  showValues?: boolean;
+export interface SignalBarsProps {
+  rssi: number | null;
+  snr: number | null;
   className?: string;
-}) {
-  if (rssi == null) {
-    return <span className="text-xs text-muted">—</span>;
+  showText?: boolean;
+}
+
+export function SignalBars({ rssi, snr, className, showText = false }: SignalBarsProps) {
+  if (rssi == null || Number.isNaN(rssi)) {
+    return (
+      <span className={clsx("inline-flex items-center gap-1.5 text-[var(--tx-muted)] text-[12px]", className)}>
+        <svg width="18" height="14" viewBox="0 0 18 14" fill="none" aria-hidden>
+          <rect x="1" y="10" width="2.5" height="4" rx="0.5" fill="var(--bd-strong)" />
+          <rect x="5" y="7" width="2.5" height="7" rx="0.5" fill="var(--bd-strong)" />
+          <rect x="9" y="4" width="2.5" height="10" rx="0.5" fill="var(--bd-strong)" />
+          <rect x="13" y="1" width="2.5" height="13" rx="0.5" fill="var(--bd-strong)" />
+        </svg>
+        {showText && <span>—</span>}
+      </span>
+    );
   }
 
-  // 1 to 4 bars
-  let bars = 1;
-  let color = "bg-crit";
+  // 4-bar LoRa evaluation
+  let activeBars = 1;
+  let toneClass = "text-[var(--err-tx)]";
 
-  if (rssi >= -70) {
-    bars = 4;
-    color = "bg-ok";
-  } else if (rssi >= -85) {
-    bars = 3;
-    color = "bg-tide";
-  } else if (rssi >= -100) {
-    bars = 2;
-    color = "bg-warn";
+  if (rssi > -90) {
+    activeBars = 4;
+    toneClass = "text-[var(--ok-tx)]";
+  } else if (rssi > -105) {
+    activeBars = 3;
+    toneClass = "text-[var(--ok-tx)]";
+  } else if (rssi > -115) {
+    activeBars = 2;
+    toneClass = "text-[var(--warn-tx)]";
   } else {
-    bars = 1;
-    color = "bg-crit";
+    activeBars = 1;
+    toneClass = "text-[var(--err-tx)]";
   }
+
+  const tooltip = `RSSI: ${Math.round(rssi)} dBm${snr != null ? ` · SNR: ${snr.toFixed(1)} dB` : ""}`;
 
   return (
-    <div className={clsx("inline-flex items-center gap-1.5", className)}>
-      <div className="flex items-end gap-0.5 h-3.5 w-4" title={`RSSI: ${rssi} dBm${snr != null ? `, SNR: ${snr} dB` : ""}`}>
-        <div className={clsx("w-0.5 rounded-xs h-1", bars >= 1 ? color : "bg-line/40")} />
-        <div className={clsx("w-0.5 rounded-xs h-1.5", bars >= 2 ? color : "bg-line/40")} />
-        <div className={clsx("w-0.5 rounded-xs h-2.5", bars >= 3 ? color : "bg-line/40")} />
-        <div className={clsx("w-0.5 rounded-xs h-3.5", bars >= 4 ? color : "bg-line/40")} />
-      </div>
-
-      {showValues ? (
-        <span className="text-xs font-mono text-muted">
-          {rssi} dBm{snr != null ? ` / ${snr > 0 ? `+${snr}` : snr} dB` : ""}
-        </span>
-      ) : null}
-    </div>
+    <span
+      className={clsx("inline-flex items-center gap-1.5 select-none", toneClass, className)}
+      title={tooltip}
+      aria-label={tooltip}
+    >
+      <svg width="18" height="14" viewBox="0 0 18 14" fill="none" className="flex-shrink-0" aria-hidden>
+        <rect
+          x="1"
+          y="10"
+          width="2.5"
+          height="4"
+          rx="0.5"
+          fill={activeBars >= 1 ? "currentColor" : "var(--bd-strong)"}
+        />
+        <rect
+          x="5"
+          y="7"
+          width="2.5"
+          height="7"
+          rx="0.5"
+          fill={activeBars >= 2 ? "currentColor" : "var(--bd-strong)"}
+        />
+        <rect
+          x="9"
+          y="4"
+          width="2.5"
+          height="10"
+          rx="0.5"
+          fill={activeBars >= 3 ? "currentColor" : "var(--bd-strong)"}
+        />
+        <rect
+          x="13"
+          y="1"
+          width="2.5"
+          height="13"
+          rx="0.5"
+          fill={activeBars >= 4 ? "currentColor" : "var(--bd-strong)"}
+        />
+      </svg>
+      {showText && <span className="text-[12px] font-medium num">{Math.round(rssi)} dBm</span>}
+    </span>
   );
 }

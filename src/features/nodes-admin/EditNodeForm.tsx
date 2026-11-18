@@ -1,374 +1,373 @@
 "use client";
 
-import clsx from "clsx";
-import { AlertTriangle, Check, Save } from "lucide-react";
-import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import { useState, useMemo } from "react";
+import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
-import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
-import { litres } from "@/lib/format";
-import type { TankRow } from "@/server/repos/tanks";
+import { patch, tankToInput } from "@/lib/api";
+import { validateTankForm, capacityLitres, type TankFormValues } from "@/lib/validation";
+import { ICON } from "@/components/ui/icons";
+import { PhaseChip } from "@/components/status/badges";
+import type { TankRow } from "@/lib/types";
 
-export function EditNodeForm({ tank, onSaved }: { tank: TankRow; onSaved?: () => void }) {
-  const router = useRouter();
-  const { success, error: toastError } = useToast();
+interface EditNodeFormProps {
+  open: boolean;
+  tank: TankRow | null;
+  allTanks: TankRow[];
+  onClose: () => void;
+  onSuccess: () => void;
+}
 
-  const g = tank.geometry;
-  const th = tank.thresholds;
+export function EditNodeForm({ open, tank, allTanks, onClose, onSuccess }: EditNodeFormProps) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [m5Open, setM5Open] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const [label, setLabel] = useState(tank.label);
-  const [deviceId, setDeviceId] = useState(tank.deviceId ?? "");
-  const [zone, setZone] = useState(tank.zone ?? "");
-  const [location, setLocation] = useState(tank.location ?? "");
-  const [status, setStatus] = useState<TankRow["status"]>(tank.status);
+  const initialShape = tank?.geometry?.shape?.kind === "cylinder" ? "cylinder" : "rectangle";
+  const initialH = tank?.geometry?.heightCm ?? 300;
+  const initialR = (tank?.geometry?.shape as { radiusCm?: number })?.radiusCm ?? 100;
+  const initialW = (tank?.geometry?.shape as { widthCm?: number })?.widthCm ?? 100;
+  const initialL = (tank?.geometry?.shape as { lengthCm?: number })?.lengthCm ?? 100;
+  const initialDz = tank?.geometry?.deadZoneCm ?? 25;
 
-  const [shape, setShape] = useState<"cylinder" | "rectangle">(
-    g.shape.kind === "cylinder" ? "cylinder" : "rectangle"
-  );
-  const [heightCm, setHeightCm] = useState(g.heightCm ?? 300);
-  const [radiusCm, setRadiusCm] = useState(g.shape.kind === "cylinder" ? g.shape.radiusCm : 100);
-  const [widthCm, setWidthCm] = useState(g.shape.kind === "rectangle" ? g.shape.widthCm : 100);
-  const [lengthCm, setLengthCm] = useState(g.shape.kind === "rectangle" ? g.shape.lengthCm : 100);
-  const [deadZoneCm, setDeadZoneCm] = useState(g.deadZoneCm ?? 25);
-  const [dimsConfirmed, setDimsConfirmed] = useState(tank.dimsConfirmed);
+  const [formValues, setFormValues] = useState<TankFormValues>({
+    label: tank?.label ?? "",
+    deviceId: tank?.deviceId ?? "",
+    zone: tank?.zone ?? "",
+    location: tank?.location ?? "",
+    status: tank?.status ?? "active",
+    shape: initialShape,
+    heightCm: initialH,
+    radiusCm: initialR,
+    widthCm: initialW,
+    lengthCm: initialL,
+    deadZoneCm: initialDz,
+    warnPct: tank?.thresholds?.warnPct ?? 40,
+    critPct: tank?.thresholds?.critPct ?? 20,
+    emptyPct: tank?.thresholds?.emptyPct ?? 5,
+    dimsConfirmed: tank?.dimsConfirmed ?? true,
+  });
 
-  const [warnPct, setWarnPct] = useState(th.warnPct ?? 40);
-  const [critPct, setCritPct] = useState(th.critPct ?? 20);
-  const [emptyPct, setEmptyPct] = useState(th.emptyPct ?? 5);
+  const h = typeof formValues.heightCm === "string" ? parseFloat(formValues.heightCm) || 0 : formValues.heightCm;
+  const r = typeof formValues.radiusCm === "string" ? parseFloat(formValues.radiusCm) || 0 : formValues.radiusCm ?? 0;
+  const w = typeof formValues.widthCm === "string" ? parseFloat(formValues.widthCm) || 0 : formValues.widthCm ?? 0;
+  const l = typeof formValues.lengthCm === "string" ? parseFloat(formValues.lengthCm) || 0 : formValues.lengthCm ?? 0;
 
-  const [loading, setLoading] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const estimatedCapacity = useMemo(() => {
+    return capacityLitres(formValues.shape, h, formValues.shape === "cylinder" ? r : w, l);
+  }, [formValues.shape, h, r, w, l]);
 
-  // Live capacity calculation
-  const baseAreaCm2 =
-    shape === "cylinder" ? Math.PI * Math.max(0, radiusCm) ** 2 : Math.max(0, widthCm) * Math.max(0, lengthCm);
-  const capacityL = Math.round((baseAreaCm2 * Math.max(0, heightCm)) / 1000);
+  const dimensionsChanged = useMemo(() => {
+    if (!tank) return false;
+    return initialH !== h || initialDz !== formValues.deadZoneCm || (formValues.shape === "cylinder" ? initialR !== r : initialW !== w || initialL !== l);
+  }, [tank, initialH, initialDz, initialR, initialW, initialL, h, formValues.deadZoneCm, formValues.shape, r, w, l]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  if (!tank) return null;
+
+  const handlePreSave = (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError(null);
-
-    // Validation
-    if (!label.trim()) {
-      setFormError("Tank label is required.");
-      return;
-    }
-    if (heightCm < 20 || heightCm > 2000) {
-      setFormError("Height must be between 20 cm and 2000 cm.");
-      return;
-    }
-    if (deadZoneCm >= heightCm) {
-      setFormError("Dead zone must be less than tank height.");
-      return;
-    }
-    if (!(warnPct > critPct && critPct > emptyPct)) {
-      setFormError("Thresholds must follow: Warning % > Critical % > Empty %.");
+    const res = validateTankForm(formValues, allTanks, tank.id);
+    if (!res.ok) {
+      setFieldErrors(res.fieldErrors);
+      toast.error(Object.values(res.fieldErrors)[0] ?? "Validation error");
       return;
     }
 
+    if (dimensionsChanged) {
+      setM5Open(true);
+    } else {
+      executeSave();
+    }
+  };
+
+  const executeSave = async () => {
     try {
-      setLoading(true);
-      const payload = {
-        label: label.trim(),
-        deviceId: deviceId.trim() || null,
-        zone: zone.trim() || null,
-        location: location.trim() || null,
-        status,
-        shape,
-        heightCm,
-        deadZoneCm,
-        radiusCm: shape === "cylinder" ? radiusCm : undefined,
-        widthCm: shape === "rectangle" ? widthCm : undefined,
-        lengthCm: shape === "rectangle" ? lengthCm : undefined,
-        warnPct,
-        critPct,
-        emptyPct,
-        dimsConfirmed,
-      };
-
-      const res = await fetch(`/api/tanks/${tank.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
+      setBusy(true);
+      const isCyl = formValues.shape === "cylinder";
+      const payload = tankToInput(tank, {
+        label: formValues.label.trim(),
+        deviceId: formValues.deviceId?.trim() || null,
+        zone: formValues.zone?.trim() || null,
+        location: formValues.location?.trim() || null,
+        status: formValues.status,
+        shape: formValues.shape,
+        heightCm: h,
+        deadZoneCm: typeof formValues.deadZoneCm === "string" ? parseFloat(formValues.deadZoneCm) : formValues.deadZoneCm,
+        warnPct: typeof formValues.warnPct === "string" ? parseFloat(formValues.warnPct) : formValues.warnPct,
+        critPct: typeof formValues.critPct === "string" ? parseFloat(formValues.critPct) : formValues.critPct,
+        emptyPct: typeof formValues.emptyPct === "string" ? parseFloat(formValues.emptyPct) : formValues.emptyPct,
+        dimsConfirmed: true,
+        ...(isCyl ? { radiusCm: r } : { widthCm: w, lengthCm: l }),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? "Failed to save tank settings");
-      }
-
-      success(`Settings for "${label}" saved successfully!`);
-      onSaved?.();
-      router.push("/admin/nodes");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error updating tank";
-      setFormError(msg);
-      toastError(msg);
+      await patch(`/api/tanks/${tank.id}`, payload);
+      toast.success(`${formValues.label} updated successfully.`);
+      setM5Open(false);
+      onSuccess();
+      onClose();
+    } catch {
+      toast.error("Failed to update node.");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl">
-      {formError ? (
-        <div role="alert" className="rounded-lg border border-crit/40 bg-crit/10 p-4 text-sm text-crit flex items-start gap-2.5">
-          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-          <span>{formError}</span>
-        </div>
-      ) : null}
-
-      {/* Section 1: Identity */}
-      <section className="rounded-lg border hairline bg-surface p-6 space-y-4">
-        <h3 className="text-base font-semibold text-ink border-b hairline pb-3">
-          1. Node Identification & Deployment
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Tank Label" hint="User-friendly hospital display name" required>
-            <input
-              type="text"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              className="field font-medium text-sm"
-              required
-            />
-          </Field>
-
-          <Field label="LoRaWAN Device ID" hint="TTS end device identifier (e.g. wio-e5-node-01)">
-            <input
-              type="text"
-              value={deviceId}
-              onChange={(e) => setDeviceId(e.target.value)}
-              className="field font-mono text-sm"
-              placeholder="e.g. wio-e5-node-01"
-            />
-          </Field>
-
-          <Field label="Hospital Zone" hint="Facility zone (e.g. Ward Block B, Main Hospital)">
-            <input
-              type="text"
-              value={zone}
-              onChange={(e) => setZone(e.target.value)}
-              className="field text-sm"
-              placeholder="e.g. Block A Rooftop"
-            />
-          </Field>
-
-          <Field label="Physical Location" hint="Specific rooftop or tank farm coordinates">
-            <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="field text-sm"
-              placeholder="e.g. Building 2 Roof"
-            />
-          </Field>
-
-          <Field label="Operational Status">
-            <Select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as TankRow["status"])}
-              options={[
-                { value: "active", label: "Active (Telemetry Ingesting)" },
-                { value: "maintenance", label: "Maintenance (Alerts Suppressed)" },
-                { value: "draft", label: "Draft (Testing / Staging)" },
-                { value: "offline", label: "Offline (Device Inactive)" },
-              ]}
-            />
-          </Field>
-        </div>
-      </section>
-
-      {/* Section 2: Geometry */}
-      <section className="rounded-lg border hairline bg-surface p-6 space-y-4">
-        <div className="flex items-center justify-between border-b hairline pb-3">
-          <h3 className="text-base font-semibold text-ink">
-            2. Tank Dimensions & Mathematical Geometry
-          </h3>
-          <span className="text-xs font-mono font-bold text-tide bg-tide/10 px-2.5 py-1 rounded">
-            Capacity: {litres(capacityL)}
-          </span>
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-ink mb-1.5">Tank Shape</label>
-          <div className="grid grid-cols-2 gap-3 max-w-md">
-            <button
-              type="button"
-              onClick={() => setShape("cylinder")}
-              className={clsx(
-                "flex items-center justify-center gap-2 rounded-md border p-2.5 text-xs font-semibold transition-all",
-                shape === "cylinder"
-                  ? "border-tide bg-tide/15 text-tide"
-                  : "border-line/60 bg-raised/40 text-muted hover:bg-raised"
-              )}
-            >
-              Cylindrical Tank
-            </button>
-            <button
-              type="button"
-              onClick={() => setShape("rectangle")}
-              className={clsx(
-                "flex items-center justify-center gap-2 rounded-md border p-2.5 text-xs font-semibold transition-all",
-                shape === "rectangle"
-                  ? "border-tide bg-tide/15 text-tide"
-                  : "border-line/60 bg-raised/40 text-muted hover:bg-raised"
-              )}
-            >
-              Rectangular Tank
-            </button>
+    <>
+      <Dialog
+        open={open && !m5Open}
+        onClose={onClose}
+        title={`Edit Node ${tank.label} (Modal M3)`}
+        eyebrow={{ icon: ICON.edit, text: "NODE CONFIGURATION" }}
+        size="lg"
+        footer={
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--sp-2)", width: "100%" }}>
+            <Button variant="outline" onClick={onClose} disabled={busy}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handlePreSave} loading={busy} icon={ICON.ok}>
+              Save changes
+            </Button>
           </div>
-        </div>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-6)" }}>
+          {/* Section 1: Identity */}
+          <details open>
+            <summary style={{ fontSize: "14px", fontWeight: 700, color: "var(--tx-head)", cursor: "pointer", marginBottom: "var(--sp-3)" }}>
+              1. Hardware Identity & Location
+            </summary>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", paddingLeft: "var(--sp-4)" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Label *</label>
+                <input
+                  type="text"
+                  value={formValues.label}
+                  onChange={(e) => setFormValues({ ...formValues, label: e.target.value })}
+                  className="field"
+                  style={{ width: "100%", marginTop: "2px" }}
+                />
+                {fieldErrors.label && <div style={{ color: "var(--err-tx)", fontSize: "11px" }}>{fieldErrors.label}</div>}
+              </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Field label="Height (H)" hint="Sensor to floor (cm)" required>
-            <input
-              type="number"
-              min={20}
-              max={2000}
-              value={heightCm}
-              onChange={(e) => setHeightCm(Number(e.target.value))}
-              className="field font-mono text-sm"
-              required
-            />
-          </Field>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Device EUI</label>
+                <input
+                  type="text"
+                  maxLength={16}
+                  value={formValues.deviceId ?? ""}
+                  onChange={(e) => setFormValues({ ...formValues, deviceId: e.target.value.toLowerCase() })}
+                  className="field"
+                  style={{ width: "100%", marginTop: "2px", fontFamily: "var(--f-mono)" }}
+                />
+                {fieldErrors.deviceId && <div style={{ color: "var(--err-tx)", fontSize: "11px" }}>{fieldErrors.deviceId}</div>}
+              </div>
 
-          <Field label="Dead Zone" hint="Blind spot (cm)" required>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={deadZoneCm}
-              onChange={(e) => setDeadZoneCm(Number(e.target.value))}
-              className="field font-mono text-sm"
-              required
-            />
-          </Field>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Zone</label>
+                  <input
+                    type="text"
+                    value={formValues.zone ?? ""}
+                    onChange={(e) => setFormValues({ ...formValues, zone: e.target.value })}
+                    className="field"
+                    style={{ width: "100%", marginTop: "2px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Location</label>
+                  <input
+                    type="text"
+                    value={formValues.location ?? ""}
+                    onChange={(e) => setFormValues({ ...formValues, location: e.target.value })}
+                    className="field"
+                    style={{ width: "100%", marginTop: "2px" }}
+                  />
+                </div>
+              </div>
+            </div>
+          </details>
 
-          {shape === "cylinder" ? (
-            <Field label="Radius (R)" hint="Internal radius (cm)" required>
-              <input
-                type="number"
-                min={10}
-                max={1000}
-                value={radiusCm}
-                onChange={(e) => setRadiusCm(Number(e.target.value))}
-                className="field font-mono text-sm"
-                required
-              />
-            </Field>
-          ) : (
-            <>
-              <Field label="Width (W)" hint="Width (cm)" required>
+          {/* Section 2: Dimensions */}
+          <details open>
+            <summary style={{ fontSize: "14px", fontWeight: 700, color: "var(--tx-head)", cursor: "pointer", marginBottom: "var(--sp-3)" }}>
+              2. Physical Dimensions & Dead Zone
+            </summary>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", paddingLeft: "var(--sp-4)" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Shape</label>
+                  <Select
+                    value={formValues.shape}
+                    onChange={(e) => setFormValues({ ...formValues, shape: e.target.value as "cylinder" | "rectangle" })}
+                    options={[
+                      { value: "cylinder", label: "Cylinder" },
+                      { value: "rectangle", label: "Rectangle" },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Height (cm) *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={formValues.heightCm}
+                    onChange={(e) => setFormValues({ ...formValues, heightCm: parseFloat(e.target.value) || 0 })}
+                    className="field"
+                    style={{ width: "100%", marginTop: "2px" }}
+                  />
+                  {fieldErrors.heightCm && <div style={{ color: "var(--err-tx)", fontSize: "11px" }}>{fieldErrors.heightCm}</div>}
+                </div>
+              </div>
+
+              {formValues.shape === "cylinder" ? (
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Radius (cm) *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={formValues.radiusCm ?? ""}
+                    onChange={(e) => setFormValues({ ...formValues, radiusCm: parseFloat(e.target.value) || 0 })}
+                    className="field"
+                    style={{ width: "100%", marginTop: "2px" }}
+                  />
+                  {fieldErrors.radiusCm && <div style={{ color: "var(--err-tx)", fontSize: "11px" }}>{fieldErrors.radiusCm}</div>}
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Width (cm) *</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={formValues.widthCm ?? ""}
+                      onChange={(e) => setFormValues({ ...formValues, widthCm: parseFloat(e.target.value) || 0 })}
+                      className="field"
+                      style={{ width: "100%", marginTop: "2px" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Length (cm) *</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={formValues.lengthCm ?? ""}
+                      onChange={(e) => setFormValues({ ...formValues, lengthCm: parseFloat(e.target.value) || 0 })}
+                      className="field"
+                      style={{ width: "100%", marginTop: "2px" }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Dead zone (cm) *</label>
                 <input
                   type="number"
-                  min={10}
-                  max={5000}
-                  value={widthCm}
-                  onChange={(e) => setWidthCm(Number(e.target.value))}
-                  className="field font-mono text-sm"
-                  required
+                  min={0}
+                  value={formValues.deadZoneCm}
+                  onChange={(e) => setFormValues({ ...formValues, deadZoneCm: parseFloat(e.target.value) || 0 })}
+                  className="field"
+                  style={{ width: "100%", marginTop: "2px" }}
                 />
-              </Field>
+                {fieldErrors.deadZoneCm && <div style={{ color: "var(--err-tx)", fontSize: "11px" }}>{fieldErrors.deadZoneCm}</div>}
+              </div>
 
-              <Field label="Length (L)" hint="Length (cm)" required>
+              <div style={{ background: "var(--bg-subtle)", padding: "var(--sp-3)", borderRadius: "var(--r-md)", fontSize: "13px" }}>
+                Estimated Capacity: <strong>{estimatedCapacity.toLocaleString()} Litres</strong>
+              </div>
+            </div>
+          </details>
+
+          {/* Section 3: Thresholds */}
+          <details>
+            <summary style={{ fontSize: "14px", fontWeight: 700, color: "var(--tx-head)", cursor: "pointer", marginBottom: "var(--sp-3)" }}>
+              3. Alert Thresholds
+            </summary>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--sp-3)", paddingLeft: "var(--sp-4)" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Warn (%)</label>
                 <input
                   type="number"
-                  min={10}
-                  max={5000}
-                  value={lengthCm}
-                  onChange={(e) => setLengthCm(Number(e.target.value))}
-                  className="field font-mono text-sm"
-                  required
+                  min={1}
+                  max={99}
+                  value={formValues.warnPct}
+                  onChange={(e) => setFormValues({ ...formValues, warnPct: parseFloat(e.target.value) || 0 })}
+                  className="field"
+                  style={{ width: "100%", marginTop: "2px" }}
                 />
-              </Field>
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 pt-2">
-          <input
-            type="checkbox"
-            id="dimsConfirmed"
-            checked={dimsConfirmed}
-            onChange={(e) => setDimsConfirmed(e.target.checked)}
-            className="rounded border hairline text-tide focus:ring-tide"
-          />
-          <label htmlFor="dimsConfirmed" className="text-xs font-medium text-ink cursor-pointer">
-            Mark dimensions as verified and physically confirmed (clears provisional badges)
-          </label>
-        </div>
-      </section>
-
-      {/* Section 3: Alarm Thresholds */}
-      <section className="rounded-lg border hairline bg-surface p-6 space-y-4">
-        <h3 className="text-base font-semibold text-ink border-b hairline pb-3">
-          3. Alert & Alarm Thresholds
-        </h3>
-        <p className="text-xs text-muted">
-          Water percentage triggers for alarm dispatch. Must follow Warning &gt; Critical &gt; Empty.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Field label="Warning Low Threshold" hint="Triggers warning notification" required>
-            <div className="relative">
-              <input
-                type="number"
-                min={1}
-                max={99}
-                value={warnPct}
-                onChange={(e) => setWarnPct(Number(e.target.value))}
-                className="field font-mono text-sm pr-8"
-                required
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">%</span>
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Crit (%)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={formValues.critPct}
+                  onChange={(e) => setFormValues({ ...formValues, critPct: parseFloat(e.target.value) || 0 })}
+                  className="field"
+                  style={{ width: "100%", marginTop: "2px" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600 }}>Empty (%)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={formValues.emptyPct}
+                  onChange={(e) => setFormValues({ ...formValues, emptyPct: parseFloat(e.target.value) || 0 })}
+                  className="field"
+                  style={{ width: "100%", marginTop: "2px" }}
+                />
+              </div>
             </div>
-          </Field>
-
-          <Field label="Critical Low Threshold" hint="Triggers urgent facility alert" required>
-            <div className="relative">
-              <input
-                type="number"
-                min={1}
-                max={99}
-                value={critPct}
-                onChange={(e) => setCritPct(Number(e.target.value))}
-                className="field font-mono text-sm pr-8"
-                required
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">%</span>
-            </div>
-          </Field>
-
-          <Field label="Empty / Dry Run Risk" hint="Triggers pump shutdown safeguard" required>
-            <div className="relative">
-              <input
-                type="number"
-                min={0}
-                max={50}
-                value={emptyPct}
-                onChange={(e) => setEmptyPct(Number(e.target.value))}
-                className="field font-mono text-sm pr-8"
-                required
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">%</span>
-            </div>
-          </Field>
+          </details>
         </div>
-      </section>
+      </Dialog>
 
-      {/* Form Action Buttons */}
-      <div className="flex items-center justify-end gap-3 pt-2">
-        <Button variant="quiet" onClick={() => router.push("/admin/nodes")} disabled={loading}>
-          Cancel
-        </Button>
-        <Button type="submit" variant="primary" loading={loading} icon={<Save size={16} />}>
-          Save Tank Settings
-        </Button>
-      </div>
-    </form>
+      {/* Modal M5 */}
+      <Dialog
+        open={m5Open}
+        onClose={() => setM5Open(false)}
+        title="Confirm Dimension Changes"
+        eyebrow={{ icon: ICON.warn, text: "MODAL M5" }}
+        size="md"
+        footer={
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--sp-3)", width: "100%" }}>
+            <Button variant="outline" onClick={() => setM5Open(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={executeSave} loading={busy}>
+              Apply change
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
+          <p style={{ margin: 0, color: "var(--tx-body)", fontSize: "14px" }}>
+            Changing the tank dimensions recomputes level and volume for the entire history. Continue?
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", background: "var(--bg-subtle)", padding: "var(--sp-4)", borderRadius: "var(--r-md)" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+              <input type="radio" name="edit_m5_recompute" defaultChecked readOnly />
+              Recompute the whole history
+            </label>
+
+            <label style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", fontSize: "13px", color: "var(--tx-quiet)", opacity: 0.6 }}>
+              <input type="radio" name="edit_m5_recompute" disabled />
+              Apply from now on only <PhaseChip phase={2} />
+            </label>
+          </div>
+
+          <p style={{ margin: 0, fontSize: "12px", color: "var(--tx-quiet)", fontStyle: "italic" }}>
+            Readings are stored as distance, so history is recalculated when displayed.
+          </p>
+        </div>
+      </Dialog>
+    </>
   );
 }

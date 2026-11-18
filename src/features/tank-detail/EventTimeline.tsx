@@ -1,62 +1,150 @@
 "use client";
 
-import { ArrowDownRight, ArrowUpRight, Calendar, Droplets } from "lucide-react";
-import React from "react";
-import { cm, stamp } from "@/lib/format";
+import React, { useState } from "react";
+import { ArrowDownRight, ArrowUpRight, Clock, Droplets } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { fmtLitres, stamp } from "@/lib/format";
 import { useUi } from "@/lib/store";
-import type { AnalyticsResponse } from "@/lib/types";
+import { isUnstable } from "@/lib/series";
 
-export function EventTimeline({ events }: { events: AnalyticsResponse["events"] }) {
+export interface EventItem {
+  kind: "fill" | "drain";
+  startT: number;
+  endT: number;
+  startLevelCm: number;
+  endLevelCm: number;
+  deltaCm: number;
+}
+
+export interface EventTimelineProps {
+  events: EventItem[];
+  tankHeightCm: number;
+  tankCapacityL: number;
+  className?: string;
+}
+
+export function EventTimeline({
+  events = [],
+  tankHeightCm,
+  tankCapacityL,
+  className,
+}: EventTimelineProps) {
   const tz = useUi((s) => s.tz);
+  const [expanded, setExpanded] = useState(false);
 
-  if (!events || events.length === 0) {
+  const flapping = isUnstable(events);
+  const displayedEvents = expanded ? events : events.slice(0, 12);
+
+  if (events.length === 0) {
     return (
-      <div className="flex h-32 flex-col items-center justify-center text-center text-xs text-muted rounded-lg border hairline bg-raised/20 p-4">
-        <Droplets size={20} className="opacity-40 mb-1" />
-        <span>No fill or drain events recorded in this time window.</span>
+      <div className={className}>
+        <div className="card p-6 text-center text-[var(--tx-quiet)] text-[13px]">
+          No pump fill or rapid drain cycles recorded in this monitoring window.
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-      {events
-        .slice()
-        .reverse()
-        .map((e, idx) => {
-          const isFill = e.kind === "fill";
-          const durationM = Math.max(1, Math.round((e.endT - e.startT) / 60_000));
+    <div className={className}>
+      <div className="card p-6 flex flex-col gap-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="eyebrow flex items-center gap-1.5 text-[11px] font-bold text-[var(--accent-500)] uppercase">
+              <Droplets size={13} aria-hidden />
+              <span>HYDRAULIC ACTIVITY</span>
+            </div>
+            <h3 className="card-title text-[20px] font-bold text-[var(--tx-head)] font-['Merriweather',serif]">
+              Fill and drain events
+            </h3>
+          </div>
+          <span className="text-[12px] font-semibold text-[var(--tx-quiet)]">
+            {events.length} detected events
+          </span>
+        </div>
 
-          return (
-            <div
-              key={`${e.startT}-${idx}`}
-              className="flex items-center justify-between gap-3 rounded-lg border hairline bg-raised/30 p-2.5 hover:bg-raised/60 transition-colors text-xs"
-            >
-              <div className="flex items-center gap-2.5">
-                <span
-                  className={`flex h-7 w-7 items-center justify-center rounded-md ${
-                    isFill ? "bg-ok/15 text-ok" : "bg-info/15 text-info"
-                  }`}
-                >
-                  {isFill ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-                </span>
+        {flapping && (
+          <div className="banner banner--warning text-[12px]">
+            High event count ({events.length} events) indicates sensor flapping. Individual cycle volumes may be noisy.
+          </div>
+        )}
 
-                <div>
-                  <div className="font-semibold text-ink">
-                    {isFill ? "Tank Refilled" : "Water Consumption Drain"}
+        {/* Timeline rows */}
+        <div className="divide-y divide-[var(--bd-soft)]">
+          {displayedEvents.map((ev, i) => {
+            const isFill = ev.kind === "fill";
+            const durationMin = Math.max(1, Math.round((ev.endT - ev.startT) / 60_000));
+
+            // Litres calculation: |deltaCm| / heightCm * capacityL
+            const volL =
+              tankHeightCm > 0
+                ? Math.round((Math.abs(ev.deltaCm) / tankHeightCm) * tankCapacityL)
+                : null;
+
+            return (
+              <div
+                key={i}
+                className="py-3 flex items-center justify-between gap-4 text-[13px]"
+              >
+                {/* Kind & Icon */}
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      isFill
+                        ? "bg-[var(--ok-bg)] text-[var(--ok-tx)] border border-[var(--ok-bd)]"
+                        : "bg-[var(--warn-bg)] text-[var(--warn-tx)] border border-[var(--warn-bd)]"
+                    }`}
+                  >
+                    {isFill ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
                   </div>
-                  <div className="text-[11px] text-muted">
-                    {cm(e.startLevelCm)} → {cm(e.endLevelCm)} (Δ {cm(Math.abs(e.deltaCm))}) · {durationM} min
+
+                  <div className="flex flex-col">
+                    <span className="font-bold text-[var(--tx-head)]">
+                      {isFill ? "Pump fill cycle" : "Rapid drain episode"}
+                    </span>
+                    <span className="text-[11px] text-[var(--tx-quiet)] flex items-center gap-1 font-mono">
+                      <Clock size={11} />
+                      <span>{stamp(ev.startT, tz)} ({durationMin} min duration)</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Metrics */}
+                <div className="flex items-center gap-6 text-right font-mono">
+                  <div className="flex flex-col">
+                    <span className="font-bold text-[var(--tx-head)]">
+                      {isFill ? "+" : "-"}{Math.abs(Math.round(ev.deltaCm))} cm
+                    </span>
+                    <span className="text-[11px] text-[var(--tx-quiet)]">
+                      {ev.startLevelCm} → {ev.endLevelCm} cm
+                    </span>
+                  </div>
+
+                  <div className="w-20 text-right">
+                    <span className="font-bold text-[var(--brand-800)]">
+                      {volL !== null ? fmtLitres(volL) : "—"}
+                    </span>
                   </div>
                 </div>
               </div>
+            );
+          })}
+        </div>
 
-              <span className="font-mono text-[11px] text-muted text-right whitespace-nowrap">
-                {stamp(e.startT, tz)}
-              </span>
-            </div>
-          );
-        })}
+        {/* Expand / Collapse Button */}
+        {events.length > 12 && (
+          <div className="flex justify-center pt-2 border-t border-[var(--bd-soft)]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? "Show fewer events" : `Show all ${events.length} events`}
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

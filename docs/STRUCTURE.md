@@ -422,3 +422,68 @@ Status: `BUILT` working · `MOCK` endpoint returns sample data until backend imp
 | BE | 63 | 21 | 0 | 50 |
 | SHARED | 14 | 0 | 0 | 0 |
 | BOTH | 24 | 0 | 0 | 0 |
+
+
+## Added by Prompt 1
+- `docs/DESIGN-SPEC.md`
+- `public/favicon.svg`
+- `src/components/charts/chart-theme.ts`
+- `src/components/ui/icons.ts`
+- `src/components/ui/Logos.tsx`
+- `src/features/shell/BackToTop.tsx`
+- `src/features/shell/FirstLoadGate.tsx`
+- `src/features/shell/Footer.tsx`
+- `src/features/shell/GlassHeader.tsx`
+- `src/features/shell/Hero.tsx`
+- `src/features/shell/MegaNav.tsx`
+- `src/features/shell/PageFrame.tsx`
+- `src/features/shell/SessionGate.tsx`
+- `src/features/shell/TabBar.tsx`
+- `src/features/shell/UtilityStrip.tsx`
+- `src/lib/copy.ts`
+- `src/lib/windows.ts`
+- `tests/fe-api.test.ts`
+- `tests/fe-chart-theme.test.ts`
+- `tests/fe-components.test.tsx`
+- `tests/fe-format.test.ts`
+- `tests/fe-store.test.ts`
+- `tests/fe-windows.test.ts`
+
+
+## Added by Prompt 2
+- `src/lib/series.ts`
+- `src/lib/heatmap.ts`
+- `src/styles/views-monitoring.css`
+- `src/components/charts/DistanceChart.tsx`
+- `src/features/dashboard/TankTile.tsx`
+- `src/features/dashboard/TankGrid.tsx`
+- `src/features/dashboard/FleetHealth.tsx`
+- `src/features/dashboard/SignalQualityCard.tsx`
+- `src/features/dashboard/copy.ts`
+- `src/features/time-nav/TimeNavPanel.tsx`
+- `src/features/tank-detail/TankHeroCard.tsx`
+- `src/features/tank-detail/ReadingCard.tsx`
+- `src/features/tank-detail/StatusCard.tsx`
+- `src/features/tank-detail/StatsGrid.tsx`
+- `src/features/tank-detail/copy.ts`
+- `tests/fe-series.test.ts`
+- `tests/fe-heatmap.test.ts`
+- `tests/fe-url-state.test.ts`
+- `tests/fe-csv.test.ts`
+- `tests/fe-tanks-monitoring.test.tsx`
+
+## Added by Prompt 3
+- `src/lib/validation.ts`
+- `src/lib/roles.ts`
+- `src/styles/views-ops.css`
+- `src/features/alerts/registry.ts`
+- `src/features/alerts/adapter.ts`
+- `src/features/settings/TankConfigForm.tsx`
+- `src/features/settings/DisplayPrefs.tsx`
+- `src/features/nodes-admin/AddNodeDialog.tsx`
+- `src/features/auth/ResetForm.tsx`
+- `tests/fe-validation.test.ts`
+- `tests/fe-alert-registry.test.ts`
+- `tests/fe-alert-adapter.test.ts`
+- `tests/fe-roles.test.ts`
+- `tests/fe-alerts-components.test.tsx`

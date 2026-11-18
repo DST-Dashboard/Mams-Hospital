@@ -1,43 +1,57 @@
 "use client";
 
-import clsx from "clsx";
 import React from "react";
+import clsx from "clsx";
 
-export function CompletenessMeter({
-  pct,
-  validCount,
-  totalCount,
-  className,
-}: {
-  pct: number | null | undefined;
-  validCount?: number;
-  totalCount?: number;
+export interface CompletenessMeterProps {
+  pct: number | null;
+  showText?: boolean;
   className?: string;
-}) {
-  if (pct == null) {
-    return <span className="text-xs text-muted">—</span>;
+}
+
+export function CompletenessMeter({ pct, showText = true, className }: CompletenessMeterProps) {
+  if (pct == null || Number.isNaN(pct)) {
+    return (
+      <div className={clsx("flex items-center gap-2", className)}>
+        <div className="w-16 h-2 rounded-[4px] bg-[var(--bd-soft)]" />
+        {showText && <span className="text-[11px] text-[var(--tx-muted)]">—</span>}
+      </div>
+    );
   }
 
-  const rounded = Math.round(pct);
-  const color = rounded >= 95 ? "bg-ok" : rounded >= 80 ? "bg-warn" : "bg-crit";
-  const textColor = rounded >= 95 ? "text-ok" : rounded >= 80 ? "text-warn" : "text-crit";
+  const val = Math.max(0, Math.min(100, Math.round(pct * 10) / 10));
+  const isOk = val >= 95;
+  const isWarn = val >= 80 && val < 95;
+
+  const barColor = isOk
+    ? "bg-[var(--ok-tx)]"
+    : isWarn
+    ? "bg-[var(--warn-tx)]"
+    : "bg-[var(--err-tx)]";
+
+  const textColor = isOk
+    ? "text-[var(--ok-tx)]"
+    : isWarn
+    ? "text-[var(--warn-tx)]"
+    : "text-[var(--err-tx)]";
 
   return (
-    <div className={clsx("space-y-1.5", className)}>
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-muted">Completeness:</span>
-        <span className={clsx("font-mono font-semibold", textColor)}>{rounded}%</span>
+    <div
+      className={clsx("flex items-center gap-2", className)}
+      title={`Completeness: ${val}%`}
+      aria-label={`Completeness: ${val}%`}
+    >
+      <div className="w-16 h-2 rounded-[4px] bg-[var(--bd-soft)] overflow-hidden">
+        <div
+          className={clsx("h-full transition-all duration-300", barColor)}
+          style={{ width: `${val}%` }}
+        />
       </div>
-
-      <div className="h-1.5 w-full rounded-full bg-raised overflow-hidden">
-        <div style={{ width: `${Math.min(100, Math.max(0, rounded))}%` }} className={clsx("h-full", color)} />
-      </div>
-
-      {validCount != null && totalCount != null ? (
-        <div className="text-[11px] text-muted text-right font-mono">
-          {validCount} / {totalCount} readings
-        </div>
-      ) : null}
+      {showText && (
+        <span className={clsx("text-[11px] font-semibold num", textColor)}>
+          {val}%
+        </span>
+      )}
     </div>
   );
 }

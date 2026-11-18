@@ -1,50 +1,46 @@
 "use client";
 
-import { RotateCcw } from "lucide-react";
-import React from "react";
-import { useUrlTimeState } from "@/lib/url-state";
-import { stamp } from "@/lib/format";
-import { useUi } from "@/lib/store";
+import { useEffect, useRef } from "react";
+import type { Win } from "@/lib/windows";
 
 export interface BrushSyncProps {
-  onReset?: () => void;
-  className?: string;
+  onBrushRange: (range: Win) => void;
+  debounceMs?: number;
 }
 
 /**
- * [FE-04] Displays brush-synced time window indicators and provides a one-click reset
+ * BrushSync helper for synchronizing week-chart drag brush events
+ * into the Day window as a debounced custom range.
  */
-export function BrushSync({ onReset, className }: BrushSyncProps) {
-  const { from, to, setUrlState } = useUrlTimeState();
-  const tz = useUi((s) => s.tz);
+export function useBrushSync(
+  onBrushRange: (range: Win) => void,
+  debounceMs = 250
+) {
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  if (!from || !to) return null;
+  const handleBrush = (range: Win) => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
 
-  const handleReset = () => {
-    setUrlState({ range: "24h", from: undefined, to: undefined });
-    onReset?.();
+    timerRef.current = setTimeout(() => {
+      onBrushRange(range);
+    }, debounceMs);
   };
 
-  return (
-    <div
-      role="status"
-      aria-label="Time window synchronized via chart selection"
-      className={`inline-flex items-center gap-2 rounded-lg border hairline bg-raised/50 px-3 py-1.5 text-xs ${className ?? ""}`}
-    >
-      <span className="text-muted">Zoomed Window:</span>
-      <span className="font-mono font-medium text-ink">
-        {stamp(from, tz)} → {stamp(to, tz)}
-      </span>
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
 
-      <button
-        type="button"
-        onClick={handleReset}
-        title="Reset zoom to standard range"
-        className="ml-1 inline-flex items-center gap-1 rounded bg-raised px-1.5 py-0.5 text-[11px] font-semibold text-tide hover:bg-raised/80 transition-colors"
-      >
-        <RotateCcw size={11} />
-        <span>Reset</span>
-      </button>
-    </div>
-  );
+  return handleBrush;
+}
+
+export function BrushSync(_props: BrushSyncProps) {
+  void _props;
+  // Headless synchronization coordinator
+  return null;
 }

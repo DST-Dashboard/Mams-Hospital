@@ -1,301 +1,291 @@
 "use client";
 
-import clsx from "clsx";
-import { AlertTriangle, Calculator, Check, Info } from "lucide-react";
-import React, { useEffect, useState } from "react";
-import { Dialog, DialogFooter } from "@/components/ui/Dialog";
+import React, { useState } from "react";
+import { AlertCircle, CheckCircle2, Database, HelpCircle, Loader2 } from "lucide-react";
+import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
-import { Field } from "@/components/ui/Field";
+import { Input } from "@/components/ui/Field";
+import { Select } from "@/components/ui/Select";
+import { patch, tankToInput } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import { litres } from "@/lib/format";
-import type { TankRow } from "@/server/repos/tanks";
+import type { TankRow } from "@/lib/types";
 
 export interface DimensionsModalProps {
   open: boolean;
-  onClose: () => void;
-  tank: TankRow | null;
-  onSuccess?: () => void;
+  tanks: TankRow[];
+  onSuccess: () => Promise<void> | void;
 }
 
-export function DimensionsModal({ open, onClose, tank, onSuccess }: DimensionsModalProps) {
-  const { success, error: toastError } = useToast();
+interface TankDraft {
+  id: number;
+  label: string;
+  shape: "cylinder" | "rectangle";
+  heightCm: number;
+  radiusCm?: number;
+  widthCm?: number;
+  lengthCm?: number;
+  deadZoneCm: number;
+  error?: string;
+  status: "idle" | "saving" | "done" | "error";
+}
 
-  const [shape, setShape] = useState<"cylinder" | "rectangle">("cylinder");
-  const [heightCm, setHeightCm] = useState<number>(300);
-  const [radiusCm, setRadiusCm] = useState<number>(100);
-  const [widthCm, setWidthCm] = useState<number>(100);
-  const [lengthCm, setLengthCm] = useState<number>(100);
-  const [deadZoneCm, setDeadZoneCm] = useState<number>(25);
-  const [loading, setLoading] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+function computeCapacityL(d: TankDraft): number {
+  const effectiveHeight = Math.max(0, d.heightCm - d.deadZoneCm);
+  if (d.shape === "cylinder" && d.radiusCm) {
+    const volCm3 = Math.PI * Math.pow(d.radiusCm, 2) * effectiveHeight;
+    return Math.round(volCm3 / 1000);
+  }
+  if (d.shape === "rectangle" && d.widthCm && d.lengthCm) {
+    const volCm3 = d.widthCm * d.lengthCm * effectiveHeight;
+    return Math.round(volCm3 / 1000);
+  }
+  return 0;
+}
 
-  useEffect(() => {
-    if (tank) {
-      const g = tank.geometry;
-      setShape(g.shape.kind === "cylinder" ? "cylinder" : "rectangle");
-      setHeightCm(g.heightCm ?? 300);
-      setDeadZoneCm(g.deadZoneCm ?? 25);
-      if (g.shape.kind === "cylinder") {
-        setRadiusCm(g.shape.radiusCm ?? 100);
-      } else {
-        setWidthCm(g.shape.widthCm ?? 100);
-        setLengthCm(g.shape.lengthCm ?? 100);
-      }
-    }
-  }, [tank]);
+export function DimensionsModal({ open, tanks, onSuccess }: DimensionsModalProps) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
 
-  if (!tank) return null;
+  // Initialize draft rows for unconfirmed tanks
+  const [drafts, setDrafts] = useState<TankDraft[]>(() =>
+    tanks.map((t) => {
+      const isCyl = t.geometry.shape.kind === "cylinder";
+      const cyl = isCyl ? (t.geometry.shape as { kind: "cylinder"; radiusCm: number }) : null;
+      const rect = !isCyl
+        ? (t.geometry.shape as { kind: "rectangle"; widthCm: number; lengthCm: number })
+        : null;
 
-  // Calculate live capacity
-  const baseAreaCm2 =
-    shape === "cylinder" ? Math.PI * Math.max(0, radiusCm) ** 2 : Math.max(0, widthCm) * Math.max(0, lengthCm);
-  const capacityL = Math.round((baseAreaCm2 * Math.max(0, heightCm)) / 1000);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-
-    // Validation
-    if (heightCm < 20 || heightCm > 2000) {
-      setFormError("Height must be between 20 cm and 2000 cm.");
-      return;
-    }
-    if (deadZoneCm < 0 || deadZoneCm >= heightCm) {
-      setFormError("Dead zone must be smaller than the tank height.");
-      return;
-    }
-    if (shape === "cylinder" && (radiusCm < 10 || radiusCm > 1000)) {
-      setFormError("Radius must be between 10 cm and 1000 cm.");
-      return;
-    }
-    if (shape === "rectangle" && (widthCm < 10 || widthCm > 5000 || lengthCm < 10 || lengthCm > 5000)) {
-      setFormError("Width and length must be between 10 cm and 5000 cm.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const payload = {
-        label: tank.label,
-        deviceId: tank.deviceId,
-        zone: tank.zone,
-        location: tank.location,
-        status: tank.status,
-        shape,
-        heightCm,
-        deadZoneCm,
-        radiusCm: shape === "cylinder" ? radiusCm : undefined,
-        widthCm: shape === "rectangle" ? widthCm : undefined,
-        lengthCm: shape === "rectangle" ? lengthCm : undefined,
-        warnPct: tank.thresholds.warnPct ?? 40,
-        critPct: tank.thresholds.critPct ?? 20,
-        emptyPct: tank.thresholds.emptyPct ?? 5,
-        dimsConfirmed: true,
+      return {
+        id: t.id,
+        label: t.label,
+        shape: t.geometry.shape.kind,
+        heightCm: t.geometry.heightCm || 300,
+        radiusCm: cyl?.radiusCm || 100,
+        widthCm: rect?.widthCm || 200,
+        lengthCm: rect?.lengthCm || 200,
+        deadZoneCm: t.geometry.deadZoneCm || 25,
+        status: "idle",
       };
+    })
+  );
 
-      const res = await fetch(`/api/tanks/${tank.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+  const updateDraft = (id: number, patchVal: Partial<TankDraft>) => {
+    setDrafts((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, ...patchVal, error: undefined } : d))
+    );
+  };
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? "Failed to save dimensions");
+  const validateDraft = (d: TankDraft): string | null => {
+    if (!d.heightCm || d.heightCm <= 0) {
+      return "Height must be greater than 0 cm.";
+    }
+    if (d.heightCm < 20 || d.heightCm > 2000) {
+      return "Height must be between 20 and 2,000 cm.";
+    }
+    if (d.deadZoneCm >= d.heightCm) {
+      return "Dead zone must be smaller than the tank height.";
+    }
+    if (d.shape === "cylinder") {
+      if (!d.radiusCm || d.radiusCm <= 0) return "Radius must be greater than 0 cm.";
+      if (d.radiusCm < 10 || d.radiusCm > 1000) return "Radius must be between 10 and 1,000 cm.";
+    } else {
+      if (!d.widthCm || d.widthCm <= 0) return "Width must be greater than 0 cm.";
+      if (!d.lengthCm || d.lengthCm <= 0) return "Length must be greater than 0 cm.";
+    }
+    return null;
+  };
+
+  const handleSave = async () => {
+    // Validate all rows first
+    let hasValidationError = false;
+    const validated = drafts.map((d) => {
+      const err = validateDraft(d);
+      if (err) hasValidationError = true;
+      return { ...d, error: err || undefined };
+    });
+
+    setDrafts(validated);
+    if (hasValidationError) {
+      toast.error("Please correct physical dimension errors before saving.");
+      return;
+    }
+
+    setBusy(true);
+    let allSucceeded = true;
+
+    for (const draft of drafts) {
+      const origRow = tanks.find((t) => t.id === draft.id);
+      if (!origRow) continue;
+
+      updateDraft(draft.id, { status: "saving" });
+
+      try {
+        const payload = tankToInput(origRow, {
+          shape: draft.shape,
+          heightCm: Number(draft.heightCm),
+          radiusCm: draft.shape === "cylinder" ? Number(draft.radiusCm) : undefined,
+          widthCm: draft.shape === "rectangle" ? Number(draft.widthCm) : undefined,
+          lengthCm: draft.shape === "rectangle" ? Number(draft.lengthCm) : undefined,
+          deadZoneCm: Number(draft.deadZoneCm),
+          dimsConfirmed: true,
+        });
+
+        await patch(`/api/tanks/${draft.id}`, payload);
+        updateDraft(draft.id, { status: "done" });
+      } catch (e: unknown) {
+        allSucceeded = false;
+        const msg = e instanceof Error ? e.message : "Failed to save";
+        updateDraft(draft.id, { status: "error", error: msg });
       }
+    }
 
-      success(`Dimensions for ${tank.label} confirmed successfully!`);
-      onSuccess?.();
-      onClose();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to update dimensions";
-      setFormError(msg);
-      toastError(msg);
-    } finally {
-      setLoading(false);
+    setBusy(false);
+
+    if (allSucceeded) {
+      toast.success("Dimensions confirmed. Level alerts start within about a minute.");
+      await onSuccess();
+    } else {
+      toast.error("Some tanks could not be updated. Please review errors.");
     }
   };
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
-      title={
-        <div className="flex items-center gap-2">
-          <Calculator className="h-5 w-5 text-tide" />
-          <span>Confirm Tank Dimensions: {tank.label}</span>
+      onClose={() => {}}
+      title="Confirm Tank Dimensions (M1)"
+      eyebrow={{ icon: Database, text: "INITIAL SETUP" }}
+      size="lg"
+      mandatory={true}
+      footer={
+        <div className="flex items-center justify-between w-full">
+          <p className="text-[12px] text-[var(--tx-quiet)] m-0">
+            Tanks remain in provisional mode until dimensions are saved.
+          </p>
+          <Button
+            variant="primary"
+            loading={busy}
+            onClick={handleSave}
+            icon={CheckCircle2}
+          >
+            Save and start monitoring
+          </Button>
         </div>
       }
-      description="Calibrate physical geometry to calculate exact water percentages, volumes and alarm triggers."
-      maxWidth="lg"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {formError ? (
-          <div role="alert" className="rounded-md border border-crit/40 bg-crit/10 p-3 text-xs text-crit flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{formError}</span>
-          </div>
-        ) : null}
-
-        {!tank.dimsConfirmed ? (
-          <div className="rounded-md border border-warn/40 bg-warn/10 p-3 text-xs text-ink flex items-start gap-2">
-            <Info className="h-4 w-4 shrink-0 text-warn mt-0.5" />
-            <div>
-              <span className="font-semibold text-warn">Provisional Dimensions:</span> This tank is currently using
-              system defaults. Confirm the actual measured tank dimensions to remove provisional badges across the system.
-            </div>
-          </div>
-        ) : null}
-
-        {/* Shape Selection */}
-        <div>
-          <label className="block text-xs font-medium text-ink mb-1.5">Tank Geometry Shape</label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setShape("cylinder")}
-              className={clsx(
-                "flex items-center justify-center gap-2 rounded-md border p-3 text-sm font-medium transition-all",
-                shape === "cylinder"
-                  ? "border-tide bg-tide/15 text-tide font-semibold"
-                  : "border-line/60 bg-surface text-muted hover:bg-raised"
-              )}
-            >
-              <div className="h-3 w-3 rounded-full border-2 border-current" />
-              <span>Cylindrical Tank</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShape("rectangle")}
-              className={clsx(
-                "flex items-center justify-center gap-2 rounded-md border p-3 text-sm font-medium transition-all",
-                shape === "rectangle"
-                  ? "border-tide bg-tide/15 text-tide font-semibold"
-                  : "border-line/60 bg-surface text-muted hover:bg-raised"
-              )}
-            >
-              <div className="h-3 w-3 rounded-xs border-2 border-current" />
-              <span>Rectangular Tank</span>
-            </button>
+      <div className="space-y-4">
+        <div className="banner banner--info text-[13px]">
+          <HelpCircle size={18} className="flex-shrink-0" aria-hidden />
+          <div>
+            Default physical dimensions are loaded. Confirm or adjust the height, radius and
+            dead zone for each tank so that derived water volume and alarms are accurate.
           </div>
         </div>
 
-        {/* Dimensional Inputs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Total Height (H)" hint="Distance from sensor to tank floor" required>
-            <div className="relative">
-              <input
-                type="number"
-                min={20}
-                max={2000}
-                value={heightCm}
-                onChange={(e) => setHeightCm(Number(e.target.value))}
-                className="field pr-12 font-mono text-sm"
-                required
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">
-                cm
-              </span>
-            </div>
-          </Field>
+        <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+          {drafts.map((d) => {
+            const capL = computeCapacityL(d);
 
-          <Field label="Dead Zone Offset" hint="Sensor blind spot at top of tank" required>
-            <div className="relative">
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={deadZoneCm}
-                onChange={(e) => setDeadZoneCm(Number(e.target.value))}
-                className="field pr-12 font-mono text-sm"
-                required
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">
-                cm
-              </span>
-            </div>
-          </Field>
+            return (
+              <div
+                key={d.id}
+                className="p-4 rounded-[12px] border border-[var(--bd)] bg-[var(--bg-subtle)] space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[15px] text-[var(--tx-head)]">
+                    {d.label}
+                  </span>
 
-          {shape === "cylinder" ? (
-            <Field label="Tank Radius (R)" hint="Internal radius of tank" required>
-              <div className="relative">
-                <input
-                  type="number"
-                  min={10}
-                  max={1000}
-                  value={radiusCm}
-                  onChange={(e) => setRadiusCm(Number(e.target.value))}
-                  className="field pr-12 font-mono text-sm"
-                  required
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">
-                  cm
-                </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] text-[var(--tx-quiet)]">
+                      Capacity: <strong className="num text-[var(--tx-head)]">{capL.toLocaleString()} L</strong>
+                    </span>
+                    {d.status === "saving" && <Loader2 size={16} className="animate-spin text-[var(--brand-600)]" />}
+                    {d.status === "done" && <CheckCircle2 size={16} className="text-[var(--ok-tx)]" />}
+                    {d.status === "error" && <AlertCircle size={16} className="text-[var(--err-tx)]" />}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[13px]">
+                  <div>
+                    <label className="control-label text-[11px] mb-1">Shape</label>
+                    <Select
+                      value={d.shape}
+                      disabled={busy}
+                      onChange={(e) =>
+                        updateDraft(d.id, { shape: e.target.value as "cylinder" | "rectangle" })
+                      }
+                      options={[
+                        { value: "cylinder", label: "Cylinder" },
+                        { value: "rectangle", label: "Rectangle" },
+                      ]}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="control-label text-[11px] mb-1">Height (cm)</label>
+                    <Input
+                      type="number"
+                      value={d.heightCm}
+                      disabled={busy}
+                      onChange={(e) => updateDraft(d.id, { heightCm: Number(e.target.value) })}
+                    />
+                  </div>
+
+                  {d.shape === "cylinder" ? (
+                    <div>
+                      <label className="control-label text-[11px] mb-1">Radius (cm)</label>
+                      <Input
+                        type="number"
+                        value={d.radiusCm || 0}
+                        disabled={busy}
+                        onChange={(e) => updateDraft(d.id, { radiusCm: Number(e.target.value) })}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="control-label text-[11px] mb-1">Width (cm)</label>
+                        <Input
+                          type="number"
+                          value={d.widthCm || 0}
+                          disabled={busy}
+                          onChange={(e) => updateDraft(d.id, { widthCm: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <label className="control-label text-[11px] mb-1">Length (cm)</label>
+                        <Input
+                          type="number"
+                          value={d.lengthCm || 0}
+                          disabled={busy}
+                          onChange={(e) => updateDraft(d.id, { lengthCm: Number(e.target.value) })}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div>
+                    <label className="control-label text-[11px] mb-1">Dead Zone (cm)</label>
+                    <Input
+                      type="number"
+                      value={d.deadZoneCm}
+                      disabled={busy}
+                      onChange={(e) => updateDraft(d.id, { deadZoneCm: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                {d.error && (
+                  <p role="alert" className="text-[12px] text-[var(--err-tx)] m-0 font-medium">
+                    {d.error}
+                  </p>
+                )}
               </div>
-            </Field>
-          ) : (
-            <>
-              <Field label="Width (W)" hint="Internal cross width" required>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min={10}
-                    max={5000}
-                    value={widthCm}
-                    onChange={(e) => setWidthCm(Number(e.target.value))}
-                    className="field pr-12 font-mono text-sm"
-                    required
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">
-                    cm
-                  </span>
-                </div>
-              </Field>
-
-              <Field label="Length (L)" hint="Internal cross length" required>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min={10}
-                    max={5000}
-                    value={lengthCm}
-                    onChange={(e) => setLengthCm(Number(e.target.value))}
-                    className="field pr-12 font-mono text-sm"
-                    required
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">
-                    cm
-                  </span>
-                </div>
-              </Field>
-            </>
-          )}
+            );
+          })}
         </div>
-
-        {/* Live Capacity Card */}
-        <div className="rounded-lg border hairline bg-raised/50 p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted uppercase tracking-wider">
-              Calculated Total Tank Capacity
-            </span>
-            <span className="text-lg font-bold font-mono text-tide">{litres(capacityL)}</span>
-          </div>
-          <div className="mt-2 text-xs text-muted leading-relaxed">
-            Effective usable water depth: <span className="font-semibold text-ink">{Math.max(0, heightCm - deadZoneCm)} cm</span>
-            {" · "}Usable capacity: <span className="font-semibold text-ink">{litres(Math.round((baseAreaCm2 * Math.max(0, heightCm - deadZoneCm)) / 1000))}</span>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="quiet" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" loading={loading} icon={<Check size={16} />}>
-            Confirm & Save Dimensions
-          </Button>
-        </DialogFooter>
-      </form>
+      </div>
     </Dialog>
   );
 }

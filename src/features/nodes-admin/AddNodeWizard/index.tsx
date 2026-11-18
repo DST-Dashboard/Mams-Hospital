@@ -186,10 +186,10 @@ export function AddNodeWizard() {
         <div className="flex items-center justify-between pt-2">
           <Button
             type="button"
-            variant="quiet"
+            variant="secondary"
             onClick={handleBack}
             disabled={currentStep === 0}
-            icon={<ArrowLeft size={16} />}
+            icon={ArrowLeft}
           >
             Back
           </Button>
@@ -198,8 +198,8 @@ export function AddNodeWizard() {
             type="button"
             variant="primary"
             onClick={handleNext}
-            icon={<ArrowRight size={16} />}
-            iconPosition="right"
+            icon={ArrowRight}
+
           >
             Next Step
           </Button>

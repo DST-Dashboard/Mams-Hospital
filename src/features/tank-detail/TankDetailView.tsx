@@ -1,298 +1,380 @@
 "use client";
 
-import { Download, Edit, RefreshCw } from "lucide-react";
+import React, { useEffect, useMemo } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import React, { useState } from "react";
-import useSWR from "swr";
-import { TrendChart } from "@/components/charts/TrendChart";
-import { FreshnessPill, SimulatedBadge } from "@/components/status/badges";
-import { TankSvg } from "@/components/tank/TankSvg";
-import { Button } from "@/components/ui/Button";
-import { ErrorState, PageHeader, Skeleton } from "@/components/ui/primitives";
-import { fetcher } from "@/lib/api";
-import { exportToCsv } from "@/lib/csv";
-import { ago, cm, litres, pct, stamp } from "@/lib/format";
-import { RANGE_MS, useUi, type RangeKey } from "@/lib/store";
-import type { AnalyticsResponse, DashboardData, ReadingsResponse } from "@/lib/types";
-import { RangePresets } from "@/features/time-nav/RangePresets";
-import { DaySelector } from "@/features/time-nav/DaySelector";
-import { BrushSync } from "@/features/time-nav/BrushSync";
-import { useUrlTimeState } from "@/lib/url-state";
-import { DimensionsModal } from "@/features/nodes-admin/DimensionsModal";
+import { ArrowLeft, Database, Hourglass } from "lucide-react";
+import { useTank, useDashboard, useReadings, useAnalytics } from "@/lib/hooks";
+import { useUi } from "@/lib/store";
+import { ViewGuide } from "@/components/ui/primitives";
+import { Skeleton } from "@/components/ui/primitives";
+import { Select } from "@/components/ui/Select";
+import { TankHeroCard } from "./TankHeroCard";
+import { ReadingCard } from "./ReadingCard";
+import { StatusCard } from "./StatusCard";
+import { StatsGrid } from "./StatsGrid";
+import { EventTimeline } from "./EventTimeline";
 import { AlertHistory } from "./AlertHistory";
 import { SignalPanel } from "./SignalPanel";
 import { RawInspector } from "./RawInspector";
-import { EventTimeline } from "./EventTimeline";
+import { TrendChart } from "@/components/charts/TrendChart";
+import { TimeNavPanel } from "@/features/time-nav/TimeNavPanel";
+import { useBrushSync } from "@/features/time-nav/BrushSync";
+import { TANK_DETAIL_GUIDE } from "./copy";
+import {
+  calendarDays,
+  dayWindow,
+  weekWindow,
+  windowForCalendarDay,
+  type Scope,
+  type Win,
+} from "@/lib/windows";
+import { readScope, writeScope } from "@/lib/url-state";
+import { buildSeries, inferPump } from "@/lib/series";
+import { stamp } from "@/lib/format";
+import "@/styles/views-monitoring.css";
 
-export function TankDetailView({ id }: { id: number }) {
-  const { tz } = useUi();
-  const { range, from, to, setUrlState } = useUrlTimeState();
-  const [calibrating, setCalibrating] = useState(false);
-  const [selectedDow, setSelectedDow] = useState<number | null>(null);
+export interface TankDetailViewProps {
+  id: number;
+}
 
-  const dash = useSWR<DashboardData>("/api/dashboard", fetcher, { refreshInterval: 30_000 });
-  const tank = dash.data?.tanks.find((t) => t.id === id);
-  const asOf = dash.data?.asOf ?? Date.now();
+export function TankDetailView({ id }: TankDetailViewProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tz = useUi((s) => s.tz);
+  const setLastTankId = useUi((s) => s.setLastTankId);
 
-  // Determine query parameters based on url state or range
-  const activeRange: RangeKey = (range as RangeKey) || "24h";
-  const startT = from ?? (asOf - (RANGE_MS[activeRange] || RANGE_MS["24h"]));
-  const endT = to ?? asOf;
+  // Update last visited tank ID in store
+  useEffect(() => {
+    if (id > 0) {
+      setLastTankId(id);
+    }
+  }, [id, setLastTankId]);
 
-  const q = `from=${startT}&to=${endT}`;
-  const readings = useSWR<ReadingsResponse>(`/api/readings?tankId=${id}&${q}`, fetcher);
-  const stats = useSWR<AnalyticsResponse>(`/api/tanks/${id}/analytics?${q}`, fetcher);
+  const { data: tank, error: tankError, isLoading: tankLoading, mutate: refreshTank } = useTank(id);
+  const { data: dashboard, mutate: refreshDashboard } = useDashboard();
 
-  if (dash.error) return <ErrorState message={dash.error.message} onRetry={() => dash.mutate()} />;
-  if (!dash.data) return <Skeleton className="h-[600px] rounded-xl" />;
-  if (!tank) return <ErrorState message="This tank does not exist or was removed." />;
+  const asOf = dashboard?.asOf ?? 1793339580000;
+  const cardData = dashboard?.tanks.find((t) => t.id === id);
 
-  const s = stats.data;
+  // Scope state
+  const scope = useMemo(() => readScope(searchParams), [searchParams]);
 
-  const handleRangeChange = (newRange: RangeKey) => {
-    setSelectedDow(null);
-    setUrlState({ range: newRange, from: undefined, to: undefined });
+  const handleScopeChange = (nextScope: Scope) => {
+    const qs = writeScope({ ...nextScope, tank: id });
+    router.push(`${pathname}${qs}`, { scroll: false });
   };
 
-  const handleDaySelect = (dayFrom: number, dayTo: number, dow: number) => {
-    setSelectedDow(dow);
-    setUrlState({ range: "custom", from: dayFrom, to: dayTo });
+  // Time boundaries
+  const datasetStart = Date.UTC(2026, 9, 23, 5, 46);
+  const datasetEnd = asOf;
+  const days = useMemo(
+    () => calendarDays(datasetStart, datasetEnd, tz),
+    [datasetStart, datasetEnd, tz]
+  );
+
+  // Day window (24h or custom)
+  const dayWin: Win = useMemo(() => {
+    if (scope.from && scope.to) {
+      return { from: scope.from, to: scope.to };
+    }
+    if (scope.day && scope.day !== "last24h" && /^\d{4}-\d{2}-\d{2}$/.test(scope.day)) {
+      return windowForCalendarDay(scope.day, tz);
+    }
+    return dayWindow(asOf);
+  }, [scope, asOf, tz]);
+
+  // Week window (7 days)
+  const weekWin: Win = useMemo(() => weekWindow(asOf), [asOf]);
+
+  // Fetch Day Raw Readings
+  const dayReadings = useReadings({
+    tankId: id,
+    from: dayWin.from,
+    to: dayWin.to,
+    res: "raw",
+  });
+
+  // Fetch Week Hourly Readings
+  const weekReadings = useReadings({
+    tankId: id,
+    from: weekWin.from,
+    to: weekWin.to,
+    res: "1h",
+  });
+
+  // Analytics for Day and Week
+  const dayAnalytics = useAnalytics(id, dayWin.from, dayWin.to);
+  const weekAnalytics = useAnalytics(id, weekWin.from, weekWin.to);
+
+  // Inferred pump state
+  const pump = useMemo(
+    () => inferPump(dayAnalytics.data?.events || weekAnalytics.data?.events, asOf),
+    [dayAnalytics.data?.events, weekAnalytics.data?.events, asOf]
+  );
+
+  // Chart series preparation
+  const daySeries = useMemo(() => {
+    if (!tank) return [];
+    return [
+      {
+        tankId: tank.id,
+        label: tank.label,
+        simulated: tank.simulated,
+        points: buildSeries(dayReadings.data?.points || [], dayWin, 300_000),
+      },
+    ];
+  }, [tank, dayReadings.data, dayWin]);
+
+  const weekSeries = useMemo(() => {
+    if (!tank) return [];
+    return [
+      {
+        tankId: tank.id,
+        label: tank.label,
+        simulated: tank.simulated,
+        points: buildSeries(weekReadings.data?.points || [], weekWin, 3600_000),
+      },
+    ];
+  }, [tank, weekReadings.data, weekWin]);
+
+  // Raw readings for inspector
+  const rawInspectorPoints = useMemo(() => {
+    return (dayReadings.data?.points || []).map((p) => ({
+      t: p.t,
+      distanceCm: p.distanceCm,
+      levelCm: p.levelCm,
+      levelPct: p.levelPct,
+      volumeL: p.volumeL,
+      quality: p.quality || "good",
+    }));
+  }, [dayReadings.data]);
+
+  // Brush handler for week chart
+  const handleBrushRange = useBrushSync((range: Win) => {
+    handleScopeChange({
+      ...scope,
+      day: "custom",
+      from: range.from,
+      to: range.to,
+    });
+  });
+
+  // Tank switcher options
+  const tankSwitcherOptions = useMemo(() => {
+    const list = dashboard?.tanks || [];
+    return list.map((t) => ({
+      value: String(t.id),
+      label: `${t.label}${t.simulated ? " (SIM)" : ""}`,
+    }));
+  }, [dashboard?.tanks]);
+
+  const handleSwitchTank = (newIdStr: string) => {
+    const newId = Number(newIdStr);
+    if (newId && newId !== id) {
+      router.push(`/tanks/${newId}${writeScope(scope)}`);
+    }
   };
 
-  const handleExportFullCsv = () => {
-    if (!readings.data?.points) return;
-    exportToCsv(
-      `${tank.label.toLowerCase().replace(/\s+/g, "_")}_full_report`,
-      [
-        { key: "t", label: "Epoch UTC" },
-        {
-          key: "t",
-          label: `Timestamp (${tz})`,
-          format: (val) => stamp(val as number, tz),
-        },
-        { key: "distanceCm", label: "Ultrasonic Distance (cm)" },
-        { key: "levelCm", label: "Water Level (cm)" },
-        { key: "levelPct", label: "Level Percentage (%)" },
-        { key: "volumeL", label: "Volume (L)" },
-        { key: "quality", label: "Signal Status" },
-      ],
-      readings.data.points as unknown as Record<string, unknown>[]
+  if (tankLoading) {
+    return (
+      <div className="flex flex-col gap-8 pb-12">
+        <Skeleton className="w-64 h-10" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Skeleton className="h-[360px] rounded-xl" />
+          <Skeleton className="h-[360px] rounded-xl" />
+          <Skeleton className="h-[360px] rounded-xl" />
+        </div>
+        <Skeleton className="h-[480px] rounded-xl" />
+      </div>
     );
-  };
+  }
+
+  // 404 state if tank not found
+  if (tankError || !tank) {
+    return (
+      <div className="py-12 flex justify-center">
+        <div className="card p-10 max-w-lg text-center flex flex-col items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-[var(--warn-bg)] text-[var(--warn-tx)] flex items-center justify-center">
+            <Database size={28} />
+          </div>
+          <h2 className="text-[22px] font-bold text-[var(--tx-head)]">Tank not found</h2>
+          <p className="text-[14px] text-[var(--tx-body)]">
+            Tank #{id} does not exist or has been removed from the hospital water system.
+          </p>
+          <Link href="/dashboard" className="btn btn-primary mt-2 inline-flex items-center gap-2">
+            <ArrowLeft size={16} />
+            <span>Return to Dashboard</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Draft state (awaiting first reading)
+  if (tank.status === "draft") {
+    return (
+      <div className="py-12 flex justify-center">
+        <div className="card p-10 max-w-lg text-center flex flex-col items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-[var(--neutral-bg)] text-[var(--tx-quiet)] flex items-center justify-center">
+            <Hourglass size={28} />
+          </div>
+          <h2 className="text-[22px] font-bold text-[var(--tx-head)]">{tank.label} (Draft)</h2>
+          <p className="text-[14px] text-[var(--tx-body)]">
+            This tank is in Draft state awaiting its first telemetry uplink from sensor transmitter.
+          </p>
+          <span className="chip chip--neutral font-mono text-[12px]">Countdown: 04:59</span>
+          <Link href="/dashboard" className="btn btn-outline mt-2">
+            Back to Overview
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      {/* Page Header */}
-      <PageHeader
-        title={tank.label}
-        sub={
-          <span className="flex flex-wrap items-center gap-3">
-            <FreshnessPill state={tank.freshness} label={`Telemetry ${ago(tank.current.t, asOf)}`} />
-            {tank.simulated && <SimulatedBadge />}
-            {!tank.thresholds && (
-              <span className="text-xs text-warn font-semibold">Provisional Dimensions</span>
-            )}
-          </span>
-        }
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <RangePresets
-            value={range === "custom" ? "custom" : activeRange}
-            onChange={handleRangeChange}
-            options={["6h", "24h", "7d"]}
-          />
+    <div className="flex flex-col gap-8 pb-12">
+      {/* Page Header with Tank Switcher */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-[12px] font-semibold text-[var(--tx-quiet)] mb-1">
+            <Link href="/dashboard" className="hover:text-[var(--brand-800)] flex items-center gap-1">
+              <ArrowLeft size={13} />
+              <span>Overview</span>
+            </Link>
+            <span>/</span>
+            <span>Tank Detail</span>
+          </div>
 
-          <Button
-            variant="quiet"
-            size="sm"
-            onClick={handleExportFullCsv}
-            icon={<Download size={14} />}
-            disabled={!readings.data?.points?.length}
-          >
-            Export CSV
-          </Button>
-
-          <Button
-            variant="quiet"
-            size="sm"
-            onClick={() => setCalibrating(true)}
-            icon={<Edit size={14} />}
-          >
-            Calibrate
-          </Button>
+          <h1 className="text-[26px] font-bold text-[var(--tx-head)] font-['Merriweather',serif]">
+            {tank.label}
+          </h1>
+          <p className="text-[13px] text-[var(--tx-body)] mt-0.5">
+            {tank.location || "Rooftop storage vessel"} · Last reading {stamp(asOf, tz)} ({tz})
+          </p>
         </div>
-      </PageHeader>
 
-      {/* Time Navigation Bar: Day Selector & Brush Zoom Sync */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b hairline pb-4">
-        <DaySelector
-          asOf={asOf}
-          selectedDay={selectedDow}
-          onSelectDay={handleDaySelect}
-        />
-        <BrushSync
-          onReset={() => {
-            setSelectedDow(null);
-            setUrlState({ range: "24h", from: undefined, to: undefined });
-          }}
-        />
-      </div>
-
-      {/* Main Grid: Visual Gauge + Trend Chart */}
-      <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
-        {/* Left Column: Tank Cross-Section & Vital Metrics */}
-        <div className="rounded-xl border hairline bg-surface p-5 space-y-5">
-          <div className="flex items-center justify-center">
-            <TankSvg
-              pct={tank.current.levelPct}
-              thresholds={tank.thresholds}
-              severity={tank.worstSeverity}
-              label={tank.label}
-              litres={litres(tank.current.volumeL)}
+        {/* Tank Switcher Dropdown */}
+        {tankSwitcherOptions.length > 0 && (
+          <div className="w-60">
+            <Select
+              value={String(id)}
+              onChange={(e) => handleSwitchTank(e.target.value)}
+              options={tankSwitcherOptions}
+              aria-label="Switch selected water tank"
             />
           </div>
-
-          <dl className="num grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs border-t hairline pt-4">
-            <dt className="text-muted">Fill Percentage</dt>
-            <dd className="text-right font-bold text-ink text-sm font-mono">{pct(tank.current.levelPct)}</dd>
-
-            <dt className="text-muted">Total Volume</dt>
-            <dd className="text-right font-mono font-medium text-ink">{litres(tank.current.volumeL)}</dd>
-
-            <dt className="text-muted">Tank Capacity</dt>
-            <dd className="text-right font-mono text-muted">{litres(tank.capacityL)}</dd>
-
-            <dt className="text-muted">Water Depth</dt>
-            <dd className="text-right font-mono text-ink">{cm(tank.current.levelCm)}</dd>
-
-            <dt className="text-muted">Distance to Surface</dt>
-            <dd className="text-right font-mono text-ink">{cm(tank.current.distanceCm)}</dd>
-
-            <dt className="text-muted">RF Signal</dt>
-            <dd className="text-right font-mono text-ink">{tank.current.rssi != null ? `${tank.current.rssi} dBm` : "—"}</dd>
-
-            <dt className="text-muted">Battery</dt>
-            <dd className="text-right font-mono text-ink">{tank.current.batteryPct != null ? `${tank.current.batteryPct}%` : "—"}</dd>
-          </dl>
-        </div>
-
-        {/* Right Column: Interactive Trend Chart & Window Statistics */}
-        <div className="min-w-0 space-y-6">
-          <div className="rounded-xl border hairline bg-surface p-5">
-            <div className="flex items-center justify-between border-b hairline pb-3 mb-4">
-              <h3 className="text-sm font-semibold text-ink">Water Depth Historical Trend</h3>
-              <span className="text-xs text-muted font-mono">
-                {readings.data?.count ?? 0} telemetry readings
-              </span>
-            </div>
-
-            {readings.error ? (
-              <ErrorState message={readings.error.message} onRetry={() => readings.mutate()} />
-            ) : readings.data ? (
-              readings.data.count ? (
-                <TrendChart data={readings.data} thresholds={tank.thresholds} tz={tz} />
-              ) : (
-                <p className="py-20 text-center text-sm text-muted">
-                  No readings found in this window. Select a wider range or pick another day above.
-                </p>
-              )
-            ) : (
-              <Skeleton className="h-80" />
-            )}
-          </div>
-
-          {/* Window Statistics & Fill/Drain Events */}
-          <div className="grid gap-6 sm:grid-cols-2">
-            {/* Window Analytics */}
-            <div className="rounded-xl border hairline bg-surface p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-ink border-b hairline pb-2">
-                Operational Window Statistics
-              </h3>
-              {s ? (
-                <dl className="num grid grid-cols-[1fr_auto] gap-y-2 text-xs">
-                  <dt className="text-muted">Average Water Level</dt>
-                  <dd className="font-mono font-medium">{s.levelPct ? `${s.levelPct.mean.toFixed(0)}%` : "—"}</dd>
-
-                  <dt className="text-muted">Lowest / Highest</dt>
-                  <dd className="font-mono">{s.levelPct ? `${s.levelPct.min.toFixed(0)}% / ${s.levelPct.max.toFixed(0)}%` : "—"}</dd>
-
-                  <dt className="text-muted">Total Water Consumed</dt>
-                  <dd className="font-mono font-semibold text-tide">{litres(s.consumedL)}</dd>
-
-                  <dt className="text-muted">Total Pumped In</dt>
-                  <dd className="font-mono text-ok">{litres(s.pumpedInL)}</dd>
-
-                  <dt className="text-muted">Telemetry Completeness</dt>
-                  <dd className="font-mono font-medium">{s.completenessPct}%</dd>
-
-                  <dt className="text-muted">Estimated Time to Empty</dt>
-                  <dd className="font-mono font-semibold text-warn">
-                    {s.minutesToEmpty == null ? "Not draining" : `${Math.round(s.minutesToEmpty / 60)} hours`}
-                  </dd>
-                </dl>
-              ) : (
-                <Skeleton className="h-32" />
-              )}
-            </div>
-
-            {/* Fill & Drain Event Timeline */}
-            <div className="rounded-xl border hairline bg-surface p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-ink border-b hairline pb-2">
-                Fill & Drain Event Log
-              </h3>
-              <EventTimeline events={s?.events ?? []} />
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Signal Quality Panel */}
-      <section aria-label="LoRaWAN Signal Diagnostics">
+      {/* Top 3-Up Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <TankHeroCard tank={tank} cardData={cardData} />
+        <ReadingCard tank={tank} cardData={cardData} />
+        <StatusCard
+          tank={tank}
+          cardData={cardData}
+          pump={pump}
+          onRefresh={() => {
+            refreshTank();
+            refreshDashboard();
+          }}
+        />
+      </div>
+
+      {/* View Guide */}
+      <ViewGuide
+        question={TANK_DETAIL_GUIDE.question}
+        description={TANK_DETAIL_GUIDE.description}
+        steps={TANK_DETAIL_GUIDE.steps}
+        howToRead={TANK_DETAIL_GUIDE.howToRead}
+        collapsedByDefault={true}
+        storageKey="ohtms_tank_detail_guide_collapsed"
+      />
+
+      {/* Time Navigation Panel */}
+      <section aria-label="Tank detail time navigation">
+        <TimeNavPanel
+          scope={scope}
+          onScopeChange={handleScopeChange}
+          calendarDays={days}
+          asOf={asOf}
+          totalTanks={5}
+        />
+      </section>
+
+      {/* Stats Grid comparing Day | Week */}
+      <section aria-label="Tank hydraulic statistics comparison">
+        <StatsGrid
+          dayAnalytics={dayAnalytics.data}
+          weekAnalytics={weekAnalytics.data}
+        />
+      </section>
+
+      {/* Stacked Day Chart (440px) */}
+      <section aria-labelledby="day-chart-heading">
+        <TrendChart
+          title={`Day trend · ${tank.label} (24 hours)`}
+          eyebrow="HIGH-CADENCE 24-HOUR TELEMETRY"
+          explainer="High-resolution 5-minute telemetry points for the selected 24-hour cycle. Dotted horizontal lines represent Warning (40%), Critical (20%), and Emergency (5%) levels."
+          footnote={`Physical threshold boundaries configured for ${tank.label}. Missing data periods are rendered with gaps.`}
+          series={daySeries}
+          win={dayWin}
+          thresholds={tank.thresholds}
+          events={dayAnalytics.data?.events}
+          height={440}
+          isLoading={dayReadings.isLoading}
+          error={dayReadings.error}
+          onRetry={() => dayReadings.mutate()}
+        />
+      </section>
+
+      {/* Stacked Week Chart (440px) with Brush */}
+      <section id="week-chart-section" aria-labelledby="week-chart-heading">
+        <TrendChart
+          title={`Week trend · ${tank.label} (7 days)`}
+          eyebrow="HOURLY 7-DAY SYNOPTIC OVERVIEW"
+          explainer="Aggregated 1-hour average water level. Drag across any period to zoom the 24-hour day chart above."
+          footnote="Full 7-day cyclical perspective. Weekly morning and evening peak drawdowns visible."
+          series={weekSeries}
+          win={weekWin}
+          thresholds={tank.thresholds}
+          events={weekAnalytics.data?.events}
+          height={440}
+          enableBrush={true}
+          onBrushEnd={handleBrushRange}
+          isLoading={weekReadings.isLoading}
+          error={weekReadings.error}
+          onRetry={() => weekReadings.mutate()}
+        />
+      </section>
+
+      {/* Hydraulic Activity Events Timeline */}
+      <section aria-label="Hydraulic pump fill and drain event history">
+        <EventTimeline
+          events={dayAnalytics.data?.events || weekAnalytics.data?.events || []}
+          tankHeightCm={tank.geometry.heightCm}
+          tankCapacityL={cardData?.capacityL ?? 8639}
+        />
+      </section>
+
+      {/* Two-Up: Alert History & Signal Panel */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <AlertHistory tankId={tank.id} tankLabel={tank.label} />
         <SignalPanel
-          rssi={tank.current.rssi}
-          snr={tank.current.snr}
-          batteryPct={tank.current.batteryPct}
+          cardData={cardData}
+          completenessPct={dayAnalytics.data?.completenessPct ?? weekAnalytics.data?.completenessPct}
+        />
+      </div>
+
+      {/* Collapsible Raw Readings Inspector (Inverted Distance Chart + Paged Table) */}
+      <section aria-label="Raw sensor readings inspector">
+        <RawInspector
+          points={rawInspectorPoints}
+          win={dayWin}
         />
       </section>
-
-      {/* Alert Incident History */}
-      <section aria-label="Tank Alert History">
-        <AlertHistory tankId={tank.id} />
-      </section>
-
-      {/* Collapsible Raw Sensor Telemetry Inspector with CSV export */}
-      <section aria-label="Raw Telemetry Inspector">
-        <RawInspector readings={readings.data} tankLabel={tank.label} />
-      </section>
-
-      {/* Calibration Dimensions Modal */}
-      {calibrating ? (
-        <DimensionsModal
-          open={calibrating}
-          onClose={() => setCalibrating(false)}
-          tank={{
-            id: tank.id,
-            label: tank.label,
-            deviceId: tank.deviceId,
-            zone: null,
-            location: null,
-            status: "active",
-            geometry: {
-              heightCm: 300,
-              deadZoneCm: 25,
-              shape: { kind: "cylinder", radiusCm: 100 },
-            },
-            thresholds: tank.thresholds,
-            dimsConfirmed: false,
-            simulated: tank.simulated,
-            deletedAt: null,
-          }}
-          onSuccess={() => {
-            dash.mutate();
-            readings.mutate();
-          }}
-        />
-      ) : null}
     </div>
   );
 }

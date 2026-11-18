@@ -1,39 +1,37 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
-import type { TankRow } from "@/server/repos/tanks";
+import { del } from "@/lib/api";
+import type { TankRow } from "@/lib/types";
 
-export interface DeleteNodeDialogProps {
+interface DeleteNodeDialogProps {
   open: boolean;
-  onClose: () => void;
   tank: TankRow | null;
-  onSuccess?: () => void;
+  onClose: () => void;
+  onSuccess: () => void;
 }
 
-export function DeleteNodeDialog({ open, onClose, tank, onSuccess }: DeleteNodeDialogProps) {
-  const { success, error: toastError } = useToast();
-  const [loading, setLoading] = useState(false);
+export function DeleteNodeDialog({ open, tank, onClose, onSuccess }: DeleteNodeDialogProps) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
 
   if (!tank) return null;
 
-  const handleDelete = async () => {
+  const cleanLabel = tank.label.trim().replace(/\s+/g, " ");
+
+  const handleConfirm = async () => {
     try {
-      setLoading(true);
-      const res = await fetch(`/api/tanks/${tank.id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? "Failed to decommission tank");
-      }
-      success(`Tank "${tank.label}" decommissioned. You can restore it from Deleted Nodes.`);
-      onSuccess?.();
+      setBusy(true);
+      await del(`/api/tanks/${tank.id}`);
+      toast.success(`${cleanLabel} moved to deleted nodes archive.`);
+      onSuccess();
       onClose();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error deleting node";
-      toastError(msg);
+    } catch {
+      toast.error("Failed to delete node.");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
@@ -41,18 +39,17 @@ export function DeleteNodeDialog({ open, onClose, tank, onSuccess }: DeleteNodeD
     <ConfirmDialog
       open={open}
       onClose={onClose}
-      onConfirm={handleDelete}
-      title={`Decommission Tank: ${tank.label}`}
-      description={
-        <span>
-          Are you sure you want to decommission this tank? Its active telemetry monitoring will be stopped and
-          it will be moved to the Deleted Nodes archive.
-        </span>
+      title={`Delete Node ${cleanLabel}`}
+      requireText={cleanLabel}
+      confirmLabel="Delete node"
+      danger={true}
+      busy={busy}
+      onConfirm={handleConfirm}
+      body={
+        <p style={{ margin: 0, color: "var(--tx-body)", fontSize: "14px" }}>
+          This hides <strong>{cleanLabel}</strong> from the dashboard. History is kept for 90 days and you can restore it until then.
+        </p>
       }
-      confirmLabel="Decommission Tank"
-      confirmKeyword={tank.label}
-      variant="danger"
-      loading={loading}
     />
   );
 }

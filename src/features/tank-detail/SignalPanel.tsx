@@ -1,80 +1,93 @@
 "use client";
 
-import { Battery, Radio, Wifi, Zap } from "lucide-react";
 import React from "react";
-import { BatteryIcon } from "@/components/status/BatteryIcon";
+import { Radio } from "lucide-react";
 import { SignalBars } from "@/components/status/SignalBars";
+import { BatteryIcon } from "@/components/status/BatteryIcon";
+import { QualityChip } from "@/components/status/badges";
+import { CompletenessMeter } from "@/components/status/CompletenessMeter";
+import type { TankCardData } from "@/lib/types";
 
 export interface SignalPanelProps {
-  rssi?: number | null;
-  snr?: number | null;
-  batteryPct?: number | null;
-  gatewayId?: string | null;
-  deviceId?: string | null;
+  cardData?: TankCardData;
+  completenessPct?: number | null;
+  className?: string;
 }
 
 export function SignalPanel({
-  rssi,
-  snr,
-  batteryPct,
-  gatewayId = "mams-rooftop-gw-01",
-  deviceId,
+  cardData,
+  completenessPct,
+  className,
 }: SignalPanelProps) {
-  let signalQuality = "Fair";
-  if (rssi != null) {
-    if (rssi >= -70) signalQuality = "Excellent";
-    else if (rssi >= -85) signalQuality = "Good";
-    else if (rssi >= -100) signalQuality = "Fair";
-    else signalQuality = "Poor / Marginal";
-  }
+  const cur = cardData?.current;
 
   return (
-    <div className="rounded-xl border hairline bg-surface p-5 space-y-4">
-      <div className="flex items-center justify-between border-b hairline pb-3">
-        <div className="flex items-center gap-2">
-          <Wifi size={18} className="text-tide" />
-          <h3 className="text-base font-semibold text-ink">LoRaWAN RF & Hardware Diagnostics</h3>
-        </div>
-        <span className="text-xs font-semibold text-tide bg-tide/10 px-2.5 py-0.5 rounded">
-          {signalQuality}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {/* Signal RSSI & Bars */}
-        <div className="rounded-lg border hairline bg-raised/30 p-3 space-y-1">
-          <span className="text-[11px] text-muted block uppercase tracking-wider font-semibold">
-            Signal (RSSI)
-          </span>
-          <SignalBars rssi={rssi} snr={snr} showValues={true} />
-        </div>
-
-        {/* SNR */}
-        <div className="rounded-lg border hairline bg-raised/30 p-3 space-y-1">
-          <span className="text-[11px] text-muted block uppercase tracking-wider font-semibold">
-            SNR Margin
-          </span>
-          <span className="font-mono text-sm font-semibold text-ink">
-            {snr != null ? `${snr > 0 ? `+${snr}` : snr} dB` : "—"}
+    <div className={className}>
+      <div className="card p-6 flex flex-col gap-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="eyebrow flex items-center gap-1.5 text-[11px] font-bold text-[var(--accent-500)] uppercase">
+              <Radio size={13} aria-hidden />
+              <span>RF LORAWAN TELEMETRY</span>
+            </div>
+            <h3 className="card-title text-[20px] font-bold text-[var(--tx-head)] font-['Merriweather',serif]">
+              Signal and transmitter
+            </h3>
+          </div>
+          <span className="text-[12px] font-semibold text-[var(--tx-quiet)]">
+            SenseCap gateway
           </span>
         </div>
 
-        {/* Battery */}
-        <div className="rounded-lg border hairline bg-raised/30 p-3 space-y-1">
-          <span className="text-[11px] text-muted block uppercase tracking-wider font-semibold">
-            Sensor Battery
-          </span>
-          <BatteryIcon pct={batteryPct} />
+        {/* Completeness Bar */}
+        <div className="p-3 bg-[var(--bg-subtle)] rounded-xl border border-[var(--bd-soft)] flex flex-col gap-2">
+          <div className="flex justify-between items-center text-[12px]">
+            <span className="font-semibold text-[var(--tx-head)]">Telemetry completeness</span>
+            <span className="font-mono font-bold text-[var(--brand-800)]">
+              {completenessPct !== null && completenessPct !== undefined
+                ? `${Math.round(completenessPct)}%`
+                : "—"}
+            </span>
+          </div>
+          <CompletenessMeter pct={completenessPct ?? null} />
         </div>
 
-        {/* Gateway */}
-        <div className="rounded-lg border hairline bg-raised/30 p-3 space-y-1">
-          <span className="text-[11px] text-muted block uppercase tracking-wider font-semibold">
-            Serving Gateway
-          </span>
-          <span className="font-mono text-xs text-ink truncate block" title={gatewayId ?? ""}>
-            {gatewayId ?? "mams-rooftop-gw-01"}
-          </span>
+        {/* 4-up radio stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3 bg-[var(--bg-subtle)] rounded-xl border border-[var(--bd-soft)] flex flex-col">
+            <span className="text-[11px] text-[var(--tx-quiet)] font-medium">RSSI Signal</span>
+            <div className="flex items-center gap-2 mt-1">
+              <SignalBars rssi={cur?.rssi ?? null} snr={cur?.snr ?? null} />
+              <span className="font-mono font-bold text-[14px] text-[var(--tx-head)]">
+                {cur?.rssi != null ? `${cur.rssi} dBm` : "—"}
+              </span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-[var(--bg-subtle)] rounded-xl border border-[var(--bd-soft)] flex flex-col">
+            <span className="text-[11px] text-[var(--tx-quiet)] font-medium">Signal-to-Noise</span>
+            <span className="font-mono font-bold text-[14px] text-[var(--tx-head)] mt-1">
+              {cur?.snr != null ? `${cur.snr} dB` : "—"}
+            </span>
+          </div>
+
+          <div className="p-3 bg-[var(--bg-subtle)] rounded-xl border border-[var(--bd-soft)] flex flex-col">
+            <span className="text-[11px] text-[var(--tx-quiet)] font-medium">Link Quality</span>
+            <div className="mt-1">
+              <QualityChip quality={cur?.quality === "ok" ? "good" : cur?.quality === "dead_zone" ? "fair" : "weak"} />
+            </div>
+          </div>
+
+          <div className="p-3 bg-[var(--bg-subtle)] rounded-xl border border-[var(--bd-soft)] flex flex-col">
+            <span className="text-[11px] text-[var(--tx-quiet)] font-medium">Battery Level</span>
+            <div className="flex items-center gap-2 mt-1">
+              <BatteryIcon pct={cur?.batteryPct ?? null} />
+              <span className="font-mono font-bold text-[14px] text-[var(--tx-head)]">
+                {cur?.batteryPct != null ? `${cur.batteryPct}%` : "—"}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

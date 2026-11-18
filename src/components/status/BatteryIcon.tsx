@@ -1,40 +1,70 @@
 "use client";
 
-import clsx from "clsx";
-import { Battery, BatteryCharging, BatteryLow, BatteryMedium, BatteryWarning } from "lucide-react";
 import React from "react";
+import clsx from "clsx";
+import { BatteryWarning } from "lucide-react";
 
-export function BatteryIcon({
-  pct,
-  showLabel = true,
-  className,
-}: {
-  pct: number | null | undefined;
-  showLabel?: boolean;
+export interface BatteryIconProps {
+  pct: number | null;
   className?: string;
-}) {
-  if (pct == null) {
+  showText?: boolean;
+}
+
+export function BatteryIcon({ pct, className, showText = false }: BatteryIconProps) {
+  if (pct == null || Number.isNaN(pct)) {
     return (
-      <span className={clsx("inline-flex items-center gap-1 text-xs text-muted", className)}>
-        <Battery size={14} className="opacity-40" />
-        {showLabel && <span>—</span>}
+      <span className={clsx("inline-flex items-center gap-1 text-[var(--tx-muted)] text-[12px]", className)}>
+        <BatteryWarning size={16} aria-hidden />
+        {showText && <span>—</span>}
       </span>
     );
   }
 
-  const isLow = pct < 20;
-  const isWarn = pct >= 20 && pct < 50;
+  const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+  const isLow = clamped < 20;
+  const isMed = clamped >= 20 && clamped < 50;
 
-  const Icon = isLow ? BatteryLow : isWarn ? BatteryMedium : Battery;
-  const color = isLow ? "text-crit" : isWarn ? "text-warn" : "text-ok";
+  const colorClass = isLow
+    ? "text-[var(--err-tx)]"
+    : isMed
+    ? "text-[var(--warn-tx)]"
+    : "text-[var(--ok-tx)]";
 
   return (
     <span
-      className={clsx("inline-flex items-center gap-1 text-xs font-mono font-medium", color, className)}
-      title={`Battery: ${Math.round(pct)}%`}
+      className={clsx("inline-flex items-center gap-1.5", colorClass, className)}
+      title={`Battery: ${clamped}%`}
+      aria-label={`Battery: ${clamped}%`}
     >
-      <Icon size={15} aria-hidden="true" />
-      {showLabel && <span>{Math.round(pct)}%</span>}
+      <svg
+        width="22"
+        height="12"
+        viewBox="0 0 22 12"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="flex-shrink-0"
+        aria-hidden
+      >
+        <rect
+          x="0.5"
+          y="0.5"
+          width="18"
+          height="11"
+          rx="2.5"
+          stroke="currentColor"
+          strokeWidth="1"
+        />
+        <path d="M20 4V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <rect
+          x="2"
+          y="2"
+          width={Math.max(1, (15 * clamped) / 100)}
+          height="8"
+          rx="1"
+          fill="currentColor"
+        />
+      </svg>
+      {showText && <span className="text-[12px] font-medium num">{clamped}%</span>}
     </span>
   );
 }
