@@ -345,13 +345,24 @@ export function TrendChart({
   const allPoints = series.flatMap((s) => s.points);
   if (allPoints.length === 0) {
     return (
-      <div className={className}>
-        <div className="card p-6">
-          <EmptyState
-            title="No readings in this window"
-            text="There are no sensor readings recorded for the selected time range. Choose a wider time window."
-          />
+      <div className={clsx("card p-6 flex flex-col gap-3", className)}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            {eyebrow && (
+              <div className="eyebrow flex items-center gap-1.5 text-[11px] font-bold text-[var(--accent-500)] uppercase tracking-wider">
+                <Layers size={13} aria-hidden />
+                <span>{eyebrow}</span>
+              </div>
+            )}
+            <h2 className="card-title text-[20px] font-bold text-[var(--tx-head)] font-['Merriweather',serif]">
+              {title}
+            </h2>
+          </div>
         </div>
+        <EmptyState
+          title="Awaiting initial uplink"
+          text="There are no sensor readings recorded for the selected time range. Live data will populate automatically as LoRaWAN packets arrive."
+        />
       </div>
     );
   }

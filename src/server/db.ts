@@ -24,11 +24,10 @@ export function getPool(connectionString?: string): Pool {
   const pool = new Pool({
     connectionString: conf.DATABASE_URL,
     max: process.env.VERCEL ? 3 : 10,
+    idleTimeoutMillis: 10000,
   });
 
-  if (process.env.NODE_ENV !== "production") {
-    g.__ohtmsPool = pool;
-  }
+  g.__ohtmsPool = pool;
 
   return pool;
 }
