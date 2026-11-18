@@ -123,6 +123,7 @@ export function DashboardView() {
 
   // Day series for MultiTankChart
   const daySeries = useMemo(() => {
+    const tankMap = new Map((dashboard?.tanks || []).map((t) => [t.id, t]));
     const rawList = [
       { id: 1, label: "Tank 1", data: d1.data },
       { id: 2, label: "Tank 2", data: d2.data },
@@ -133,13 +134,14 @@ export function DashboardView() {
     return rawList.map((item) => ({
       tankId: item.id,
       label: item.label,
-      simulated: item.id > 1,
+      simulated: tankMap.get(item.id)?.simulated ?? item.id > 3,
       points: buildSeries(item.data?.points || [], activeDayWin, 300_000),
     }));
-  }, [d1.data, d2.data, d3.data, d4.data, d5.data, activeDayWin]);
+  }, [dashboard?.tanks, d1.data, d2.data, d3.data, d4.data, d5.data, activeDayWin]);
 
   // Week series for MultiTankChart
   const weekSeries = useMemo(() => {
+    const tankMap = new Map((dashboard?.tanks || []).map((t) => [t.id, t]));
     const rawList = [
       { id: 1, label: "Tank 1", data: w1.data },
       { id: 2, label: "Tank 2", data: w2.data },
@@ -150,10 +152,10 @@ export function DashboardView() {
     return rawList.map((item) => ({
       tankId: item.id,
       label: item.label,
-      simulated: item.id > 1,
+      simulated: tankMap.get(item.id)?.simulated ?? item.id > 3,
       points: buildSeries(item.data?.points || [], weekWin, 3600_000),
     }));
-  }, [w1.data, w2.data, w3.data, w4.data, w5.data, weekWin]);
+  }, [dashboard?.tanks, w1.data, w2.data, w3.data, w4.data, w5.data, weekWin]);
 
   // Readings map for Heatmap
   const heatmapReadingsMap = useMemo(() => {

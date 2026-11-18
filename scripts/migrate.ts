@@ -1,3 +1,9 @@
+import fs from "node:fs";
+
+if (typeof process.loadEnvFile === "function" && fs.existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
+
 import { runMigrations } from "../src/server/migrations/runner";
 
 async function main() {
@@ -14,3 +20,4 @@ main().catch((err) => {
   console.error("Migration failed:", err);
   process.exit(1);
 });
+

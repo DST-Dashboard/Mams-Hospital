@@ -21,7 +21,7 @@
     "longitude": 78.3489,
     "nodeNo": 2,
     "label": "Tank 2",
-    "simulated": true
+    "simulated": false
   },
   {
     "deviceId": "wio-e5-node-03",
@@ -33,7 +33,7 @@
     "longitude": 78.3489,
     "nodeNo": 3,
     "label": "Tank 3",
-    "simulated": true
+    "simulated": false
   },
   {
     "deviceId": "wio-e5-node-04",

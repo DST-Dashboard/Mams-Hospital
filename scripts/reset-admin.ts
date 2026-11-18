@@ -1,3 +1,9 @@
+import fs from "node:fs";
+
+if (typeof process.loadEnvFile === "function" && fs.existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
+
 import bcrypt from "bcryptjs";
 import { q, q1, closePool } from "../src/server/db";
 import { env } from "../src/server/env";

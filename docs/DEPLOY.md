@@ -143,3 +143,4 @@ This spins up:
 - Next.js web application on port `3000`
 - PostgreSQL 16 container with persistent volumes
 - Local migrations and bootstrap runners
+

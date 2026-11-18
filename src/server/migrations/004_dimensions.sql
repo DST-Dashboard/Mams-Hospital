@@ -12,3 +12,4 @@ CREATE TABLE IF NOT EXISTS tank_dimensions (
   created_at     BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tank_dimensions_effective ON tank_dimensions (tank_id, effective_from DESC);
+

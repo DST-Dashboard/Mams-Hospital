@@ -31,3 +31,4 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   first_attempt_at  BIGINT NOT NULL,
   locked_until      BIGINT
 );
+

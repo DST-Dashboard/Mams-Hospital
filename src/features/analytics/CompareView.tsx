@@ -55,8 +55,8 @@ export function CompareView() {
 
   // Gather rows
   const row1 = useTankComparisonRow(tanks[0] ?? { id: 1, label: "Tank 1", simulated: false, status: "active" }, dayWin, weekWin);
-  const row2 = useTankComparisonRow(tanks[1] ?? { id: 2, label: "Tank 2", simulated: true, status: "active" }, dayWin, weekWin);
-  const row3 = useTankComparisonRow(tanks[2] ?? { id: 3, label: "Tank 3", simulated: true, status: "active" }, dayWin, weekWin);
+  const row2 = useTankComparisonRow(tanks[1] ?? { id: 2, label: "Tank 2", simulated: false, status: "active" }, dayWin, weekWin);
+  const row3 = useTankComparisonRow(tanks[2] ?? { id: 3, label: "Tank 3", simulated: false, status: "active" }, dayWin, weekWin);
   const row4 = useTankComparisonRow(tanks[3] ?? { id: 4, label: "Tank 4", simulated: true, status: "active" }, dayWin, weekWin);
   const row5 = useTankComparisonRow(tanks[4] ?? { id: 5, label: "Tank 5", simulated: true, status: "active" }, dayWin, weekWin);
 

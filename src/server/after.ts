@@ -12,3 +12,4 @@ export function safeAfter(fn: () => void | Promise<void>): void {
     void Promise.resolve().then(fn).catch(() => {});
   }
 }
+

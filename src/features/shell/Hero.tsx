@@ -101,7 +101,7 @@ export function Hero() {
               </div>
               <div className="flex items-center gap-3.5">
                 <Radio size={24} className="text-[var(--gold-500)] flex-shrink-0" aria-hidden />
-                <span>{liveCount} live node · {simCount} simulated</span>
+                <span>{liveCount} live {liveCount === 1 ? "node" : "nodes"} · {simCount} simulated</span>
               </div>
               <div className="flex items-center gap-3.5">
                 <Clock size={24} className="text-[var(--gold-500)] flex-shrink-0" aria-hidden />

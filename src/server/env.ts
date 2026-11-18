@@ -1,4 +1,9 @@
+import fs from "node:fs";
 import { z } from "zod";
+
+if (typeof process.loadEnvFile === "function" && !process.env.DATABASE_URL && fs.existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
 
 const Env = z.object({
   NODE_ENV: z.string().default("development"),

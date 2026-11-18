@@ -20,3 +20,4 @@ export const GET = handle(async (req: Request) => {
   const executed = await runTick({ full });
   return ok({ ok: true, executed, asOf: Date.now() });
 });
+

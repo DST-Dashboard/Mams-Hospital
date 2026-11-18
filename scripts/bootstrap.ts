@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
+
+if (typeof process.loadEnvFile === "function" && fs.existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
+
 import { q, q1, tx, closePool } from "../src/server/db";
 import { env } from "../src/server/env";
 
@@ -52,7 +57,7 @@ export async function bootstrapDatabase(): Promise<void> {
       await q(
         `INSERT INTO devices (device_id, dev_eui, dev_addr, model, simulated, created_at)
          VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (device_id) DO NOTHING`,
+         ON CONFLICT (device_id) DO UPDATE SET simulated = EXCLUDED.simulated`,
         [dev.deviceId, dev.devEui, dev.devAddr ?? null, "Seeed Wio-E5", dev.simulated, now],
         client
       );
@@ -103,3 +108,4 @@ if (process.argv[1]?.endsWith("bootstrap.ts") || process.argv[1]?.endsWith("boot
       process.exit(1);
     });
 }
+

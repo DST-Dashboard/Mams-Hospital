@@ -1,3 +1,9 @@
+import fs from "node:fs";
+
+if (typeof process.loadEnvFile === "function" && fs.existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
+
 import mqtt from "mqtt";
 import { env } from "../src/server/env";
 import { ingestUplink } from "../src/server/services/ingest";
@@ -64,3 +70,4 @@ main().catch((err) => {
   console.error("TTN smoke failed:", err);
   process.exit(1);
 });
+

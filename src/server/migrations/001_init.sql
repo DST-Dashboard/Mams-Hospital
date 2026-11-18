@@ -118,3 +118,4 @@ CREATE TABLE IF NOT EXISTS notifications (
   sent_at    BIGINT,
   error      TEXT
 );
+

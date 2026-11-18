@@ -33,3 +33,4 @@ ALTER TABLE notifications ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NUL
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS attempted_at BIGINT;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS next_retry_at BIGINT;
 CREATE INDEX IF NOT EXISTS idx_notifications_retry ON notifications (status, next_retry_at);
+

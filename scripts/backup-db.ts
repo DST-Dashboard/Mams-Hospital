@@ -1,5 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+
+if (typeof process.loadEnvFile === "function" && fs.existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
+
 import { q, getPool } from "../src/server/db";
 
 export interface BackupOptions {

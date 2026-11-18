@@ -13,7 +13,7 @@
     "devAddr": "260B5B12",
     "label": "Tank 2 - ICU & OT",
     "location": "Block B Roof",
-    "simulated": true
+    "simulated": false
   },
   {
     "deviceId": "wio-e5-node-03",
@@ -21,7 +21,7 @@
     "devAddr": "260B8F9A",
     "label": "Tank 3 - General Ward",
     "location": "Block C Roof",
-    "simulated": true
+    "simulated": false
   },
   {
     "deviceId": "wio-e5-node-04",
@@ -40,3 +40,4 @@
     "simulated": true
   }
 ]
+

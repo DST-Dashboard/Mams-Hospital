@@ -1,4 +1,9 @@
 import fs from "node:fs";
+
+if (typeof process.loadEnvFile === "function" && fs.existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
+
 import { tx } from "../src/server/db";
 
 export async function performRestore(backupFilePath: string): Promise<{
