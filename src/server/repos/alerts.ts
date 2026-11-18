@@ -18,10 +18,10 @@ export interface AlertRow {
   value: number | null;
   openedAt: number;
   acknowledgedAt: number | null;
-  acknowledgedBy: number | null;
+  acknowledgedBy?: number | null;
   ackNote: string | null;
   resolvedAt: number | null;
-  snoozedUntil: number | null;
+  snoozedUntil?: number | null;
   triggerT: number | null;
   triggerDistanceCm: number | null;
   simulated: boolean;
@@ -62,7 +62,7 @@ export const toDTO = (r: AlertRow): AlertDTO => ({
   acknowledgedAt: r.acknowledgedAt,
   ackNote: r.ackNote,
   resolvedAt: r.resolvedAt,
-  snoozedUntil: r.snoozedUntil,
+  snoozedUntil: r.snoozedUntil ?? null,
   simulated: r.simulated,
 });
 
@@ -239,12 +239,12 @@ export function getDetail(id: number, asOf = Date.now()): AlertDetailDTO | undef
   const deliveriesRaw = db()
     .prepare("SELECT channel, recipient, status, sent_at, error FROM notifications WHERE alert_id = ?")
     .all(id) as Array<{
-    channel: z.infer<typeof ChannelSchema>;
-    recipient: string;
-    status: "queued" | "sent" | "failed";
-    sent_at: number | null;
-    error: string | null;
-  }>;
+      channel: z.infer<typeof ChannelSchema>;
+      recipient: string;
+      status: "queued" | "sent" | "failed";
+      sent_at: number | null;
+      error: string | null;
+    }>;
 
   const deliveries = deliveriesRaw.map((d) => ({
     channel: ChannelSchema.parse(d.channel),

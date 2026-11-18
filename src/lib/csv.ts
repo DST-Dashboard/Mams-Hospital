@@ -1,45 +1,72 @@
-"use client";
+/**
+ * Client-side CSV export for tables and charts with RFC-4180 escaping
+ * and formula-injection neutralization (U-12).
+ */
+
+export type CsvCell = string | number | boolean | null | undefined;
+export type CsvRow = Record<string, CsvCell> | CsvCell[];
 
 /**
- * [FE-05] Client-side CSV generator and downloader (U-12).
- * Correctly escapes special characters, quotes, commas, and handles nulls.
+ * Escapes a cell value according to RFC-4180 and prepends a single quote
+ * if the text begins with a spreadsheet formula trigger (=, +, -, @).
  */
-export function exportToCsv<T extends Record<string, unknown>>(
-  filename: string,
-  columns: { key: keyof T; label: string; format?: (val: unknown, row: T) => string }[],
-  data: T[]
-): void {
-  if (data.length === 0) {
-    const emptyHeaders = columns.map((c) => `"${c.label.replace(/"/g, '""')}"`).join(",");
-    downloadCsvBlob(filename, emptyHeaders);
-    return;
+export function escapeCsvCell(val: CsvCell): string {
+  if (val === null || val === undefined) {
+    return "";
   }
 
-  // Header row
-  const header = columns.map((c) => `"${c.label.replace(/"/g, '""')}"`).join(",");
+  let text = String(val);
 
-  // Data rows
-  const rows = data.map((row) =>
-    columns
-      .map((c) => {
-        const val = row[c.key];
-        const formatted = c.format ? c.format(val, row) : val == null ? "" : String(val);
-        // Escape quotes
-        return `"${formatted.replace(/"/g, '""')}"`;
-      })
-      .join(",")
-  );
+  // Formula injection neutralization (CWE-1236)
+  if (/^[=+\-@\t\r]/.test(text)) {
+    text = `'${text}`;
+  }
 
-  const csvContent = [header, ...rows].join("\r\n");
-  downloadCsvBlob(filename, csvContent);
+  // If text contains quotes, commas, or newlines, wrap in quotes and escape internal quotes
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  return text;
 }
 
-function downloadCsvBlob(filename: string, content: string) {
-  const blob = new Blob(["\uFEFF" + content], { type: "text/csv;charset=utf-8;" });
+/**
+ * Converts array of rows into a clean CSV string.
+ */
+export function toCsvString(rows: CsvRow[], headers?: string[]): string {
+  if (!rows || rows.length === 0) return "";
+
+  const lines: string[] = [];
+
+  if (headers && headers.length > 0) {
+    lines.push(headers.map(escapeCsvCell).join(","));
+  }
+
+  for (const row of rows) {
+    if (Array.isArray(row)) {
+      lines.push(row.map(escapeCsvCell).join(","));
+    } else {
+      const keys = headers || Object.keys(row);
+      lines.push(keys.map((k) => escapeCsvCell(row[k])).join(","));
+    }
+  }
+
+  return lines.join("\r\n");
+}
+
+/**
+ * Triggers a browser download of a CSV file using Blob.
+ */
+export function downloadCsv(filename: string, rows: CsvRow[], headers?: string[]): void {
+  const csvContent = toCsvString(rows, headers);
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.setAttribute("href", url);
   link.setAttribute("download", filename.endsWith(".csv") ? filename : `${filename}.csv`);
+  link.style.visibility = "hidden";
+
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

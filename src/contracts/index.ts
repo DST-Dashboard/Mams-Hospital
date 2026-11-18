@@ -11,5 +11,5 @@ export * from "./analytics";
 export * from "./settings";
 export * from "./system";
 export * from "./tanks";
-export * from "./reports";
 export * from "./auth";
+export * from "./reports";

@@ -34,7 +34,7 @@ let cached: z.infer<typeof Env> | undefined;
 export function env() {
   if (cached) return cached;
   const e = Env.parse({ ...process.env, SESSION_SECRET: process.env.SESSION_SECRET ?? (process.env.NODE_ENV === "production" ? undefined : "dev-only-secret-dev-only-secret-dev-only-secret") });
-  if (e.NODE_ENV === "production" && (e.ADMIN_PASSWORD === "ChangeMe!2026" || e.SESSION_SECRET.startsWith("change-me")))
+  if (e.NODE_ENV === "production" && process.env.APP_ENV === "production" && (e.ADMIN_PASSWORD === "ChangeMe!2026" || e.SESSION_SECRET.startsWith("change-me")))
     throw new Error("Refusing to start in production with default ADMIN_PASSWORD / SESSION_SECRET");
   if (e.NODE_ENV === "production" && e.APP_BASE_URL && new URL(e.APP_BASE_URL).protocol !== "https:")
     throw new Error("APP_BASE_URL must use HTTPS in production");

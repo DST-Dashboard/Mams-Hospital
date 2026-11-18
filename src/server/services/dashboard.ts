@@ -22,7 +22,7 @@ export function buildDashboard() {
     const mine = open.filter((a) => a.tankId === t.id);
     const worst = mine.reduce<Severity | null>((w, a) => (w == null || severityRank[a.severity] > severityRank[w] ? a.severity : w), null);
     return {
-      id: t.id, label: t.label, zone: t.zone, status: t.status, simulated: t.simulated, dimsConfirmed: t.dimsConfirmed,
+      id: t.id, label: t.label, zone: t.zone, status: t.status, simulated: t.simulated, dimsConfirmed: t.dimsConfirmed, deviceId: t.deviceId,
       capacityL: Math.round(volumeLitres(t.geometry.shape, t.geometry.heightCm)),
       current: { ...d, t: last?.t ?? null, ageMin, rssi: last?.rssi ?? null, snr: last?.snr ?? null, batteryPct: last?.batteryPct ?? null },
       freshness: freshnessOf(ageMin), thresholds: { warnPct: t.thresholds.warnPct, critPct: t.thresholds.critPct, emptyPct: t.thresholds.emptyPct },

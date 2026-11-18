@@ -1,80 +1,121 @@
-"use client";
+import type { Scope } from "./windows";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useTransition } from "react";
-import type { RangeKey } from "./store";
+/**
+ * Parses time and tank scope from URLSearchParams or search string.
+ * Invalid values fall back cleanly to safe defaults.
+ */
+export function readScope(
+  searchParams: URLSearchParams | string | Record<string, string | string[] | undefined>
+): Scope {
+  let params: URLSearchParams;
+  if (typeof searchParams === "string") {
+    params = new URLSearchParams(searchParams.startsWith("?") ? searchParams.slice(1) : searchParams);
+  } else if (searchParams instanceof URLSearchParams) {
+    params = searchParams;
+  } else {
+    params = new URLSearchParams();
+    for (const [k, v] of Object.entries(searchParams)) {
+      if (typeof v === "string") params.set(k, v);
+      else if (Array.isArray(v) && v[0]) params.set(k, v[0]);
+    }
+  }
 
-export interface TimeRangeState {
-  range?: RangeKey | "custom";
-  from?: number;
-  to?: number;
-  tankId?: number;
+  const result: Scope = {};
+
+  // Tank parameter
+  const rawTank = params.get("tank");
+  if (rawTank) {
+    const parsedTank = Number.parseInt(rawTank, 10);
+    if (!Number.isNaN(parsedTank) && parsedTank > 0) {
+      result.tank = parsedTank;
+    }
+  }
+
+  // Day parameter: "last24h" or "YYYY-MM-DD" or presets "1h", "6h", "24h", "custom"
+  const rawDay = params.get("day");
+  if (rawDay) {
+    if (rawDay === "last24h" || /^\d{4}-\d{2}-\d{2}$/.test(rawDay) || ["1h", "6h", "24h", "custom"].includes(rawDay)) {
+      result.day = rawDay;
+    }
+  }
+
+  // From parameter: UTC ISO or Epoch ms
+  const rawFrom = params.get("from");
+  if (rawFrom) {
+    const epoch = parseTimeParam(rawFrom);
+    if (epoch !== null) {
+      result.from = epoch;
+    }
+  }
+
+  // To parameter: UTC ISO or Epoch ms
+  const rawTo = params.get("to");
+  if (rawTo) {
+    const epoch = parseTimeParam(rawTo);
+    if (epoch !== null) {
+      result.to = epoch;
+    }
+  }
+
+  // Ensure from <= to if both exist
+  if (result.from && result.to && result.from > result.to) {
+    // Swap if reversed
+    const tmp = result.from;
+    result.from = result.to;
+    result.to = tmp;
+  }
+
+  return result;
+}
+
+function parseTimeParam(raw: string): number | null {
+  // If pure numeric string, treat as epoch ms
+  if (/^\d{10,14}$/.test(raw)) {
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  // Try parsing ISO string
+  const ms = Date.parse(raw);
+  return Number.isNaN(ms) ? null : ms;
 }
 
 /**
- * [FE-04] Hook for bookmarkable URL state: ?range=&from=&to=&tank= (U-11).
- * Restores selection on load and supports browser forward/back.
+ * Serializes scope object into URL query string.
+ * Uses ISO UTC strings for from/to for clear readability in bookmarks/share links.
  */
-export function useUrlTimeState() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
+export function writeScope(scope: Scope): string {
+  const params = new URLSearchParams();
 
-  const rangeParam = searchParams.get("range") as RangeKey | "custom" | null;
-  const fromParam = searchParams.get("from");
-  const toParam = searchParams.get("to");
-  const tankParam = searchParams.get("tank");
+  if (scope.tank !== undefined && scope.tank !== null) {
+    params.set("tank", String(scope.tank));
+  }
 
-  const from = fromParam ? Number(fromParam) : undefined;
-  const to = toParam ? Number(toParam) : undefined;
-  const tankId = tankParam ? Number(tankParam) : undefined;
-  const range = rangeParam ?? (from && to ? "custom" : "24h");
+  if (scope.day) {
+    params.set("day", scope.day);
+  }
 
-  const setUrlState = useCallback(
-    (newState: Partial<TimeRangeState>, replace = true) => {
-      const current = new URLSearchParams(searchParams.toString());
+  if (scope.from !== undefined && scope.from !== null) {
+    params.set("from", new Date(scope.from).toISOString());
+  }
 
-      if (newState.range !== undefined) {
-        if (newState.range) current.set("range", newState.range);
-        else current.delete("range");
-      }
+  if (scope.to !== undefined && scope.to !== null) {
+    params.set("to", new Date(scope.to).toISOString());
+  }
 
-      if (newState.from !== undefined) {
-        if (newState.from != null) current.set("from", String(newState.from));
-        else current.delete("from");
-      }
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
 
-      if (newState.to !== undefined) {
-        if (newState.to != null) current.set("to", String(newState.to));
-        else current.delete("to");
-      }
-
-      if (newState.tankId !== undefined) {
-        if (newState.tankId != null) current.set("tank", String(newState.tankId));
-        else current.delete("tank");
-      }
-
-      const queryString = current.toString();
-      const nextUrl = queryString ? `${pathname}?${queryString}` : pathname;
-
-      startTransition(() => {
-        if (replace) {
-          router.replace(nextUrl, { scroll: false });
-        } else {
-          router.push(nextUrl, { scroll: false });
-        }
-      });
-    },
-    [router, pathname, searchParams]
-  );
-
-  return {
-    range,
-    from,
-    to,
-    tankId,
-    setUrlState,
-    isPending,
-  };
+/**
+ * Merges partial scope updates into an existing query string.
+ */
+export function updateScopeUrl(currentSearch: string, updates: Partial<Scope>): string {
+  const current = readScope(currentSearch);
+  const next = { ...current, ...updates };
+  // If tank is explicitly set to null, remove it
+  if (updates.tank === null) {
+    delete next.tank;
+  }
+  return writeScope(next);
 }

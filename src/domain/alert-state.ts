@@ -42,10 +42,10 @@ export function isInQuietHours(nowMs: number, quietStart: string | null | undefi
 
   const [startH, startM] = quietStart.split(":").map(Number);
   const [endH, endM] = quietEnd.split(":").map(Number);
-  if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) return false;
+  if ([startH, startM, endH, endM].some((part) => part === undefined || Number.isNaN(part))) return false;
 
-  const startMinutes = startH * 60 + startM;
-  const endMinutes = endH * 60 + endM;
+  const startMinutes = startH! * 60 + startM!;
+  const endMinutes = endH! * 60 + endM!;
 
   if (startMinutes < endMinutes) {
     return curMinutes >= startMinutes && curMinutes < endMinutes;
