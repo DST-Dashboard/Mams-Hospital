@@ -55,7 +55,7 @@ export function TankDetailView({ id }: TankDetailViewProps) {
   const { data: tank, error: tankError, isLoading: tankLoading, mutate: refreshTank } = useTank(id);
   const { data: dashboard, mutate: refreshDashboard } = useDashboard();
 
-  const asOf = dashboard?.asOf ?? 1793339580000;
+  const asOf = dashboard?.asOf ?? Date.now();
   const cardData = dashboard?.tanks.find((t) => t.id === id);
 
   // Scope state

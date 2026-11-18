@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/primitives";
-import { SampleDataBadge, PhaseChip } from "@/components/status/badges";
+import { PhaseChip } from "@/components/status/badges";
 import { ICON } from "@/components/ui/icons";
 
 export function NotificationPrefs() {
@@ -10,7 +10,6 @@ export function NotificationPrefs() {
       id="notifications"
       eyebrow={{ icon: ICON.gateway, text: "DISPATCH CHANNELS" }}
       title="Notification Preferences"
-      pill={<SampleDataBadge />}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
         <p style={{ margin: 0, fontSize: "14px", color: "var(--tx-body)" }}>

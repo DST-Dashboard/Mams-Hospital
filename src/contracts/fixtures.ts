@@ -1,7 +1,5 @@
 /**
- * Realistic sample payloads for every endpoint that is not implemented yet.
- * Served by src/server/mock.ts when ENABLE_MOCKS=1, so the frontend is never blocked on the backend.
- * The backend keeps these as test fixtures after replacing the mock with the real implementation.
+ * Realistic payloads used as test fixtures.
  */
 import type { AlertDetailDTO, AuditEntryDTO, CompareDTO, HeatmapDTO, NotificationPrefsDTO, SystemStatusDTO, UserDTO } from "./index";
 

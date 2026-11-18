@@ -44,8 +44,8 @@ export function DashboardView() {
   const { data: dashboard, isLoading } = useDashboard();
   const weekSectionRef = useRef<HTMLDivElement>(null);
 
-  // Reference timestamp: anchored server clock or now
-  const asOf = dashboard?.asOf ?? 1793339580000; // default 30 Oct 11:13 IST in ms
+  // Reference timestamp: live server clock or now
+  const asOf = dashboard?.asOf ?? Date.now();
   const tanks = dashboard?.tanks ?? [];
 
   // Parse time scope from URL
@@ -193,10 +193,9 @@ export function DashboardView() {
     weekSectionRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const modeLineText =
-    dashboard?.clockMode === "anchored"
-      ? `Snapshot · last reading ${stamp(asOf, tz)}. Displaying recorded demonstration dataset.`
-      : `Live telemetry. Last uplink received at ${stamp(asOf, tz)}.`;
+  const modeLineText = asOf
+    ? `Live telemetry. Last uplink received at ${stamp(asOf, tz)}.`
+    : "Awaiting initial uplink.";
 
   return (
     <div className="flex flex-col gap-8 pb-12">

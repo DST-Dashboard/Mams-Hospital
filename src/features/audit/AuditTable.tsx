@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { Card, EmptyState } from "@/components/ui/primitives";
 import { DataTable, type Column } from "@/components/ui/Table";
 import { Select } from "@/components/ui/Select";
-import { SampleDataBadge } from "@/components/status/badges";
 import { useApi } from "@/lib/hooks";
 import { stamp } from "@/lib/format";
 import { useUi } from "@/lib/store";
@@ -131,7 +130,6 @@ export function AuditTable() {
       <Card
         eyebrow={{ icon: ICON.audit, text: "COMPLIANCE TRAIL" }}
         title="Regulatory Audit Trail"
-        pill={<SampleDataBadge />}
         footnote="Audit logs are cryptographically sealed and preserved for 7 years for clinical and NABH hospital compliance."
       >
         {isLoading && !auditResponse ? (

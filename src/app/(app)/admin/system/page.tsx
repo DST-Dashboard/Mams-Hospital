@@ -2,7 +2,6 @@
 
 import { PageHeader, Card } from "@/components/ui/primitives";
 import { SecondaryTabs } from "@/components/ui/Tabs";
-import { SampleDataBadge } from "@/components/status/badges";
 import { useApi, useDashboard } from "@/lib/hooks";
 import { ago, stamp } from "@/lib/format";
 import { useUi } from "@/lib/store";
@@ -25,7 +24,7 @@ export default function SystemAdminPage() {
 
   const sys = status ?? {
     version: "v1.2.0",
-    clockMode: "anchored" as const,
+    clockMode: "live" as const,
     asOf,
     uptimeS: 345600,
     db: { sizeMb: 42.8, readings: 10080, firstReadingAt: asOf - 7 * 86400000, lastReadingAt: asOf },
@@ -97,7 +96,6 @@ export default function SystemAdminPage() {
           <Card
             eyebrow={{ icon: ICON.gateway, text: "INGESTION PIPELINE" }}
             title="The Things Stack (TTS) Ingestion"
-            pill={<SampleDataBadge />}
           >
             <div className="ops-dl-grid">
               <div className="ops-dl-dt">Webhook Ingestion</div>
@@ -121,7 +119,6 @@ export default function SystemAdminPage() {
           <Card
             eyebrow={{ icon: ICON.clock, text: "CRON WORKERS" }}
             title="Scheduled Maintenance Jobs"
-            pill={<SampleDataBadge />}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", fontSize: "13px" }}>
               {sys.jobs.map((j) => (
@@ -145,7 +142,6 @@ export default function SystemAdminPage() {
         <Card
           eyebrow={{ icon: ICON.signal, text: "TELEMETRY RADIOS" }}
           title="Hardware Device Diagnostics"
-          pill={<SampleDataBadge />}
         >
           {isLoading && !status ? (
             <div style={{ padding: "var(--sp-6)", textAlign: "center", color: "var(--tx-quiet)" }}>

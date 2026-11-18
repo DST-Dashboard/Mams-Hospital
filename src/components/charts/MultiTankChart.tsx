@@ -16,7 +16,6 @@ export interface MultiTankChartProps {
   height?: number;
   enableBrush?: boolean;
   onBrushEnd?: (range: { from: number; to: number }) => void;
-  isMock?: boolean;
   isLoading?: boolean;
   error?: Error | null;
   onRetry?: () => void;
@@ -39,7 +38,6 @@ export function MultiTankChart({
   height = 400,
   enableBrush = false,
   onBrushEnd,
-  isMock = false,
   isLoading = false,
   error = null,
   onRetry,
@@ -66,7 +64,6 @@ export function MultiTankChart({
       height={height}
       enableBrush={enableBrush}
       onBrushEnd={onBrushEnd}
-      isMock={isMock}
       isLoading={isLoading}
       error={error}
       onRetry={onRetry}

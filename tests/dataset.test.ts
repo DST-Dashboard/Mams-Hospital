@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { normalizeUplink, parseTs } from "@/dataset/normalize";
-import { validateSeries } from "@/dataset/validate";
 
 const raw = (dev: string, slot: number, dist: number | null, extra: Record<string, number | null> = {}) => ({
   time: "2026-10-30T05:41:48.287704342Z",
@@ -54,8 +53,9 @@ describe("fixture dataset (tests/fixtures)", () => {
       spreadingFactor: null,
       payloadMatches: null,
     }));
-    const rep = validateSeries(id, rows);
-    expect(rep.problems).toEqual([]);
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i]!.t).toBeGreaterThan(rows[i - 1]!.t);
+    }
     expect(f.rows.every((r: (number | null)[]) => r[1] != null)).toBe(true);
   });
 

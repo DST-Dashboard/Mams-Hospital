@@ -69,3 +69,26 @@ This document logs all architectural, database, runtime, and dependency decision
 - **Phase 2 Gate**:
   - `tests/phase2-gate.test.ts` passed 3/3 tests verifying idempotent ingestion, device promotion, auto-provisioning, reject logging, and isolated simulation.
   - `npm run typecheck`, `npm run lint`, `npm test` (41 test files, 211 tests), and `npm run build` all green.
+
+---
+
+## Phase 3: Remove Sample Dataset, Mocks, and Demo Mode
+
+- **Complete Data Purge**:
+  - Deleted `data/` directory (all 60+ MB of JSON files purged; offline fixtures in `tests/fixtures/` preserved).
+  - Deleted obsolete dataset generation and replay scripts: `scripts/build-dataset.ts`, `scripts/replay-check.ts`.
+  - Deleted `src/dataset/files.ts`, `src/dataset/validate.ts`, and `src/server/mock.ts`.
+  - Kept only `schema.ts` and `normalize.ts` in `src/dataset/`.
+- **UI Decoupling & Modernization**:
+  - Completely removed `SampleDataBadge` and `ModeToggle` (Demo/Live toggle). Renamed controls to `src/features/shell/ShellControls.tsx`.
+  - Cleaned up anchored clock branches in `DashboardView.tsx`, `Footer.tsx`, `Hero.tsx`, `MegaNav.tsx`, and `TankDetailView.tsx`.
+  - Standardized all views on the live production clock with continuous live telemetry.
+  - Implemented clean empty-state guards across dashboard and tank tiles: shows "Awaiting initial uplink" / "Awaiting uplink" instead of NaN, unconfirmed calculations, or false "all-clear" flags when no sensor readings have arrived.
+- **Phase 3 Gate**:
+  - `grep -rn "SampleDataBadge\|ModeToggle\|ENABLE_MOCKS\|CLOCK_MODE" src` returns exactly ZERO matches.
+  - Directory `data/` does not exist.
+  - `npm run typecheck`: 0 errors.
+  - `npm run lint`: 0 warnings, 0 errors.
+  - `npm test`: 41 test files, 211 tests passing 100% green.
+  - `npm run build`: Production Next.js build compiled successfully with static and dynamic pages.
+

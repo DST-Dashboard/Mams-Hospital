@@ -290,20 +290,6 @@ export function PhaseChip({
   );
 }
 
-export function SampleDataBadge({ className }: { className?: string }) {
-  return (
-    <span
-      title="Endpoint returned sample data (mock pending backend implementation)"
-      className={clsx(
-        "chip bg-amber-500 text-white font-bold text-[10px] tracking-wide uppercase px-2 py-0.5",
-        className
-      )}
-    >
-      SAMPLE DATA
-    </span>
-  );
-}
-
 export function FreshnessPill({
   ageMin,
   state,
@@ -363,10 +349,10 @@ export function ModeBadge({
   const simCount = tanks.filter((t) => t.simulated).length;
   const liveCount = total - simCount;
 
-  let text = "DEMO DATA";
+  let text = "AWAITING SENSORS";
   if (total > 0) {
     if (simCount === total) {
-      text = "DEMO DATA";
+      text = `SIMULATED · ${total} NODES`;
     } else if (liveCount === total) {
       text = `LIVE · ${total} NODES`;
     } else {

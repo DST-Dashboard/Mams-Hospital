@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Moon, Sun, FlaskConical, Radio } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { useUi } from "@/lib/store";
 import { Tooltip } from "@/components/ui/Tooltip";
 
@@ -90,44 +90,3 @@ export function TextSizeControls() {
   );
 }
 
-export function ModeToggle({ clockMode = "anchored" }: { clockMode?: "anchored" | "live" }) {
-  const isDemo = clockMode === "anchored";
-
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Data mode setting"
-      className="segmented py-0.5 px-1 bg-[var(--bg-card)] border-[var(--bd)] select-none"
-    >
-      <Tooltip text={isDemo ? "Active demonstration mode (anchored clock)" : "Server setting (CLOCK_MODE)"}>
-        <button
-          type="button"
-          role="radio"
-          aria-checked={isDemo}
-          disabled={!isDemo}
-          className={`segmented-item py-0.5 px-2 text-[11px] gap-1 ${
-            isDemo ? "active font-bold text-[var(--accent-500)] bg-[var(--bg-subtle)]" : "opacity-40"
-          }`}
-        >
-          <FlaskConical size={11} aria-hidden />
-          <span>Demo</span>
-        </button>
-      </Tooltip>
-
-      <Tooltip text={!isDemo ? "Active live hardware streaming" : "Server setting (CLOCK_MODE=live)"}>
-        <button
-          type="button"
-          role="radio"
-          aria-checked={!isDemo}
-          disabled={isDemo}
-          className={`segmented-item py-0.5 px-2 text-[11px] gap-1 ${
-            !isDemo ? "active font-bold text-[var(--live)] bg-[var(--bg-subtle)]" : "opacity-40"
-          }`}
-        >
-          <Radio size={11} aria-hidden />
-          <span>Live</span>
-        </button>
-      </Tooltip>
-    </div>
-  );
-}

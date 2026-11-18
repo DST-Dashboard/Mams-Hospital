@@ -14,7 +14,6 @@ import {
   cssVar,
 } from "./chart-theme";
 import { Button } from "@/components/ui/Button";
-import { SampleDataBadge } from "@/components/status/badges";
 import { Skeleton, EmptyState, ErrorState } from "@/components/ui/primitives";
 import { fmtCm, fmtFill, fmtLitres, stamp } from "@/lib/format";
 import { useUi } from "@/lib/store";
@@ -67,7 +66,6 @@ export interface TrendChartProps {
   height?: number; // 440, 330, or 260
   enableBrush?: boolean;
   onBrushEnd?: (range: { from: number; to: number }) => void;
-  isMock?: boolean;
   isLoading?: boolean;
   error?: Error | null;
   onRetry?: () => void;
@@ -87,7 +85,6 @@ export function TrendChart({
   height = 440,
   enableBrush = false,
   onBrushEnd,
-  isMock = false,
   isLoading = false,
   error = null,
   onRetry,
@@ -376,8 +373,6 @@ export function TrendChart({
         </div>
 
         <div className="flex items-center gap-2">
-          {isMock && <SampleDataBadge />}
-
           <Button
             variant="outline"
             size="sm"

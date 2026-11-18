@@ -6,7 +6,6 @@ import { Download, Grid } from "lucide-react";
 import { EChart } from "./EChart";
 import { baseOption, cssVar } from "./chart-theme";
 import { Button } from "@/components/ui/Button";
-import { SampleDataBadge } from "@/components/status/badges";
 import { Skeleton, ErrorState } from "@/components/ui/primitives";
 import { downloadCsv } from "@/lib/csv";
 import type { HeatmapGrid } from "@/lib/heatmap";
@@ -87,7 +86,6 @@ export interface HeatmapProps {
   grid: HeatmapGrid;
   activeDayKey?: string;
   onSelectCell?: (dayKey: string, hour: number) => void;
-  isMock?: boolean;
   isLoading?: boolean;
   error?: Error | null;
   onRetry?: () => void;
@@ -102,7 +100,6 @@ export function Heatmap({
   grid,
   activeDayKey,
   onSelectCell,
-  isMock = false,
   isLoading = false,
   error = null,
   onRetry,
@@ -451,8 +448,6 @@ export function Heatmap({
           </div>
 
           <div className="flex items-center gap-2">
-            {isMock && <SampleDataBadge />}
-
             <Button
               variant="outline"
               size="sm"

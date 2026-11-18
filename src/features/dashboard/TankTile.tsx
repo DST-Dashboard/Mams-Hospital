@@ -177,12 +177,13 @@ export function TankTile({ tank, asOf, className }: TankTileProps) {
         <div className="flex items-baseline gap-2">
           <div
             className={clsx(
-              "num text-[32px] font-black leading-none tracking-tight rounded px-1 -mx-1 transition-colors",
+              tank.isAwaitingReading ? "text-[18px] font-bold" : "num text-[32px] font-black",
+              "leading-none tracking-tight rounded px-1 -mx-1 transition-colors",
               pctColorClass,
               flashing && "mon-tile-flash"
             )}
           >
-            {fmtFill(levelPct)}
+            {tank.isAwaitingReading ? "Awaiting uplink" : fmtFill(levelPct)}
           </div>
         </div>
 
@@ -202,7 +203,7 @@ export function TankTile({ tank, asOf, className }: TankTileProps) {
 
         {/* Freshness Row with IST/UTC title */}
         <div className="flex items-center justify-between text-[11.5px] mt-2.5 pt-2 border-t border-[var(--bd-soft)]" title={freshnessTitle}>
-          <FreshnessPill ageMin={cur?.ageMin ?? null} snapshot={true} />
+          <FreshnessPill ageMin={cur?.ageMin ?? null} snapshot={false} label={tank.isAwaitingReading ? "Awaiting initial uplink" : undefined} />
           {hasWeekRange && (
             <span className="text-[11px] text-[var(--tx-quiet)] font-medium">
               7d: {minWeekPct}–{maxWeekPct}%

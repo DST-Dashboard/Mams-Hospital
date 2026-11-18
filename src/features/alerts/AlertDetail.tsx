@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Breadcrumbs, Card } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/Button";
-import { SeverityChip, AlertStateChip, PhaseChip, SampleDataBadge } from "@/components/status/badges";
+import { SeverityChip, AlertStateChip, PhaseChip } from "@/components/status/badges";
 import { useToast } from "@/components/ui/Toast";
 import { useAlerts, useTank, useReadings, useMe, useDashboard } from "@/lib/hooks";
 import { post } from "@/lib/api";
@@ -386,7 +386,6 @@ export function AlertDetail({ alertId }: AlertDetailProps) {
         <Card
           eyebrow={{ icon: ICON.gateway, text: "DISPATCH CHANNELS" }}
           title="Notification Delivery Status"
-          pill={<SampleDataBadge />}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", fontSize: "13px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

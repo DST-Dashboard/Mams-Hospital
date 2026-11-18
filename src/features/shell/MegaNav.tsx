@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
-import { useDashboard, useMe } from "@/lib/hooks";
+import { useMe } from "@/lib/hooks";
 import { post } from "@/lib/api";
 import { AlertBell } from "./AlertBell";
 import { RoleChip } from "@/components/status/badges";
@@ -22,7 +22,6 @@ export function MegaNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { data: me } = useMe();
-  const { data: dashboard } = useDashboard();
 
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -36,8 +35,6 @@ export function MegaNav() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = me?.role === "admin";
-  const clockMode = dashboard?.clockMode ?? "anchored";
-  const isDemo = clockMode === "anchored";
 
   // Navigation item active states
   const isHomeActive = pathname === "/" || pathname === "/dashboard";
@@ -209,13 +206,11 @@ export function MegaNav() {
             )}
           >
             <span>Dashboard</span>
-            {/* Live pulsing dot (hidden in Demo mode per spec §8.3) */}
-            {!isDemo && (
-              <span className="relative flex h-2 w-2 ml-0.5 sm:ml-1">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--live)] opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--live)]" />
-              </span>
-            )}
+            {/* Live pulsing dot */}
+            <span className="relative flex h-2 w-2 ml-0.5 sm:ml-1">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--live)] opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--live)]" />
+            </span>
             {isDashboardActive && (
               <span
                 className="absolute bottom-0 left-2 sm:left-3 right-2 sm:right-3 h-[3px] bg-[var(--accent-500)] rounded-t-[2px]"

@@ -2,14 +2,10 @@
 
 import React from "react";
 import Image from "next/image";
-import { useDashboard } from "@/lib/hooks";
 import { useUi } from "@/lib/store";
 
 export function Footer() {
-  const { data: dashboard } = useDashboard();
   const { tz } = useUi();
-
-  const isDemo = dashboard?.clockMode === "anchored";
 
   return (
     <footer className="footer mt-[50px] pt-[30px] pb-[40px] border-t border-[var(--bd)] select-none">
@@ -31,7 +27,7 @@ export function Footer() {
               Overhead Tank Management System
             </p>
             <p className="text-[12px] font-bold uppercase tracking-wider text-[var(--tx-faint)] m-0 mt-0.5">
-              {isDemo ? "Demonstration Dataset" : "Live Hardware Stream"}
+              Live Telemetry
             </p>
           </div>
         </div>

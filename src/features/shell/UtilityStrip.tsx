@@ -3,21 +3,15 @@
 import React from "react";
 import { Router } from "lucide-react";
 import { FreshnessPill } from "@/components/status/badges";
-import { ModeToggle, TextSizeControls, ThemeToggle, TimezoneToggle } from "./ModeToggle";
+import { TextSizeControls, ThemeToggle, TimezoneToggle } from "./ShellControls";
 import { useDashboard } from "@/lib/hooks";
-import { stamp } from "@/lib/format";
 
 export function UtilityStrip() {
   const { data: dashboard } = useDashboard();
-  const clockMode = dashboard?.clockMode ?? "anchored";
-  const asOf = dashboard?.asOf;
 
   // Derive oldest tank age or min age
   const tanks = dashboard?.tanks || [];
   const minAge = tanks.length > 0 ? Math.min(...tanks.map((t) => t.current?.ageMin ?? 999)) : null;
-
-  const isSnapshot = clockMode === "anchored";
-  const snapshotText = asOf ? `Snapshot · last reading ${stamp(asOf, "IST", true)}` : undefined;
 
   return (
     <div className="utility-strip bg-[var(--bg-strip)] border-b border-[var(--bd-strip)] text-[var(--tx-strip)] text-[12px] font-semibold py-1.5 select-none">
@@ -26,8 +20,7 @@ export function UtilityStrip() {
         <div className="flex items-center gap-4 flex-wrap">
           <FreshnessPill
             ageMin={minAge}
-            snapshot={isSnapshot}
-            label={snapshotText}
+            snapshot={false}
           />
           <span className="text-[var(--bd-strong)]" aria-hidden>|</span>
           <div className="inline-flex items-center gap-1.5 text-[var(--tx-strip)]">
@@ -50,8 +43,6 @@ export function UtilityStrip() {
           <TimezoneToggle />
 
           <ThemeToggle />
-
-          <ModeToggle clockMode={clockMode} />
         </div>
       </div>
     </div>

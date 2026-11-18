@@ -1,9 +1,8 @@
 "use client";
 
 import { Card } from "@/components/ui/primitives";
-import { Button } from "@/components/ui/Button";
 import { ICON } from "@/components/ui/icons";
-import { PhaseChip, SourceChip } from "@/components/status/badges";
+import { SourceChip } from "@/components/status/badges";
 
 export function Methodology() {
   return (
@@ -41,17 +40,11 @@ export function Methodology() {
 
           <div style={{ background: "var(--bg-card)", border: "1px solid var(--bd)", borderRadius: "var(--r-lg)", padding: "var(--sp-4)", marginTop: "var(--sp-2)" }}>
             <div style={{ fontWeight: 700, color: "var(--tx-head)", marginBottom: "var(--sp-2)" }}>
-              Anchored Clock & Demonstration Mode
+              Live Telemetry & Production Clock
             </div>
             <p style={{ margin: 0, fontSize: "13px" }}>
-              In demonstration mode (<code>clockMode === &apos;anchored&apos;</code>), the system anchors the current moment to the newest recorded reading (30 Oct 11:13 IST). All relative timestamps (&apos;2 min ago&apos;, &apos;yesterday&apos;) calculate relative to this snapshot anchor, guaranteeing a rich, populated hospital dataset for evaluation without synthetic time-drift artifacts.
+              In production mode (<code>clockMode === &apos;live&apos;</code>), the system streams live LoRaWAN telemetry from rooftop sensors via The Things Stack. All timestamps and analytics are calculated against the real-time server clock.
             </p>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "var(--sp-2)" }}>
-            <Button variant="outline" lock={2} title="Available in Full Deployment">
-              Regenerate week with new seed <PhaseChip phase={2} />
-            </Button>
           </div>
         </div>
       </Card>

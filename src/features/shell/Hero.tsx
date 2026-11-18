@@ -8,9 +8,6 @@ import { useDashboard } from "@/lib/hooks";
 
 export function Hero() {
   const { data: dashboard } = useDashboard();
-  const clockMode = dashboard?.clockMode ?? "anchored";
-  const isDemo = clockMode === "anchored";
-
   const tanks = dashboard?.tanks || [];
   const simCount = tanks.filter((t) => t.simulated).length;
   const liveCount = tanks.length > 0 ? tanks.length - simCount : 1;
@@ -61,7 +58,7 @@ export function Hero() {
         {/* Left: Text Block */}
         <div className="max-w-[700px] reveal-up">
           <div className="inline-block bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.30)] px-3 py-1 rounded-full backdrop-blur-sm text-[12px] font-bold tracking-[1px] uppercase mb-3.5">
-            {isDemo ? HERO_COPY.badgeDemo : HERO_COPY.badgeLive}
+            {HERO_COPY.badgeLive}
           </div>
 
           <h1 className="font-display font-black text-[36px] sm:text-[46px] md:text-[56px] leading-[1.1] m-0 mb-2.5 text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]">

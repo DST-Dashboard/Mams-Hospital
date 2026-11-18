@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { Card, EmptyState } from "@/components/ui/primitives";
 import { DataTable, type Column } from "@/components/ui/Table";
 import { Button } from "@/components/ui/Button";
-import { RoleChip, SampleDataBadge } from "@/components/status/badges";
+import { RoleChip } from "@/components/status/badges";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { useApi, useDashboard } from "@/lib/hooks";
@@ -180,7 +180,6 @@ export function UserTable() {
       <Card
         eyebrow={{ icon: ICON.users, text: "SYSTEM ACCOUNTS" }}
         title="Authorized Personnel"
-        pill={<SampleDataBadge />}
         footnote="Hospital roles control navigation tabs, threshold modification permissions, and alert response actions."
       >
         {isLoading && !users ? (
