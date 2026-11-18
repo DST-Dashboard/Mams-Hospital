@@ -1,10 +1,7 @@
 import { derive } from "./derive";
 import type { AlertType, Reading, Severity, TankGeometry, Thresholds } from "./types";
 import { resolveThresholds } from "./types";
-import { rapidDrain } from "./rules/rapid-drain";
 import { predictedEmpty } from "./rules/predicted-empty";
-import { flatline } from "./rules/flatline";
-import { dataGap } from "./rules/data-gap";
 import { batteryLow } from "./rules/battery-low";
 import { flapping } from "./rules/flapping";
 
@@ -72,30 +69,15 @@ export function evaluateRules(ctx: RuleContext): RuleResult[] {
   });
   if (bad) return out; // never derive level alerts from an unusable reading
 
-  const rapid = rapidDrain(readings, g, now);
+  const battery = batteryLow(readings, now);
   out.push({
-    type: "RAPID_DRAIN", severity: "critical", raise: rapid.raise, clear: rapid.clear, value: rapid.dropCm,
-    message: (name) => `${name} rapid level drop of ${rapid.dropCm} cm`,
+    type: "BATTERY_LOW", severity: "warning", raise: battery.raise, clear: battery.clear, value: battery.batteryPct,
+    message: (name) => `${name} sensor battery low (${battery.batteryPct ?? "unknown"}%)`,
   });
   const emptyForecast = predictedEmpty(readings, g, now);
   out.push({
     type: "PREDICTED_EMPTY", severity: "critical", raise: emptyForecast.raise, clear: emptyForecast.clear, value: emptyForecast.minutes,
     message: (name) => `${name} predicted to be empty in ${emptyForecast.minutes ?? "unknown"} min`,
-  });
-  const flat = flatline(readings, g, now);
-  out.push({
-    type: "FLATLINE", severity: "warning", raise: flat.raise, clear: flat.clear, value: flat.rangeCm,
-    message: (name) => `${name} has not changed level for 6 hours (range ${flat.rangeCm ?? "unknown"} cm)`,
-  });
-  const gap = dataGap(readings, now);
-  out.push({
-    type: "DATA_GAP", severity: "warning", raise: gap.raise, clear: gap.clear, value: gap.gapMs,
-    message: (name) => `${name} sensor data gap detected (${gap.gapMs == null ? "unknown" : Math.round(gap.gapMs / 60_000)} min)`,
-  });
-  const battery = batteryLow(readings, now);
-  out.push({
-    type: "BATTERY_LOW", severity: "warning", raise: battery.raise, clear: battery.clear, value: battery.batteryPct,
-    message: (name) => `${name} sensor battery low (${battery.batteryPct ?? "unknown"}%)`,
   });
   const flap = flapping(readings, g, now);
   out.push({

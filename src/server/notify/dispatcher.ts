@@ -81,11 +81,13 @@ export async function dispatchAlertNotifications(alertId: number, tier = 1): Pro
         continue;
       }
 
-      // Check 1-per-hour cap
-      const allowed = await isRateLimitAllowed(alert.tankId, "email", nowMs);
-      if (!allowed) {
-        logger.info("Email throttled by 1-per-hour cap", { tankId: alert.tankId });
-        continue;
+      // Check 1-per-hour cap for non-urgent warnings (critical / emergency bypass cap)
+      if (!isUrgent) {
+        const allowed = await isRateLimitAllowed(alert.tankId, "email", nowMs);
+        if (!allowed) {
+          logger.info("Email throttled by 1-per-hour cap", { tankId: alert.tankId });
+          continue;
+        }
       }
 
       const deliveryId = await queueDelivery(alert.id, "email", user.email);
@@ -108,4 +110,21 @@ export async function dispatchAlertNotifications(alertId: number, tier = 1): Pro
   }
 
   return { attempted, sent };
+}
+
+export async function checkAndEscalateAlerts(asOf: number = Date.now()): Promise<number> {
+  const cutoff = asOf - 30 * 60_000;
+  const rows = await q<{ id: number }>(
+    "SELECT id FROM alerts WHERE state = 'active' AND acknowledged_at IS NULL AND opened_at <= $1",
+    [cutoff]
+  );
+
+  let escalated = 0;
+  for (const r of rows) {
+    await q("UPDATE alerts SET state = 'escalated' WHERE id = $1", [r.id]);
+    await dispatchAlertNotifications(r.id, 2);
+    escalated++;
+  }
+
+  return escalated;
 }

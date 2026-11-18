@@ -66,3 +66,58 @@ export function shouldDeferForQuietHours(severity: Severity, nowMs: number, quie
   }
   return isInQuietHours(nowMs, quietStart, quietEnd);
 }
+
+export interface AlertStateContext {
+  state: AlertState;
+  openedAt: number;
+  acknowledgedAt?: number | null;
+  acknowledgedBy?: number | null;
+  snoozedUntil?: number | null;
+  resolvedAt?: number | null;
+}
+
+/** Pure state transition machine for alert lifecycles */
+export function transitionAlert(
+  alert: AlertStateContext,
+  action: AlertAction
+): AlertStateContext {
+  switch (action.type) {
+    case "ACKNOWLEDGE":
+      return {
+        ...alert,
+        acknowledgedAt: action.at,
+        acknowledgedBy: action.userId,
+      };
+    case "SNOOZE":
+      return {
+        ...alert,
+        state: "snoozed",
+        snoozedUntil: action.at + action.minutes * 60_000,
+      };
+    case "EXPIRE_SNOOZE":
+      return {
+        ...alert,
+        state: "active",
+        snoozedUntil: null,
+      };
+    case "ESCALATE":
+      if (!alert.acknowledgedAt && action.at - alert.openedAt >= 30 * 60_000) {
+        return {
+          ...alert,
+          state: "escalated",
+        };
+      }
+      return alert;
+    case "RESOLVE":
+      return {
+        ...alert,
+        state: "resolved",
+        resolvedAt: action.at,
+        snoozedUntil: null,
+      };
+    case "SUPPRESS":
+      return { ...alert, state: "suppressed" };
+    case "UNSUPPRESS":
+      return { ...alert, state: "active" };
+  }
+}

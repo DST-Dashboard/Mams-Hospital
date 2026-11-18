@@ -14,12 +14,6 @@ describe("rules-phase2", () => {
   const evaluate = (type: AlertType, readings: Reading[]) =>
     evaluateRules({ readings, geometry, th: DEFAULT_THRESHOLDS, now }).find((rule) => rule.type === type);
 
-  it("RAPID_DRAIN uses level-space deltas", () => {
-    const result = evaluate("RAPID_DRAIN", [reading(10, 120), reading(5, 95)]);
-    expect(result?.raise).toBe(true);
-    expect(result?.value).toBe(25);
-  });
-
   it("PREDICTED_EMPTY fires below 60 minutes to empty", () => {
     const readings = Array.from({ length: 10 }, (_, index) => reading((9 - index) * 5, 100 - index * 10));
     const result = evaluate("PREDICTED_EMPTY", readings);
@@ -27,21 +21,10 @@ describe("rules-phase2", () => {
     expect(result?.value).toBeLessThan(60);
   });
 
-  it("FLATLINE fires after six hours below full", () => {
-    const readings = Array.from({ length: 7 }, (_, index) => reading((6 - index) * 60, 100));
-    expect(evaluate("FLATLINE", readings)?.raise).toBe(true);
-    expect(evaluate("FLATLINE", [...readings.slice(0, -1), reading(0, 290)])?.raise).toBe(false);
-  });
-
-  it("DATA_GAP fires on a frame-counter skip", () => {
-    const result = evaluate("DATA_GAP", [reading(5, 100, { fCnt: 10 }), reading(0, 100, { fCnt: 12 })]);
+  it("BATTERY_LOW fires at or below twenty percent", () => {
+    const result = evaluate("BATTERY_LOW", [reading(0, 100, { batteryPct: 20 })]);
     expect(result?.raise).toBe(true);
-  });
-
-  it("BATTERY_LOW fires below twenty percent", () => {
-    const result = evaluate("BATTERY_LOW", [reading(0, 100, { batteryPct: 19 })]);
-    expect(result?.raise).toBe(true);
-    expect(evaluate("BATTERY_LOW", [reading(0, 100, { batteryPct: 20 })])?.raise).toBe(false);
+    expect(evaluate("BATTERY_LOW", [reading(0, 100, { batteryPct: 21 })])?.raise).toBe(false);
   });
 
   it("FLAPPING fires on repeated alternating large level changes", () => {

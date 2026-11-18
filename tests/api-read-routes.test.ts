@@ -105,6 +105,17 @@ describe("read, report, and preference API integration", () => {
 
   it("serves alert list, snooze not-found, and weekly/monthly/incident/readings exports", async () => {
     cookieValue = adminCookie;
+    alertId = await open({
+      tankId,
+      type: "LOW_LEVEL",
+      severity: "warning",
+      message: "Read API test alert",
+      value: 25,
+      at: Date.now(),
+      triggerT: Date.now() - 60_000,
+      triggerDistanceCm: 200,
+      simulated: false,
+    });
     expect((await alertsRoute.GET(request("/api/alerts"))).status).toBe(200);
     const snoozed = await snoozeRoute.POST(request(`/api/alerts/${alertId}/snooze`, "POST", { minutes: 30 }), context(alertId));
     expect(snoozed.status).toBe(200);

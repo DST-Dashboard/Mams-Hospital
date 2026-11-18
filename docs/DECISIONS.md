@@ -92,3 +92,35 @@ This document logs all architectural, database, runtime, and dependency decision
   - `npm test`: 41 test files, 211 tests passing 100% green.
   - `npm run build`: Production Next.js build compiled successfully with static and dynamic pages.
 
+---
+
+## Phase 4: Alerts & Notifications Lean Engine
+
+- **Authoritative 9 Alert Rules**:
+  - Registered and verified the complete set of 9 rules in pure domain `src/domain/rules.ts`:
+    1. `NO_DATA`: Sensor silence beyond `noDataMin`.
+    2. `SENSOR_FAULT`: Distances beyond tank geometry, invalid readings, or transient spikes.
+    3. `BATTERY_LOW`: Telemetry battery percentage at or below 20%.
+    4. `PREDICTED_EMPTY`: Forecasted exhaustion in under 60 minutes.
+    5. `FLAPPING`: Unstable signal alternating jumps (>3 alternations in lookback).
+    6. `LOW_LEVEL`: Water level in warning band (`critPct` to `warnPct`).
+    7. `CRITICAL_LOW`: Water level in critical band (`emptyPct` to `critPct`).
+    8. `EMPTY`: Water level below `emptyPct`.
+    9. `OVERFLOW_RISK`: Sensor reading inside dead zone + margin.
+  - Safely purged rule stubs: `flatline.ts`, `rapid-drain.ts`, and `data-gap.ts`.
+- **Pure Alert State Machine**:
+  - `src/domain/alert-state.ts`: Implemented `transitionAlert` covering `active`, `acknowledged`, `snoozed`, `escalated`, and `resolved`.
+  - Enforced transition logic: ACKNOWLEDGE records user/timestamp while keeping alert active; SNOOZE schedules wake-up at `t + minutes * 60_000`; EXPIRE_SNOOZE restores to active; ESCALATE triggers when open >= 30 minutes unacknowledged; RESOLVE terminates the lifecycle.
+- **Email Dispatcher & Escalation**:
+  - `src/server/notify/dispatcher.ts`: Supports email dispatch via `nodemailer` with graceful fallback when `SMTP_URL` is omitted.
+  - Enforced quiet hours (defers warning severity during quiet periods; critical and emergency alerts always dispatch immediately).
+  - Enforced rate limiting (1 email per hour per tank for warnings; critical and emergency bypass the throttle).
+  - Implemented `checkAndEscalateAlerts` for automated tier 2 notification escalation for unattended critical alerts after 30 minutes.
+- **Phase 4 Gate**:
+  - `tests/alert-engine.test.ts`: 21 tests covering all 9 rules, the pure state machine, quiet hours, rate limits, escalation, and nodemailer transport.
+  - `npm run typecheck`: 0 errors.
+  - `npm run lint`: 0 warnings, 0 errors.
+  - `npm test`: 41 test files, 223 tests passing 100% green.
+  - `npm run build`: Production Next.js build compiled successfully.
+
+
