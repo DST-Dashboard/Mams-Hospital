@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "startT": 1792734480000,
+  "endT": 1792824180000,
+  "devices": [
+    "wio-e5-node-01",
+    "wio-e5-node-02",
+    "wio-e5-node-03",
+    "wio-e5-node-04",
+    "wio-e5-node-05"
+  ],
+  "totalReadings": 1500
+}

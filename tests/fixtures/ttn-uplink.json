@@ -1,0 +1,115 @@
+{
+  "name": "as.up.data.forward",
+  "time": "2026-10-26T06:31:38.003045359Z",
+  "identifiers": [
+    {
+      "device_ids": {
+        "device_id": "wio-e5-node-01",
+        "application_ids": {
+          "application_id": "mams-hospital"
+        },
+        "dev_eui": "2CF7F12063500F93",
+        "join_eui": "526973696E674846",
+        "dev_addr": "27FA91F0"
+      }
+    }
+  ],
+  "data": {
+    "@type": "type.googleapis.com/ttn.lorawan.v3.ApplicationUp",
+    "end_device_ids": {
+      "device_id": "wio-e5-node-01",
+      "application_ids": {
+        "application_id": "mams-hospital"
+      },
+      "dev_eui": "2CF7F12063500F93",
+      "join_eui": "526973696E674846",
+      "dev_addr": "27FA91F0"
+    },
+    "correlation_ids": [
+      "gs:uplink:01M5VEGK1W0Y3XC1TE1BTEWC8A"
+    ],
+    "received_at": "2026-10-26T06:31:37.995778868Z",
+    "uplink_message": {
+      "session_key_id": "AaF2m/e/SPSPQrrr/jhppg==",
+      "f_port": 2,
+      "f_cnt": 78,
+      "frm_payload": "AQEBAKgAzv//AQ==",
+      "decoded_payload": {
+        "Node1_distance_cm": 206,
+        "Node2_distance_cm": null,
+        "Node3_distance_cm": null,
+        "Node4_distance_cm": null,
+        "Node5_distance_cm": null
+      },
+      "rx_metadata": [
+        {
+          "gateway_ids": {
+            "gateway_id": "sensecap-gateway",
+            "eui": "2CF7F11062600294"
+          },
+          "timestamp": 867466300,
+          "rssi": -87,
+          "channel_rssi": -87,
+          "snr": 13.8,
+          "frequency_offset": "-105",
+          "uplink_token": "Ch4KHAoQc2Vuc2VjYXAtZ2F0ZXdheRIILPfxEGJgApQQvPjRnQMaDAjJ5/vWBhCRwOv3AiDglJXIn5YB",
+          "channel_index": 3,
+          "received_at": "2026-10-26T06:31:37.710725822Z"
+        }
+      ],
+      "settings": {
+        "data_rate": {
+          "lora": {
+            "bandwidth": 125000,
+            "spreading_factor": 7,
+            "coding_rate": "4/5"
+          }
+        },
+        "frequency": "867100000",
+        "timestamp": 867466300
+      },
+      "received_at": "2026-10-26T06:31:37.790452062Z",
+      "consumed_airtime": "0.061696s",
+      "locations": {
+        "user": {
+          "latitude": 17.48901585080757,
+          "longitude": 78.32702100276947,
+          "source": "SOURCE_REGISTRY"
+        }
+      },
+      "version_ids": {
+        "brand_id": "seeed",
+        "model_id": "loraeminidevboard-e5",
+        "hardware_version": "1.0",
+        "firmware_version": "1.0",
+        "band_id": "EU_863_870"
+      },
+      "network_ids": {
+        "net_id": "000013",
+        "ns_id": "EC656E00001050A7",
+        "tenant_id": "mams-test",
+        "cluster_id": "eu1",
+        "cluster_address": "eu1.cloud.thethings.industries",
+        "tenant_address": "mams-test.eu1.cloud.thethings.industries"
+      },
+      "last_battery_percentage": {
+        "f_cnt": 2,
+        "value": 100,
+        "received_at": "2026-10-26T05:09:43.581526891Z"
+      }
+    }
+  },
+  "correlation_ids": [
+    "gs:uplink:01M5VEGK1W0Y3XC1TE1BTEWC8A"
+  ],
+  "origin": "ip-10-23-4-195.eu-west-1.compute.internal",
+  "context": {
+    "tenant-id": "CgltYW1zLXRlc3Q="
+  },
+  "visibility": {
+    "rights": [
+      "RIGHT_APPLICATION_TRAFFIC_READ"
+    ]
+  },
+  "unique_id": "01M5VEGK8KCAJDJ0BWEGVB6TN5"
+}
