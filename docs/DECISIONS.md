@@ -51,3 +51,21 @@ This document logs all architectural, database, runtime, and dependency decision
   - `npm run build`: Production Next.js build compiled successfully with static page generation.
 
 ---
+
+## Phase 2: Live TTN Ingestion & Deterministic Simulator
+
+- **Live TTN Ingestion**:
+  - `src/server/services/ingest.ts` processes live TTN uplinks idempotently via `(device_id, t)` conflict handling.
+  - Marks `devices.simulated = FALSE` upon receiving genuine TTN uplinks.
+  - Stores raw gateway telemetry (`gateway_id`, `rssi`, `snr`, `spreading_factor`, `f_cnt`, `battery_pct`).
+  - Auto-provisions devices matching `config/devices.json` on first uplink.
+  - Rejects unknown devices with HTTP 422 and logs to `ingest_rejects`.
+- **TTN Storage Backfill**:
+  - `src/server/services/backfill.ts` queries TTN storage API using stream parser and 6-second AbortController timeout budget, ensuring compatibility with Vercel Hobby execution limits.
+- **Deterministic Simulator**:
+  - `src/server/simulator.ts` provides fallback readings for tanks flagged `simulated = TRUE` or when no readings have arrived for >10 minutes.
+  - Generates diurnal consumption sine-wave levels (120–220 cm) with diurnal patterns and battery decay.
+  - Never touches or overwrites genuine TTN readings.
+- **Phase 2 Gate**:
+  - `tests/phase2-gate.test.ts` passed 3/3 tests verifying idempotent ingestion, device promotion, auto-provisioning, reject logging, and isolated simulation.
+  - `npm run typecheck`, `npm run lint`, `npm test` (41 test files, 211 tests), and `npm run build` all green.

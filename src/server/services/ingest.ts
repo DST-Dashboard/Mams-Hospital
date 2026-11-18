@@ -1,15 +1,36 @@
+import fs from "node:fs";
+import path from "node:path";
 import { NormalizeError, normalizeUplink } from "@/dataset/normalize";
 import { upsertMany } from "@/server/repos/readings";
 import { isActiveIngestDevice, updateDeviceMetadata, markReal } from "@/server/repos/devices";
 import { evaluateTank } from "@/server/services/alert-engine";
-import { getTankByDeviceId } from "@/server/repos/tanks";
+import { getTankByDeviceId, createTank } from "@/server/repos/tanks";
 import { q } from "@/server/db";
 
 export class UnknownIngestDeviceError extends Error {
-  constructor(message: string) {
+  constructor(message = "unregistered_device") {
     super(message);
     this.name = "UnknownIngestDeviceError";
   }
+}
+
+interface ConfigDevice {
+  deviceId: string;
+  devEui?: string;
+  devAddr?: string;
+  label?: string;
+  location?: string;
+  simulated?: boolean;
+}
+
+function loadKnownDevices(): ConfigDevice[] {
+  try {
+    const configPath = path.resolve(process.cwd(), "config/devices.json");
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, "utf8")) as ConfigDevice[];
+    }
+  } catch {}
+  return [];
 }
 
 export async function logIngestReject(reason: string, payload: unknown, ip?: string): Promise<void> {
@@ -32,11 +53,39 @@ export async function ingestUplink(raw: unknown, sourceIp?: string): Promise<num
   }
 
   const { reading, device } = normalized;
-  const active = await isActiveIngestDevice(reading.deviceId);
+  let active = await isActiveIngestDevice(reading.deviceId);
   if (!active) {
-    const msg = `Unknown or inactive device ${reading.deviceId}`;
-    await logIngestReject(msg, raw, sourceIp);
-    throw new UnknownIngestDeviceError(msg);
+    // Check config/devices.json for auto-provisioning
+    const knownDevices = loadKnownDevices();
+    const configDev = knownDevices.find((d) => d.deviceId === reading.deviceId);
+    if (configDev) {
+      // Auto-provision device (simulated=false on live uplink)
+      await q(
+        `INSERT INTO devices (device_id, dev_eui, dev_addr, model, simulated, created_at)
+         VALUES ($1, $2, $3, 'Wio-E5', FALSE, $4)
+         ON CONFLICT (device_id) DO UPDATE SET deleted_at = NULL, simulated = FALSE`,
+        [configDev.deviceId, configDev.devEui ?? null, configDev.devAddr ?? null, Date.now()]
+      );
+      // Auto-provision tank if none exists
+      const existingTank = await getTankByDeviceId(configDev.deviceId);
+      if (!existingTank) {
+        await createTank({
+          label: configDev.label ?? `Tank ${configDev.deviceId}`,
+          deviceId: configDev.deviceId,
+          status: "active",
+          shape: "cylinder",
+          heightCm: 300,
+          radiusCm: 100,
+          deadZoneCm: 25,
+          dimsConfirmed: false,
+        });
+      }
+      active = true;
+    } else {
+      const msg = "unregistered_device";
+      await logIngestReject(msg, raw, sourceIp);
+      throw new UnknownIngestDeviceError(msg);
+    }
   }
 
   const inserted = await upsertMany([

@@ -10,8 +10,7 @@ export const freshnessOf = (ageMin: number | null): Freshness =>
   ageMin == null ? "none" : ageMin <= 10 ? "fresh" : ageMin <= 30 ? "stale" : "offline";
 
 /** One call powers the whole dashboard: no N+1 from the browser. */
-export async function buildDashboard() {
-  const asOf = now();
+export async function buildDashboard(asOf: number = now()) {
   const open = await alerts.listOpen(asOf);
   const tankRows = await listTanks();
 
@@ -46,6 +45,7 @@ export async function buildDashboard() {
         deviceId: t.deviceId,
         gatewayId: last?.fCnt != null ? "eui-seeed-indoor-gw-01" : null,
         lastUplinkAt: last?.t ?? null,
+        rawDistanceCm: last?.distanceCm ?? null,
         isAwaitingReading,
         capacityL: Math.round(volumeLitres(t.geometry.shape, t.geometry.heightCm)),
         current: {

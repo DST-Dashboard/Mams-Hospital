@@ -35,7 +35,12 @@ export async function runSimulatorTick(asOf = Date.now()): Promise<number> {
       [devId]
     );
 
-    let fromT = lastRow?.last_t ? Number(lastRow.last_t) + FIVE_MIN : asOf - 30 * 60_000;
+    const lastT = lastRow?.last_t ? Number(lastRow.last_t) : null;
+    if (lastT != null && asOf - lastT <= 10 * 60_000) {
+      continue;
+    }
+
+    let fromT = lastT ? lastT + FIVE_MIN : asOf - 30 * 60_000;
     if (asOf - fromT > MAX_CATCHUP) {
       fromT = asOf - MAX_CATCHUP;
     }
