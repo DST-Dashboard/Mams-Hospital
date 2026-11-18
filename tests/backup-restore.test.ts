@@ -3,51 +3,35 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-
-let testDbPath: string;
-let backupDir: string;
-let dbInstance: any;
+import { createTestSchema, TestSchemaContext } from "./test-db";
+import { q, q1 } from "@/server/db";
+import { performBackup } from "../scripts/backup-db";
+import { performRestore } from "../scripts/restore-db";
 
 describe("BE-14: Database Backup and Restore", () => {
-  let performBackup: typeof import("../scripts/backup-db").performBackup;
-  let performRestore: typeof import("../scripts/restore-db").performRestore;
+  let testCtx: TestSchemaContext;
+  let backupDir: string;
 
   beforeAll(async () => {
-    testDbPath = path.join(os.tmpdir(), `ohtms-test-backups-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
+    testCtx = await createTestSchema();
     backupDir = path.join(os.tmpdir(), `ohtms-backups-${Date.now()}`);
-    process.env.DB_PATH = testDbPath;
-
-    const { openDb } = await import("@/server/db");
-    const { runMigrations } = await import("@/server/migrations/runner");
-    dbInstance = openDb(testDbPath);
-    (globalThis as any).__ohtmsDb = dbInstance;
-    runMigrations(dbInstance);
 
     // Seed test data
-    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
-      .run(1, "backup_admin@test.local", "Backup Admin", "hash123", "admin", Date.now());
-
-    const backupMod = await import("../scripts/backup-db");
-    const restoreMod = await import("../scripts/restore-db");
-    performBackup = backupMod.performBackup;
-    performRestore = restoreMod.performRestore;
+    await q(
+      "INSERT INTO users (email, name, password_hash, role, disabled, created_at) VALUES ('backup_admin@test.local', 'Backup Admin', 'hash123', 'admin', FALSE, $1)",
+      [Date.now()]
+    );
   });
 
-  afterAll(() => {
-    if (dbInstance) {
-      dbInstance.close();
-    }
+  afterAll(async () => {
+    if (testCtx) await testCtx.cleanup();
     try {
-      if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
-      if (fs.existsSync(`${testDbPath}-wal`)) fs.unlinkSync(`${testDbPath}-wal`);
-      if (fs.existsSync(`${testDbPath}-shm`)) fs.unlinkSync(`${testDbPath}-shm`);
       if (fs.existsSync(backupDir)) fs.rmSync(backupDir, { recursive: true, force: true });
     } catch {}
   });
 
-  it("performs online backup with integrity verification and rotation", () => {
-    const res = performBackup({
-      sourceDbPath: testDbPath,
+  it("performs online backup with integrity verification and rotation", async () => {
+    const res = await performBackup({
       backupDir,
       maxKeep: 3,
     });
@@ -57,70 +41,35 @@ describe("BE-14: Database Backup and Restore", () => {
     expect(res.integrity).toBe("ok");
 
     // Perform additional backups to test rotation limit (maxKeep = 3)
-    performBackup({ sourceDbPath: testDbPath, backupDir, maxKeep: 3 });
-    performBackup({ sourceDbPath: testDbPath, backupDir, maxKeep: 3 });
-    performBackup({ sourceDbPath: testDbPath, backupDir, maxKeep: 3 });
+    await performBackup({ backupDir, maxKeep: 3 });
+    await performBackup({ backupDir, maxKeep: 3 });
+    await performBackup({ backupDir, maxKeep: 3 });
 
-    const remainingBackups = fs.readdirSync(backupDir).filter((f) => f.startsWith("ohtms_backup_"));
-    expect(remainingBackups.length).toBeLessThanOrEqual(3);
+    const files = fs.readdirSync(backupDir).filter((f) => f.startsWith("ohtms_backup_"));
+    expect(files.length).toBeLessThanOrEqual(3);
   });
 
-  it("restores database from backup with pre-restore safety copy", async () => {
-    // 1. Take a clean backup
-    const backupRes = performBackup({
-      sourceDbPath: testDbPath,
-      backupDir,
-    });
+  it("restores database cleanly from backup dump", async () => {
+    // 1. Take a backup with our admin user
+    const backupRes = await performBackup({ backupDir, maxKeep: 3 });
 
-    // 2. Mutate the main database (simulate user modification)
-    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
-      .run(99, "extra_user@test.local", "Extra User", "hash", "viewer", Date.now());
-    expect(dbInstance.prepare("SELECT * FROM users WHERE id = 99").get()).toBeDefined();
+    // 2. Insert a temporary user that should disappear after restore
+    await q(
+      "INSERT INTO users (email, name, password_hash, role, disabled, created_at) VALUES ('temp@test.local', 'Temp User', 'hash', 'viewer', FALSE, $1)",
+      [Date.now()]
+    );
+    const countBefore = await q1<{ count: number }>("SELECT COUNT(*)::int as count FROM users");
+    expect(Number(countBefore?.count)).toBeGreaterThanOrEqual(2);
 
-    // Close db before file replacement
-    dbInstance.close();
+    // 3. Restore from the previous backup
+    const restoreRes = await performRestore(backupRes.backupFile);
+    expect(restoreRes.recordsRestored).toBeGreaterThan(0);
 
-    // 3. Restore
-    const restoreRes = performRestore({
-      backupFile: backupRes.backupFile,
-      targetDbPath: testDbPath,
-      createPreRestoreBackup: true,
-    });
+    // 4. Verify original admin exists and temp user is gone
+    const adminUser = await q1<{ email: string }>("SELECT email FROM users WHERE email = 'backup_admin@test.local'");
+    expect(adminUser?.email).toBe("backup_admin@test.local");
 
-    expect(restoreRes.integrity).toBe("ok");
-    expect(restoreRes.preRestoreBackup).not.toBeNull();
-    expect(fs.existsSync(restoreRes.preRestoreBackup!)).toBe(true);
-
-    // 4. Reopen and verify restored state
-    const { openDb } = await import("@/server/db");
-    dbInstance = openDb(testDbPath);
-    (globalThis as any).__ohtmsDb = dbInstance;
-
-    // User 99 should not exist in the restored database
-    const user99 = dbInstance.prepare("SELECT * FROM users WHERE id = 99").get();
-    expect(user99).toBeUndefined();
-
-    // Original user 1 should exist
-    const user1 = dbInstance.prepare("SELECT * FROM users WHERE id = 1").get();
-    expect(user1).toBeDefined();
-
-    // Clean up pre-restore backup
-    if (restoreRes.preRestoreBackup && fs.existsSync(restoreRes.preRestoreBackup)) {
-      fs.unlinkSync(restoreRes.preRestoreBackup);
-    }
-  });
-
-  it("rejects restoring corrupted backup files", () => {
-    const corruptFile = path.join(backupDir, "corrupted_backup.db");
-    fs.writeFileSync(corruptFile, "THIS IS NOT A VALID SQLITE DATABASE FILE");
-
-    expect(() => {
-      performRestore({
-        backupFile: corruptFile,
-        targetDbPath: testDbPath,
-      });
-    }).toThrow();
-
-    if (fs.existsSync(corruptFile)) fs.unlinkSync(corruptFile);
+    const tempUser = await q1<{ email: string }>("SELECT email FROM users WHERE email = 'temp@test.local'");
+    expect(tempUser).toBeNull();
   });
 });

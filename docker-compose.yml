@@ -1,17 +1,42 @@
 services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-ohtms}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   ohtms:
     build: .
     ports: ["3000:3000"]
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
-      SESSION_SECRET: ${SESSION_SECRET:?generate one: openssl rand -hex 32}
+      DATABASE_URL: postgresql://postgres:password@db:5432/ohtms
+      SESSION_SECRET: ${SESSION_SECRET:-dev-only-secret-dev-only-secret-dev-only-secret-must-be-32-chars}
+      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-dev-cron-secret-32ch}
+      TTS_WEBHOOK_SECRET: ${TTS_WEBHOOK_SECRET:-dev-webhook-secret-dev-webhook-secret-32ch}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@mams.local}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set a real admin password}
-      CLOCK_MODE: ${CLOCK_MODE:-anchored}
-      TTS_WEBHOOK_SECRET: ${TTS_WEBHOOK_SECRET:-}
-    volumes: ["ohtms-data:/data"]
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe!2026}
+      SMTP_URL: ${SMTP_URL:-}
+      EMAIL_FROM: ${EMAIL_FROM:-alerts@mams.local}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
+      timeout: 5s
+      retries: 3
+
 volumes:
-  ohtms-data:
+  pg-data:

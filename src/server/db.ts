@@ -1,45 +1,80 @@
-import fs from "node:fs";
-import path from "node:path";
-import BetterSqlite3 from "better-sqlite3";
+import { Pool, PoolClient, QueryResultRow, types } from "pg";
 import { env } from "./env";
-import { runMigrations } from "./migrations/runner";
-import { SqliteCompat, type SqliteDatabase } from "./sqlite-compat";
 
-const g = globalThis as typeof globalThis & { __ohtmsDb?: SqliteDatabase };
+// Ensure BIGINT (int8, oid 20) is returned as a JavaScript Number (safe up to 9e15; epoch ms is ~1.7e12)
+types.setTypeParser(20, (val: string | null) => (val === null ? null : Number(val)));
 
-function createDbInstance(file: string): SqliteDatabase {
-  try {
-    return new BetterSqlite3(file);
-  } catch {
-    return new SqliteCompat(file);
-  }
+interface GlobalWithPool {
+  __ohtmsPool?: Pool;
 }
 
-export function openDb(file = env().DB_PATH, skipMigrations = false): SqliteDatabase {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const db = createDbInstance(file);
+const g = globalThis as unknown as GlobalWithPool;
+
+export function getPool(connectionString?: string): Pool {
+  if (connectionString) {
+    return new Pool({
+      connectionString,
+      max: process.env.VERCEL ? 3 : 10,
+    });
+  }
+
+  if (g.__ohtmsPool) return g.__ohtmsPool;
+
+  const conf = env();
+  const pool = new Pool({
+    connectionString: conf.DATABASE_URL,
+    max: process.env.VERCEL ? 3 : 10,
+  });
+
+  if (process.env.NODE_ENV !== "production") {
+    g.__ohtmsPool = pool;
+  }
+
+  return pool;
+}
+
+/** Execute a query with parameters using the singleton pool */
+export async function q<T extends QueryResultRow = QueryResultRow>(
+  sql: string,
+  params: unknown[] = [],
+  client?: PoolClient
+): Promise<T[]> {
+  const runner = client || getPool();
+  const res = await runner.query<T>(sql, params);
+  return res.rows;
+}
+
+/** Execute a query returning the first row, or null */
+export async function q1<T extends QueryResultRow = QueryResultRow>(
+  sql: string,
+  params: unknown[] = [],
+  client?: PoolClient
+): Promise<T | null> {
+  const rows = await q<T>(sql, params, client);
+  return rows.length > 0 ? rows[0] : null;
+}
+
+/** Execute a block inside a transaction with automatic rollback on error */
+export async function tx<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const pool = getPool();
+  const client = await pool.connect();
   try {
-    db.pragma("journal_mode = WAL");
-    db.pragma("foreign_keys = ON");
-    db.pragma("busy_timeout = 5000");
-    if (!skipMigrations) {
-      runMigrations(db);
-    }
-    return db;
+    await client.query("BEGIN");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
   } catch (err) {
-    try {
-      db.close();
-    } catch {}
+    await client.query("ROLLBACK");
     throw err;
+  } finally {
+    client.release();
   }
 }
 
-/** Singleton (survives Next dev hot-reload). Throws a helpful error if the DB hasn't been seeded. */
-export function db(): SqliteDatabase {
-  if (g.__ohtmsDb) return g.__ohtmsDb;
-  const file = env().DB_PATH;
-  if (!fs.existsSync(file)) throw new Error(`Database not found at ${file}. Run: npm run setup`);
-  return (g.__ohtmsDb = openDb(file));
+/** Close the singleton pool (used in test teardown or process exit) */
+export async function closePool(): Promise<void> {
+  if (g.__ohtmsPool) {
+    await g.__ohtmsPool.end();
+    g.__ohtmsPool = undefined;
+  }
 }
-
-export const tx = <T,>(fn: () => T): T => db().transaction(fn)();

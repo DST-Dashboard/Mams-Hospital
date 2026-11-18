@@ -1,13 +1,13 @@
 import type { NotificationPrefsDTO } from "@/contracts/settings";
 import { NotificationPrefsDTO as NotificationPrefsSchema } from "@/contracts/settings";
-import { db } from "../db";
+import { q, q1 } from "../db";
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefsDTO = {
   channelsBySeverity: {
     info: ["in_app"],
     warning: ["in_app"],
-    critical: ["in_app"],
-    emergency: ["in_app"],
+    critical: ["in_app", "email"],
+    emergency: ["in_app", "email"],
   },
   quietHours: { enabled: false, start: "22:00", end: "06:00" },
   email: null,
@@ -16,28 +16,70 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefsDTO = {
   tankIds: [],
 };
 
-export function getNotificationPrefs(userId: number): NotificationPrefsDTO {
-  const row = db().prepare("SELECT prefs_json FROM notification_prefs WHERE user_id = ?").get(userId) as
-    | { prefs_json: string }
-    | undefined;
-  if (!row) return DEFAULT_NOTIFICATION_PREFS;
-  let stored: unknown;
-  try {
-    stored = JSON.parse(row.prefs_json);
-  } catch (error) {
-    throw new Error("Stored notification preferences are not valid JSON", { cause: error });
-  }
-  const parsed = NotificationPrefsSchema.safeParse(stored);
-  if (!parsed.success) throw new Error("Stored notification preferences do not match the current contract", { cause: parsed.error });
-  return parsed.data;
+interface PrefsRow {
+  user_id: number;
+  email_alerts: boolean;
+  daily_digest: boolean;
+  quiet_hours_enabled: boolean;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+  updated_at: number;
 }
 
-export function saveNotificationPrefs(userId: number, input: NotificationPrefsDTO): NotificationPrefsDTO {
+export async function getNotificationPrefs(userId: number): Promise<NotificationPrefsDTO> {
+  const row = await q1<PrefsRow>(
+    "SELECT * FROM notification_prefs WHERE user_id = $1",
+    [userId]
+  );
+  if (!row) return DEFAULT_NOTIFICATION_PREFS;
+
+  const emailAlerts = Boolean(row.email_alerts);
+  return {
+    channelsBySeverity: {
+      info: ["in_app"],
+      warning: ["in_app"],
+      critical: emailAlerts ? ["in_app", "email"] : ["in_app"],
+      emergency: emailAlerts ? ["in_app", "email"] : ["in_app"],
+    },
+    quietHours: {
+      enabled: Boolean(row.quiet_hours_enabled),
+      start: row.quiet_hours_start ?? "22:00",
+      end: row.quiet_hours_end ?? "06:00",
+    },
+    email: null,
+    phone: null,
+    whatsapp: null,
+    tankIds: [],
+  };
+}
+
+export async function saveNotificationPrefs(
+  userId: number,
+  input: NotificationPrefsDTO
+): Promise<NotificationPrefsDTO> {
   const prefs = NotificationPrefsSchema.parse(input);
-  db().prepare(`
-    INSERT INTO notification_prefs (user_id, prefs_json, updated_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(user_id) DO UPDATE SET prefs_json=excluded.prefs_json, updated_at=excluded.updated_at
-  `).run(userId, JSON.stringify(prefs), Date.now());
+  const emailAlerts =
+    prefs.channelsBySeverity.critical.includes("email") ||
+    prefs.channelsBySeverity.emergency.includes("email");
+
+  await q(
+    `INSERT INTO notification_prefs (
+      user_id, email_alerts, daily_digest, quiet_hours_enabled, quiet_hours_start, quiet_hours_end, updated_at
+    ) VALUES ($1, $2, FALSE, $3, $4, $5, $6)
+    ON CONFLICT (user_id) DO UPDATE SET
+      email_alerts = EXCLUDED.email_alerts,
+      quiet_hours_enabled = EXCLUDED.quiet_hours_enabled,
+      quiet_hours_start = EXCLUDED.quiet_hours_start,
+      quiet_hours_end = EXCLUDED.quiet_hours_end,
+      updated_at = EXCLUDED.updated_at`,
+    [
+      userId,
+      emailAlerts,
+      Boolean(prefs.quietHours?.enabled),
+      prefs.quietHours?.start ?? "22:00",
+      prefs.quietHours?.end ?? "06:00",
+      Date.now(),
+    ]
+  );
   return prefs;
 }

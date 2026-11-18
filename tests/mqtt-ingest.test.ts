@@ -1,12 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import mqtt, { type IClientOptions } from "mqtt";
+import { createTestSchema, TestSchemaContext } from "./test-db";
+import { q, q1 } from "@/server/db";
+import { createTank } from "@/server/repos/tanks";
 import { bindMqttIngest, startMqttIngest } from "@/server/mqtt-ingest";
 
-let testDbPath: string;
-let dbInstance: ReturnType<typeof import("@/server/db").openDb>;
 const topic = "v3/test-app@ttn/devices/wio-e5-node-01/up";
 const uplink = {
   received_at: "2026-10-30T05:41:48.287704342Z",
@@ -19,17 +17,13 @@ const uplink = {
 };
 
 describe("MQTT ingestion", () => {
-  beforeAll(async () => {
-    testDbPath = path.join(os.tmpdir(), `ohtms-test-mqtt-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-    process.env.DB_PATH = testDbPath;
-    process.env.SESSION_SECRET = "mqtt-integration-test-session-secret-32";
+  let testCtx: TestSchemaContext;
 
-    const database = await import("@/server/db");
-    dbInstance = database.openDb(testDbPath);
-    (globalThis as typeof globalThis & { __ohtmsDb?: ReturnType<typeof database.openDb> }).__ohtmsDb = dbInstance;
-    dbInstance.prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)").run("wio-e5-node-01", Date.now());
-    const tanks = await import("@/server/repos/tanks");
-    tanks.createTank({
+  beforeAll(async () => {
+    testCtx = await createTestSchema();
+
+    await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ('wio-e5-node-01', FALSE, $1)", [Date.now()]);
+    await createTank({
       label: "MQTT test tank",
       deviceId: "wio-e5-node-01",
       status: "active",
@@ -41,15 +35,11 @@ describe("MQTT ingestion", () => {
     });
   });
 
-  afterAll(() => {
-    dbInstance.close();
-    for (const suffix of ["", "-wal", "-shm"]) {
-      const file = `${testDbPath}${suffix}`;
-      if (fs.existsSync(file)) fs.unlinkSync(file);
-    }
+  afterAll(async () => {
+    if (testCtx) await testCtx.cleanup();
   });
 
-  it("subscribes at QoS 1 and acknowledges only after idempotent persistence", () => {
+  it("subscribes at QoS 1 and acknowledges only after idempotent persistence", async () => {
     const client = mqtt.connect("mqtt://127.0.0.1:1883", { manualConnect: true });
     const subscribe = vi.spyOn(client, "subscribe");
     bindMqttIngest(client, "v3/+/devices/+/up");
@@ -64,26 +54,21 @@ describe("MQTT ingestion", () => {
       topic,
       payload: Buffer.from(JSON.stringify(uplink)),
     };
-    const persistedBeforeAck: boolean[] = [];
-    const acknowledge = () => {
-      expect(dbInstance.prepare("SELECT COUNT(*) AS count FROM readings WHERE device_id = ?").get("wio-e5-node-01"))
-        .toMatchObject({ count: 1 });
-      persistedBeforeAck.push(true);
-    };
-    client.handleMessage(packet, acknowledge);
-    client.handleMessage(packet, acknowledge);
 
-    expect(persistedBeforeAck).toEqual([true, true]);
-    expect(dbInstance.prepare("SELECT COUNT(*) AS count FROM readings WHERE device_id = ?").get("wio-e5-node-01"))
-      .toMatchObject({ count: 1 });
-    expect(dbInstance.prepare("SELECT gateway_id FROM devices WHERE device_id = ?").get("wio-e5-node-01"))
-      .toMatchObject({ gateway_id: "gateway-mqtt" });
+    await new Promise<void>((resolve) => client.handleMessage(packet, () => resolve()));
+    await new Promise<void>((resolve) => client.handleMessage(packet, () => resolve()));
+
+    const countRow = await q1<{ count: number }>("SELECT COUNT(*) AS count FROM readings WHERE device_id = $1", ["wio-e5-node-01"]);
+    expect(Number(countRow?.count)).toBe(1);
+
+    const devRow = await q1<{ gateway_id: string }>("SELECT gateway_id FROM devices WHERE device_id = $1", ["wio-e5-node-01"]);
+    expect(devRow?.gateway_id).toBe("gateway-mqtt");
   });
 
-  it("acknowledges and drops malformed, oversized, and unregistered uplinks", () => {
+  it("acknowledges and drops malformed, oversized, and unregistered uplinks", async () => {
     const client = mqtt.connect("mqtt://127.0.0.1:1883", { manualConnect: true });
     bindMqttIngest(client, "v3/+/devices/+/up");
-    const acknowledge = vi.fn();
+
     const packet = (payload: Buffer) => ({
       cmd: "publish" as const,
       qos: 1 as const,
@@ -93,20 +78,16 @@ describe("MQTT ingestion", () => {
       payload,
     });
 
-    client.handleMessage(packet(Buffer.from("{")), acknowledge);
-    client.handleMessage(packet(Buffer.alloc(1_048_577)), acknowledge);
-    client.handleMessage(packet(Buffer.from(JSON.stringify({
+    await new Promise<void>((resolve) => client.handleMessage(packet(Buffer.from("{")), () => resolve()));
+    await new Promise<void>((resolve) => client.handleMessage(packet(Buffer.alloc(1_048_577)), () => resolve()));
+    await new Promise<void>((resolve) => client.handleMessage(packet(Buffer.from(JSON.stringify({
       ...uplink,
       end_device_ids: { device_id: "unknown-node-01" },
       uplink_message: { decoded_payload: { Node1_distance_cm: 100 } },
-    }))), acknowledge);
+    }))), () => resolve()));
 
-    expect(acknowledge).toHaveBeenCalledTimes(3);
-    expect(acknowledge).toHaveBeenNthCalledWith(1);
-    expect(acknowledge).toHaveBeenNthCalledWith(2);
-    expect(acknowledge).toHaveBeenNthCalledWith(3);
-    expect(dbInstance.prepare("SELECT COUNT(*) AS count FROM readings WHERE device_id = 'unknown-node-01'").get())
-      .toMatchObject({ count: 0 });
+    const countRow = await q1<{ count: number }>("SELECT COUNT(*) AS count FROM readings WHERE device_id = 'unknown-node-01'");
+    expect(Number(countRow?.count)).toBe(0);
   });
 
   it("connects with configured credentials, persistent sessions, and the configured topic", () => {
@@ -116,11 +97,11 @@ describe("MQTT ingestion", () => {
     );
 
     expect(startMqttIngest({
-      MQTT_URL: url,
-      MQTT_TOPIC: "mams/devices/+/up",
-      MQTT_CLIENT_ID: "mams-test-ingest",
-      MQTT_USERNAME: "test-user",
-      MQTT_PASSWORD: "test-password",
+      url,
+      topic: "mams/devices/+/up",
+      clientId: "mams-test-ingest",
+      username: "test-user",
+      password: "test-password",
     }, connect)).toBeDefined();
     expect(connect).toHaveBeenCalledWith(url, expect.objectContaining({
       clientId: "mams-test-ingest",

@@ -6,17 +6,18 @@ import { audit } from "@/server/repos/audit";
 import { SnoozeBody } from "@/contracts/alerts";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export const POST = handle(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const s = await requireRole("operator");
   const id = intParam((await params).id);
   const body = SnoozeBody.parse(await req.json());
-  const before = alerts.getAlert(id);
+  const before = await alerts.getAlert(id);
   if (!before || before.resolvedAt) return fail(404, "Open alert not found");
 
   const at = now();
-  const snoozedUntil = alerts.snooze(id, at, body.minutes);
-  audit({
+  const snoozedUntil = await alerts.snooze(id, at, body.minutes, s.uid);
+  await audit({
     userId: s.uid,
     action: "alert.snooze",
     entity: "alert",
@@ -25,5 +26,5 @@ export const POST = handle(async (req: Request, { params }: { params: Promise<{ 
     after: { snoozedUntil, minutes: body.minutes },
   });
 
-  return ok(alerts.getAlert(id));
+  return ok(await alerts.getAlert(id));
 });

@@ -1,138 +1,110 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
-import { openDb } from "@/server/db";
-import { SqliteCompat } from "@/server/sqlite-compat";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { Pool } from "pg";
 import {
   getAppliedMigrations,
-  getPendingMigrations,
+  getMigrationFiles,
   runMigrations,
 } from "@/server/migrations/runner";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
-const TEST_DB = path.resolve(process.cwd(), "var/test_migrations.db");
-const TEMP_MIGRATIONS_DIR = path.resolve(process.cwd(), "var/temp_migrations");
+describe("BE-01: Database Migration System (PostgreSQL)", () => {
+  const baseConn =
+    process.env.TEST_DATABASE_URL ??
+    process.env.DATABASE_URL ??
+    "postgresql://postgres:password@localhost:5432/ohtms_test";
 
-describe("BE-01: Database Migration System", () => {
-  beforeEach(() => {
-    for (const f of [TEST_DB, `${TEST_DB}-wal`, `${TEST_DB}-shm`]) {
-      fs.rmSync(f, { force: true });
-    }
+  let testSchema: string;
+  let schemaConn: string;
+
+  beforeAll(async () => {
+    testSchema = `test_mig_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const pool = new Pool({ connectionString: baseConn, max: 1 });
+    await pool.query(`CREATE SCHEMA ${testSchema}`);
+    await pool.end();
+    schemaConn = `${baseConn}${baseConn.includes("?") ? "&" : "?"}options=-csearch_path%3D${testSchema},public`;
   });
 
-  afterEach(() => {
-    for (const f of [TEST_DB, `${TEST_DB}-wal`, `${TEST_DB}-shm`]) {
-      fs.rmSync(f, { force: true });
-    }
-    fs.rmSync(TEMP_MIGRATIONS_DIR, { recursive: true, force: true });
+  afterAll(async () => {
+    const pool = new Pool({ connectionString: baseConn, max: 1 });
+    await pool.query(`DROP SCHEMA IF EXISTS ${testSchema} CASCADE`);
+    await pool.end();
   });
 
-  it("initializes a fresh database and applies all migrations sequentially", () => {
-    const db = openDb(TEST_DB);
-    const applied = getAppliedMigrations(db);
+  it("applies all migrations in order and records in schema_migrations", async () => {
+    const applied = await runMigrations(schemaConn);
+    expect(applied).toEqual([
+      "001_init.sql",
+      "002_alerts_notify.sql",
+      "003_ingest_jobs.sql",
+      "004_dimensions.sql",
+      "005_auth.sql",
+    ]);
 
-    expect(applied).toContain("001_init.sql");
-    expect(applied).toContain("002_notifications.sql");
-    expect(applied).toContain("003_zones_templates.sql");
-    expect(applied).toContain("004_sessions.sql");
-    expect(applied).toContain("005_jobs_auth_push.sql");
-    expect(applied).toContain("006_device_soft_delete.sql");
-    expect(applied).toContain("007_notification_attempt_limit.sql");
-
-    // All core tables should exist
-    const tables = (
-      db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]
-    ).map((t) => t.name);
-
-    expect(tables).toContain("_migrations");
-    expect(tables).toContain("tanks");
-    expect(tables).toContain("devices");
-    expect(tables).toContain("readings");
-    expect(tables).toContain("alerts");
-    expect(tables).toContain("users");
-    expect(tables).toContain("audit_log");
-    expect(tables).toContain("alert_recipients");
-    expect(tables).toContain("notification_prefs");
-    expect(tables).toContain("zones");
-    expect(tables).toContain("threshold_templates");
-    expect(tables).toContain("sessions");
-    expect(tables).toContain("password_resets");
-    expect(tables).toContain("job_runs");
-    expect(tables).toContain("reading_rollups");
-    expect(tables).toContain("notification_dispatches");
-    expect(tables).toContain("push_subscriptions");
-    expect(() => db.prepare("SELECT attempted_at FROM notifications LIMIT 0").all()).not.toThrow();
-    expect(() => db.prepare("SELECT totp_enabled FROM users LIMIT 0").all()).not.toThrow();
-    expect(() => db.prepare("SELECT deleted_at FROM devices LIMIT 0").all()).not.toThrow();
-    expect(() => db.prepare("SELECT attempt_count FROM notifications LIMIT 0").all()).not.toThrow();
-
-    db.close();
-  });
-
-  it("prevents duplicate execution of already applied migrations", () => {
-    const db = openDb(TEST_DB);
-    const pendingBefore = getPendingMigrations(db);
-    expect(pendingBefore).toHaveLength(0);
-
-    // Re-running migrations should be a no-op
-    const appliedAgain = runMigrations(db);
-    expect(appliedAgain).toHaveLength(0);
-
-    db.close();
-  });
-
-  it("supports existing database upgrade (detects existing tables without _migrations)", () => {
-    const db = new SqliteCompat(TEST_DB);
+    const pool = new Pool({ connectionString: schemaConn, max: 1 });
+    const client = await pool.connect();
     try {
-      db.exec(fs.readFileSync(path.resolve(process.cwd(), "src/server/schema.sql"), "utf8"));
-      db.prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)").run("legacy-device", Date.now());
-      db.prepare(`
-        INSERT INTO tanks (device_id, label, height_cm, radius_cm, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run("legacy-device", "Legacy tank", 300, 100, Date.now(), Date.now());
-      db.prepare("INSERT INTO readings (device_id, t, distance_cm) VALUES (?, ?, ?)").run("legacy-device", 1234, 56);
+      const records = await getAppliedMigrations(client);
+      expect(records).toEqual(applied);
 
-      expect(runMigrations(db)).toEqual([
-        "002_notifications.sql",
-        "003_zones_templates.sql",
-        "004_sessions.sql",
-        "005_jobs_auth_push.sql",
-        "006_device_soft_delete.sql",
-        "007_notification_attempt_limit.sql",
-      ]);
-      expect(getAppliedMigrations(db)).toContain("001_init.sql");
-      expect(db.prepare("SELECT label FROM tanks WHERE device_id = ?").get("legacy-device"))
-        .toEqual({ label: "Legacy tank" });
-      expect(db.prepare("SELECT t, distance_cm FROM readings WHERE device_id = ?").get("legacy-device"))
-        .toEqual({ t: 1234, distance_cm: 56 });
-      expect(db.prepare("SELECT totp_enabled FROM users LIMIT 0").all()).toEqual([]);
-      expect(getPendingMigrations(db)).toEqual([]);
+      // Verify core tables exist in schema
+      const tablesRes = await client.query<{ table_name: string }>(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = $1",
+        [testSchema]
+      );
+      const tables = tablesRes.rows.map((r) => r.table_name);
+      expect(tables).toContain("schema_migrations");
+      expect(tables).toContain("tanks");
+      expect(tables).toContain("devices");
+      expect(tables).toContain("readings");
+      expect(tables).toContain("alerts");
+      expect(tables).toContain("alert_events");
+      expect(tables).toContain("alert_recipients");
+      expect(tables).toContain("notification_prefs");
+      expect(tables).toContain("notifications");
+      expect(tables).toContain("users");
+      expect(tables).toContain("audit_log");
+      expect(tables).toContain("ingest_state");
+      expect(tables).toContain("ingest_rejects");
+      expect(tables).toContain("job_runs");
+      expect(tables).toContain("rate_limits");
+      expect(tables).toContain("tank_dimensions");
+      expect(tables).toContain("password_resets");
     } finally {
-      db.close();
+      client.release();
+      await pool.end();
     }
   });
 
-  it("rolls back on migration failure", () => {
-    const db = openDb(TEST_DB);
-    fs.mkdirSync(TEMP_MIGRATIONS_DIR, { recursive: true });
+  it("is idempotent: subsequent run applies 0 migrations", async () => {
+    const secondRun = await runMigrations(schemaConn);
+    expect(secondRun).toEqual([]);
+  });
 
-    // Valid migration followed by an invalid one
-    fs.writeFileSync(
-      path.join(TEMP_MIGRATIONS_DIR, "099_good.sql"),
-      "CREATE TABLE good_table (id INT);"
+  it("rolls back transactions atomically when a migration fails", async () => {
+    const tempDir = path.join(os.tmpdir(), `temp_mig_${Date.now()}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+    fs.writeFileSync(path.join(tempDir, "001_valid.sql"), "CREATE TABLE temp_good (id INT);");
+    fs.writeFileSync(path.join(tempDir, "002_invalid.sql"), "SYNTAX ERROR INVALID SQL;");
+
+    const errSchema = `test_err_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const pool = new Pool({ connectionString: baseConn, max: 1 });
+    await pool.query(`CREATE SCHEMA ${errSchema}`);
+    await pool.end();
+    const errConn = `${baseConn}${baseConn.includes("?") ? "&" : "?"}options=-csearch_path%3D${errSchema},public`;
+
+    await expect(runMigrations(errConn, tempDir)).rejects.toThrow(/Migration 002_invalid\.sql failed/);
+
+    const checkPool = new Pool({ connectionString: errConn, max: 1 });
+    const res = await checkPool.query(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_name = 'temp_good'",
+      [errSchema]
     );
-    fs.writeFileSync(
-      path.join(TEMP_MIGRATIONS_DIR, "100_bad.sql"),
-      "SYNTAX ERROR INVALID SQL;"
-    );
+    expect(res.rows.length).toBe(0); // whole batch rolled back atomically
 
-    expect(() => runMigrations(db, TEMP_MIGRATIONS_DIR)).toThrow(/Migration 100_bad.sql failed/);
-
-    // 099_good.sql was committed in its own transaction
-    const applied = getAppliedMigrations(db);
-    expect(applied).toContain("099_good.sql");
-    expect(applied).not.toContain("100_bad.sql");
-
-    // Cleanup
-    db.close();
+    await checkPool.query(`DROP SCHEMA IF EXISTS ${errSchema} CASCADE`);
+    await checkPool.end();
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 });

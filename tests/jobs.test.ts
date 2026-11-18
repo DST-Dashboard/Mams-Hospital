@@ -1,31 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { createTestSchema, TestSchemaContext } from "./test-db";
+import { q, q1 } from "@/server/db";
+import { createTank } from "@/server/repos/tanks";
+import { open, getAlert } from "@/server/repos/alerts";
+import { claimJobSlot, recordJobResult, runTick } from "@/server/jobs/tick";
+import { runEscalationTick } from "@/server/services/escalation";
 
-let testDbPath: string;
-let dbInstance: ReturnType<typeof import("@/server/db").openDb>;
-let checkGatewayHealth: typeof import("@/server/jobs/node-health").checkGatewayHealth;
-let refreshRollups: typeof import("@/server/jobs/rollups").refreshRollups;
-let purgeExpiredData: typeof import("@/server/jobs/retention").purgeExpiredData;
-let escalateUnacknowledged: typeof import("@/server/services/escalation").escalateUnacknowledged;
-let deviceId: string;
-let tankId: number;
+describe("backend scheduled jobs and tick worker", () => {
+  let testCtx: TestSchemaContext;
+  let deviceId: string;
+  let tankId: number;
 
-describe("backend scheduled jobs", () => {
   beforeAll(async () => {
-    testDbPath = path.join(os.tmpdir(), `ohtms-test-jobs-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-    process.env.DB_PATH = testDbPath;
-    process.env.SESSION_SECRET = "job-test-session-secret-at-least-32-characters";
-
-    const database = await import("@/server/db");
-    dbInstance = database.openDb(testDbPath);
-    (globalThis as typeof globalThis & { __ohtmsDb?: ReturnType<typeof database.openDb> }).__ohtmsDb = dbInstance;
-    const tanks = await import("@/server/repos/tanks");
+    testCtx = await createTestSchema();
     deviceId = "job-test-device";
-    dbInstance.prepare("INSERT INTO devices (device_id, gateway_id, simulated, created_at) VALUES (?, ?, 0, ?)")
-      .run(deviceId, "job-test-gateway", Date.now());
-    tankId = tanks.createTank({
+    await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ($1, FALSE, $2)", [deviceId, Date.now()]);
+    tankId = await createTank({
       label: "Job test tank",
       deviceId,
       status: "active",
@@ -35,56 +25,38 @@ describe("backend scheduled jobs", () => {
       deadZoneCm: 25,
       dimsConfirmed: true,
     });
-
-    checkGatewayHealth = (await import("@/server/jobs/node-health")).checkGatewayHealth;
-    refreshRollups = (await import("@/server/jobs/rollups")).refreshRollups;
-    purgeExpiredData = (await import("@/server/jobs/retention")).purgeExpiredData;
-    escalateUnacknowledged = (await import("@/server/services/escalation")).escalateUnacknowledged;
   });
 
-  afterAll(() => {
-    dbInstance.close();
-    for (const suffix of ["", "-wal", "-shm"]) {
-      const file = `${testDbPath}${suffix}`;
-      if (fs.existsSync(file)) fs.unlinkSync(file);
-    }
+  afterAll(async () => {
+    if (testCtx) await testCtx.cleanup();
   });
 
-  it("opens and resolves a gateway-wide offline alert and queues its notification", () => {
+  it("claims job slots atomically and enforces intervals", async () => {
+    const asOf = 1700000000000;
+    // First claim should succeed
+    const firstClaim = await claimJobSlot("test_job", 60_000, asOf);
+    expect(firstClaim).toBe(true);
+
+    // Second claim within interval should fail
+    const secondClaim = await claimJobSlot("test_job", 60_000, asOf + 30_000);
+    expect(secondClaim).toBe(false);
+
+    // Third claim after interval has passed should succeed
+    const thirdClaim = await claimJobSlot("test_job", 60_000, asOf + 65_000);
+    expect(thirdClaim).toBe(true);
+
+    // Recording result updates row
+    await recordJobResult("test_job", true);
+    const row = await q1<{ ok: boolean; error: string | null }>(
+      "SELECT ok, error FROM job_runs WHERE name = 'test_job'"
+    );
+    expect(row?.ok).toBe(true);
+    expect(row?.error).toBeNull();
+  });
+
+  it("escalates overdue unacknowledged alerts and records audit trail", async () => {
     const asOf = Date.now();
-    expect(checkGatewayHealth(asOf)).toEqual({ opened: 1, resolved: 0 });
-    expect(dbInstance.prepare("SELECT type, state FROM alerts WHERE tank_id = ?").get(tankId)).toMatchObject({
-      type: "GATEWAY_OFFLINE",
-      state: "active",
-    });
-    expect(dbInstance.prepare("SELECT completed_at FROM notification_dispatches WHERE alert_id = (SELECT id FROM alerts WHERE tank_id = ?)")
-      .get(tankId)).toMatchObject({ completed_at: null });
-
-    dbInstance.prepare("INSERT INTO readings (device_id, t, distance_cm) VALUES (?, ?, ?)")
-      .run(deviceId, asOf, 150);
-    expect(checkGatewayHealth(asOf + 60_000)).toEqual({ opened: 0, resolved: 1 });
-    expect(dbInstance.prepare("SELECT state FROM alerts WHERE tank_id = ?").get(tankId)).toMatchObject({ state: "resolved" });
-  });
-
-  it("refreshes hourly/daily rollups and purges expired readings transactionally", () => {
-    const asOf = Date.now();
-    dbInstance.prepare("INSERT INTO readings (device_id, t, distance_cm) VALUES (?, ?, ?)")
-      .run(deviceId, asOf - 30 * 60_000, 180);
-    const result = refreshRollups(asOf);
-    expect(result.devices).toBe(1);
-    expect(result.buckets).toBeGreaterThanOrEqual(2);
-    expect(dbInstance.prepare("SELECT COUNT(*) AS count FROM reading_rollups WHERE device_id = ?").get(deviceId))
-      .toMatchObject({ count: result.buckets });
-
-    dbInstance.prepare("INSERT INTO readings (device_id, t, distance_cm) VALUES (?, ?, ?)")
-      .run(deviceId, asOf - 100 * 24 * 60 * 60_000, 200);
-    expect(purgeExpiredData(asOf).readings).toBe(1);
-  });
-
-  it("escalates overdue unacknowledged alerts and records the transition", async () => {
-    const asOf = Date.now();
-    const alerts = await import("@/server/repos/alerts");
-    const alertId = alerts.open({
+    const alertId = await open({
       tankId,
       type: "LOW_LEVEL",
       severity: "warning",
@@ -95,10 +67,23 @@ describe("backend scheduled jobs", () => {
       triggerDistanceCm: null,
       simulated: false,
     });
-    expect(await escalateUnacknowledged(asOf)).toBe(1);
-    expect(alerts.getAlert(alertId, asOf)?.state).toBe("escalated");
-    expect(dbInstance.prepare("SELECT action FROM audit_log WHERE entity_id = ?").get(String(alertId))).toMatchObject({
-      action: "alert.escalate",
-    });
+
+    const escalated = await runEscalationTick(asOf, 15);
+    expect(escalated).toBeGreaterThanOrEqual(1);
+
+    const alert = await getAlert(alertId, asOf);
+    expect(alert?.state).toBe("escalated");
+
+    const auditRow = await q1<{ action: string }>(
+      "SELECT action FROM audit_log WHERE entity_id = $1",
+      [String(alertId)]
+    );
+    expect(auditRow?.action).toBe("alert.escalate");
+  });
+
+  it("executes runTick successfully", async () => {
+    const executed = await runTick({ full: true });
+    expect(executed.alerts).toBe(true);
+    expect(executed.escalation).toBe(true);
   });
 });

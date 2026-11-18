@@ -1,38 +1,32 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { createTestSchema, TestSchemaContext } from "./test-db";
+import { q, q1 } from "@/server/db";
+import { env } from "@/server/env";
+import { createTank, softDeleteTank } from "@/server/repos/tanks";
+import { POST as POST_INGEST } from "@/app/api/ingest/tts/route";
 
-let testDbPath: string;
-let dbInstance: ReturnType<typeof import("@/server/db").openDb>;
-let POST_INGEST: typeof import("@/app/api/ingest/tts/route").POST;
-const secret = "tts-integration-test-secret";
 const timestamp = "2026-10-30T05:41:48.287704342Z";
 
-function request(body: string, webhookSecret = secret, contentType = "application/json"): Request {
+function request(body: string, webhookSecret?: string, contentType = "application/json"): Request {
+  const secret = webhookSecret ?? env().TTS_WEBHOOK_SECRET;
   return new Request("http://localhost/api/ingest/tts", {
     method: "POST",
-    headers: { "content-type": contentType, "x-webhook-secret": webhookSecret },
+    headers: { "content-type": contentType, "x-webhook-secret": secret },
     body,
   });
 }
 
 describe("TTS ingest API", () => {
-  beforeAll(async () => {
-    testDbPath = path.join(os.tmpdir(), `ohtms-test-ingest-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-    process.env.DB_PATH = testDbPath;
-    process.env.SESSION_SECRET = "tts-integration-test-session-secret-32";
-    process.env.TTS_WEBHOOK_SECRET = secret;
+  let testCtx: TestSchemaContext;
 
-    const database = await import("@/server/db");
-    dbInstance = database.openDb(testDbPath);
-    (globalThis as typeof globalThis & { __ohtmsDb?: ReturnType<typeof database.openDb> }).__ohtmsDb = dbInstance;
-    dbInstance.prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)").run("wio-e5-node-01", Date.now());
-    dbInstance.prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)").run("wio-e5-node-02", Date.now());
-    dbInstance.prepare("INSERT INTO devices (device_id, simulated, created_at, deleted_at) VALUES (?, 0, ?, ?)")
-      .run("retired-node-03", Date.now(), Date.now());
-    const tanks = await import("@/server/repos/tanks");
-    tanks.createTank({
+  beforeAll(async () => {
+    testCtx = await createTestSchema();
+
+    await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ('wio-e5-node-01', FALSE, $1)", [Date.now()]);
+    await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ('wio-e5-node-02', FALSE, $1)", [Date.now()]);
+    await q("INSERT INTO devices (device_id, simulated, created_at, deleted_at) VALUES ('retired-node-03', FALSE, $1, $1)", [Date.now()]);
+
+    await createTank({
       label: "Ingest test tank",
       deviceId: "wio-e5-node-01",
       status: "active",
@@ -42,7 +36,7 @@ describe("TTS ingest API", () => {
       deadZoneCm: 25,
       dimsConfirmed: true,
     });
-    const deletedTankId = tanks.createTank({
+    const deletedTankId = await createTank({
       label: "Deleted-tank ingest test",
       deviceId: "wio-e5-node-02",
       status: "active",
@@ -52,16 +46,11 @@ describe("TTS ingest API", () => {
       deadZoneCm: 25,
       dimsConfirmed: true,
     });
-    tanks.softDeleteTank(deletedTankId);
-    POST_INGEST = (await import("@/app/api/ingest/tts/route")).POST;
+    await softDeleteTank(deletedTankId);
   });
 
-  afterAll(() => {
-    dbInstance.close();
-    for (const suffix of ["", "-wal", "-shm"]) {
-      const file = `${testDbPath}${suffix}`;
-      if (fs.existsSync(file)) fs.unlinkSync(file);
-    }
+  afterAll(async () => {
+    if (testCtx) await testCtx.cleanup();
   });
 
   it("authenticates, validates, idempotently stores, and records live device metadata", async () => {
@@ -88,9 +77,11 @@ describe("TTS ingest API", () => {
     expect(repeated.status).toBe(200);
     await expect(repeated.json()).resolves.toEqual({ inserted: 0 });
 
-    expect(dbInstance.prepare("SELECT COUNT(*) AS count FROM readings WHERE device_id = ?").get("wio-e5-node-01")).toMatchObject({ count: 1 });
-    expect(dbInstance.prepare("SELECT gateway_id, dev_eui FROM devices WHERE device_id = ?").get("wio-e5-node-01"))
-      .toMatchObject({ gateway_id: "gateway-test", dev_eui: "0102030405060708" });
+    const countRow = await q1<{ count: number }>("SELECT COUNT(*) AS count FROM readings WHERE device_id = $1", ["wio-e5-node-01"]);
+    expect(Number(countRow?.count)).toBe(1);
+
+    const devRow = await q1<{ gateway_id: string; dev_eui: string }>("SELECT gateway_id, dev_eui FROM devices WHERE device_id = $1", ["wio-e5-node-01"]);
+    expect(devRow).toMatchObject({ gateway_id: "gateway-test", dev_eui: "0102030405060708" });
   });
 
   it("rejects malformed, oversized, and unregistered input with client errors", async () => {
@@ -100,7 +91,7 @@ describe("TTS ingest API", () => {
     const empty = await POST_INGEST(request(""));
     expect(empty.status).toBe(400);
 
-    const unsupported = await POST_INGEST(request("{}", secret, "text/plain"));
+    const unsupported = await POST_INGEST(request("{}", undefined, "text/plain"));
     expect(unsupported.status).toBe(415);
 
     const unknownDevice = {
@@ -130,7 +121,7 @@ describe("TTS ingest API", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-webhook-secret": secret,
+        "x-webhook-secret": env().TTS_WEBHOOK_SECRET,
         "content-length": "1048577",
       },
       body: new ReadableStream<Uint8Array>({
@@ -155,8 +146,9 @@ describe("TTS ingest API", () => {
     )));
     expect(deletedTankDevice.status).toBe(200);
     await expect(deletedTankDevice.json()).resolves.toEqual({ inserted: 1 });
-    expect(dbInstance.prepare("SELECT COUNT(*) AS count FROM readings WHERE device_id = ?")
-      .get("wio-e5-node-02")).toMatchObject({ count: 1 });
+
+    const countRow = await q1<{ count: number }>("SELECT COUNT(*) AS count FROM readings WHERE device_id = $1", ["wio-e5-node-02"]);
+    expect(Number(countRow?.count)).toBe(1);
 
     const retiredDevice = await POST_INGEST(request(JSON.stringify(
       makeUplink("retired-node-03", "Node3", "2026-10-30T05:43:48.000Z"),
@@ -178,7 +170,7 @@ describe("TTS ingest API", () => {
     });
     const oversized = new Request("http://localhost/api/ingest/tts", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-webhook-secret": secret },
+      headers: { "content-type": "application/json", "x-webhook-secret": env().TTS_WEBHOOK_SECRET },
       body: stream,
       duplex: "half",
     } as RequestInit & { duplex: "half" });

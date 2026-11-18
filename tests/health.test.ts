@@ -1,45 +1,42 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { createTestSchema, TestSchemaContext } from "./test-db";
+import { closePool } from "@/server/db";
+import { resetEnvCache } from "@/server/env";
 
-let testDbPath: string;
-let dbInstance: ReturnType<typeof import("@/server/db").openDb>;
-let databaseClosed = false;
+let testCtx: TestSchemaContext;
 let GET_HEALTH: typeof import("@/app/api/health/route").GET;
 
 describe("health API", () => {
   beforeAll(async () => {
-    testDbPath = path.join(os.tmpdir(), `ohtms-test-health-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-    process.env.DB_PATH = testDbPath;
+    testCtx = await createTestSchema();
     process.env.SESSION_SECRET = "health-test-session-secret-32-characters";
-    process.env.CLOCK_MODE = "anchored";
-    const database = await import("@/server/db");
-    dbInstance = database.openDb(testDbPath);
-    (globalThis as typeof globalThis & { __ohtmsDb?: ReturnType<typeof database.openDb> }).__ohtmsDb = dbInstance;
+    resetEnvCache();
     GET_HEALTH = (await import("@/app/api/health/route")).GET;
   });
 
-  afterAll(() => {
-    if (!databaseClosed) dbInstance.close();
-    for (const suffix of ["", "-wal", "-shm"]) {
-      const file = `${testDbPath}${suffix}`;
-      if (fs.existsSync(file)) fs.unlinkSync(file);
-    }
+  afterAll(async () => {
+    if (testCtx) await testCtx.cleanup();
   });
 
   it("reports normal service health", async () => {
     const response = await GET_HEALTH();
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ status: "ok", clockMode: "anchored" });
+    await expect(response.json()).resolves.toMatchObject({ status: "ok", clockMode: "live" });
   });
 
-  it("returns a sanitized degraded response when SQLite is unavailable", async () => {
-    dbInstance.close();
-    databaseClosed = true;
+  it("returns a sanitized degraded response when database is unavailable", async () => {
+    // Break connection temporarily
+    process.env.DATABASE_URL = "postgresql://postgres:wrongpassword@localhost:5432/nonexistent_db";
+    resetEnvCache();
+    await closePool();
 
     const response = await GET_HEALTH();
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ status: "degraded" });
+
+    // Restore
+    process.env.DATABASE_URL = testCtx.connectionString;
+    resetEnvCache();
+    await closePool();
   });
 });

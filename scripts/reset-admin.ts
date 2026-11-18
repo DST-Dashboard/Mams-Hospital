@@ -1,21 +1,40 @@
-/**
- * Re-sets the admin account from .env WITHOUT touching readings, tanks, alerts or audit history.
- *   npm run auth:reset
- * Use when: you changed ADMIN_PASSWORD after seeding, forgot the password, or the account got disabled.
- */
 import bcrypt from "bcryptjs";
-import fs from "node:fs";
-import { openDb } from "../src/server/db";
+import { q, q1, closePool } from "../src/server/db";
 import { env } from "../src/server/env";
 
-try { process.loadEnvFile(".env"); } catch { console.warn("No .env found — using defaults from .env.example"); }
-const e = env();
-if (!fs.existsSync(e.DB_PATH)) { console.error(`No database at ${e.DB_PATH}. Run: npm run setup`); process.exit(1); }
+async function main() {
+  const e = env();
+  const hash = await bcrypt.hash(e.ADMIN_PASSWORD, 10);
+  const now = Date.now();
 
-const db = openDb(e.DB_PATH);
-const hash = bcrypt.hashSync(e.ADMIN_PASSWORD, 10);
-const existing = db.prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE").get(e.ADMIN_EMAIL);
-if (existing) db.prepare("UPDATE users SET password_hash=?, role='admin', disabled=0 WHERE email=? COLLATE NOCASE").run(hash, e.ADMIN_EMAIL);
-else db.prepare("INSERT INTO users (email,name,password_hash,role,created_at) VALUES (?,?,?,'admin',?)").run(e.ADMIN_EMAIL, "Administrator", hash, Date.now());
-console.log(`Admin ready → email: ${e.ADMIN_EMAIL}  (password = ADMIN_PASSWORD from .env, ${e.ADMIN_PASSWORD.length} characters)`);
-db.close();
+  const existing = await q1<{ id: number }>(
+    "SELECT id FROM users WHERE lower(email) = lower($1)",
+    [e.ADMIN_EMAIL]
+  );
+
+  if (existing) {
+    await q(
+      "UPDATE users SET password_hash = $1, role = 'admin', disabled = FALSE, must_change_password = FALSE WHERE id = $2",
+      [hash, existing.id]
+    );
+  } else {
+    await q(
+      `INSERT INTO users (email, name, password_hash, role, disabled, must_change_password, created_at)
+       VALUES ($1, 'Administrator', $2, 'admin', FALSE, FALSE, $3)`,
+      [e.ADMIN_EMAIL, hash, now]
+    );
+  }
+
+  console.log(`Admin ready -> email: ${e.ADMIN_EMAIL} (password = ADMIN_PASSWORD from .env)`);
+}
+
+main()
+  .then(async () => {
+    await closePool();
+    process.exit(0);
+  })
+  .catch(async (err) => {
+    console.error("Failed to reset admin:", err);
+    await closePool();
+    process.exit(1);
+  });

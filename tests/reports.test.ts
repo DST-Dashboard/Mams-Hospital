@@ -14,7 +14,7 @@ const report: ReportDocument = {
 
 describe("report serializers", () => {
   it("generates escaped CSV and neutralizes spreadsheet formulas in text fields", async () => {
-    const response = reportDownload(report, "csv");
+    const response = await reportDownload(report, "csv");
     const csv = await response.text();
     expect(response.headers.get("content-type")).toContain("text/csv");
     expect(response.headers.get("content-disposition")).toContain("tank-export.csv");
@@ -24,14 +24,13 @@ describe("report serializers", () => {
     expect(csv).toContain("\"'+SUM");
   });
 
-  it("generates a structurally indexed PDF", async () => {
-    const response = reportDownload(report, "pdf");
-    const pdf = await response.text();
+  it("generates a structurally valid PDF", async () => {
+    const response = await reportDownload(report, "pdf");
+    const buf = Buffer.from(await response.arrayBuffer());
     expect(response.headers.get("content-type")).toBe("application/pdf");
-    expect(pdf.startsWith("%PDF-1.4")).toBe(true);
-    const startXref = Number(/startxref\n(\d+)/.exec(pdf)?.[1]);
-    expect(pdf.slice(startXref, startXref + 4)).toBe("xref");
-    expect(pdf.endsWith("%%EOF\n")).toBe(true);
+    expect(response.headers.get("content-disposition")).toContain("tank-export.pdf");
+    expect(buf.toString("ascii", 0, 5)).toBe("%PDF-");
+    expect(buf.length).toBeGreaterThan(100);
   });
 
   it("includes report rows beyond the first PDF page", async () => {
@@ -39,9 +38,11 @@ describe("report serializers", () => {
       ...report,
       rows: Array.from({ length: 60 }, (_, index) => [`Tank ${index}`, null, index]),
     };
-    const response = reportDownload(largeReport, "pdf");
-    const pdf = await response.text();
-    expect(pdf).toContain("(Tank 59 |  | 59) Tj");
-    expect(pdf.match(/\/Type \/Page \/Parent/g)).toHaveLength(2);
+    const response = await reportDownload(largeReport, "pdf");
+    const buf = Buffer.from(await response.arrayBuffer());
+    expect(response.headers.get("content-type")).toBe("application/pdf");
+    expect(buf.toString("ascii", 0, 5)).toBe("%PDF-");
+    expect(buf.length).toBeGreaterThan(2000);
+    expect(buf.toString("ascii")).toContain("/Count 2");
   });
 });

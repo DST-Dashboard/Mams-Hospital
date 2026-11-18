@@ -1,147 +1,84 @@
-/**
- * [BE-03] OWNER: backend · Rate limiting engine.
- * Protects against brute-force attacks on authentication endpoints.
- * Enforces: 5 login attempts / 15 min per IP/account; 100 req/min per user.
- */
-import { db } from "./db";
-
-interface MemoryLimit {
-  attempts: number;
-  firstAttemptAt: number;
-  lockedUntil: number | null;
-}
-
-const memoryStore = new Map<string, MemoryLimit>();
+import { q, q1 } from "./db";
 
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const LOGIN_LOCK_MS = 15 * 60 * 1000; // 15 minutes lock on breach
 
-export function checkLoginRateLimit(key: string): {
+export async function checkLoginRateLimit(key: string): Promise<{
   allowed: boolean;
   remaining: number;
   resetMs: number;
-} {
+}> {
   const now = Date.now();
-  let entry = memoryStore.get(key);
+  const row = await q1<{
+    attempts: number;
+    first_attempt_at: number;
+    locked_until: number | null;
+  }>("SELECT attempts, first_attempt_at, locked_until FROM rate_limits WHERE key = $1", [key]);
 
-  // Fallback to SQLite DB if not in memory
-  if (!entry) {
-    try {
-      const row = db()
-        .prepare("SELECT attempts, first_attempt_at, locked_until FROM rate_limits WHERE key = ?")
-        .get(key) as
-        | { attempts: number; first_attempt_at: number; locked_until: number | null }
-        | undefined;
-      if (row) {
-        entry = {
-          attempts: row.attempts,
-          firstAttemptAt: row.first_attempt_at,
-          lockedUntil: row.locked_until,
-        };
-        memoryStore.set(key, entry);
-      }
-    } catch {
-      // Table might not exist or error, continue with in-memory
-    }
-  }
-
-  if (!entry) {
+  if (!row) {
     return { allowed: true, remaining: LOGIN_MAX_ATTEMPTS, resetMs: 0 };
   }
 
-  // Check if locked
-  if (entry.lockedUntil && entry.lockedUntil > now) {
+  const lockedUntil = row.locked_until ? Number(row.locked_until) : null;
+  if (lockedUntil && now < lockedUntil) {
     return {
       allowed: false,
       remaining: 0,
-      resetMs: entry.lockedUntil - now,
+      resetMs: lockedUntil - now,
     };
   }
 
-  // Check if window expired
-  if (now - entry.firstAttemptAt > LOGIN_WINDOW_MS) {
-    memoryStore.delete(key);
-    try {
-      db().prepare("DELETE FROM rate_limits WHERE key = ?").run(key);
-    } catch {
-      // ignore
-    }
+  const firstAttemptAt = Number(row.first_attempt_at);
+  if (now - firstAttemptAt > LOGIN_WINDOW_MS) {
+    // Window expired, reset
+    await q("DELETE FROM rate_limits WHERE key = $1", [key]);
     return { allowed: true, remaining: LOGIN_MAX_ATTEMPTS, resetMs: 0 };
   }
 
-  const remaining = Math.max(0, LOGIN_MAX_ATTEMPTS - entry.attempts);
-  const allowed = entry.attempts < LOGIN_MAX_ATTEMPTS;
+  const remaining = Math.max(0, LOGIN_MAX_ATTEMPTS - row.attempts);
+  const allowed = row.attempts < LOGIN_MAX_ATTEMPTS;
 
   return {
     allowed,
     remaining,
-    resetMs: Math.max(0, entry.firstAttemptAt + LOGIN_WINDOW_MS - now),
+    resetMs: Math.max(0, firstAttemptAt + LOGIN_WINDOW_MS - now),
   };
 }
 
-export function recordLoginFailure(key: string): void {
+export async function recordLoginFailure(key: string): Promise<void> {
   const now = Date.now();
-  let entry = memoryStore.get(key);
+  const row = await q1<{
+    attempts: number;
+    first_attempt_at: number;
+  }>("SELECT attempts, first_attempt_at FROM rate_limits WHERE key = $1", [key]);
 
-  if (!entry || now - entry.firstAttemptAt > LOGIN_WINDOW_MS) {
-    entry = { attempts: 1, firstAttemptAt: now, lockedUntil: null };
-  } else {
-    entry.attempts++;
-    if (entry.attempts >= LOGIN_MAX_ATTEMPTS) {
-      entry.lockedUntil = now + LOGIN_LOCK_MS;
-    }
+  if (!row) {
+    await q(
+      "INSERT INTO rate_limits (key, attempts, first_attempt_at, locked_until) VALUES ($1, 1, $2, NULL)",
+      [key, now]
+    );
+    return;
   }
 
-  memoryStore.set(key, entry);
-
-  try {
-    db()
-      .prepare(
-        `INSERT INTO rate_limits (key, attempts, first_attempt_at, locked_until)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(key) DO UPDATE SET
-           attempts = excluded.attempts,
-           first_attempt_at = excluded.first_attempt_at,
-           locked_until = excluded.locked_until`
-      )
-      .run(key, entry.attempts, entry.firstAttemptAt, entry.lockedUntil);
-  } catch {
-    // ignore DB errors for memory rate limiting
+  const firstAttemptAt = Number(row.first_attempt_at);
+  if (now - firstAttemptAt > LOGIN_WINDOW_MS) {
+    await q(
+      "UPDATE rate_limits SET attempts = 1, first_attempt_at = $1, locked_until = NULL WHERE key = $2",
+      [now, key]
+    );
+    return;
   }
+
+  const newAttempts = row.attempts + 1;
+  const lockedUntil = newAttempts >= LOGIN_MAX_ATTEMPTS ? now + LOGIN_LOCK_MS : null;
+
+  await q(
+    "UPDATE rate_limits SET attempts = $1, locked_until = $2 WHERE key = $3",
+    [newAttempts, lockedUntil, key]
+  );
 }
 
-export function resetLoginRateLimit(key: string): void {
-  memoryStore.delete(key);
-  try {
-    db().prepare("DELETE FROM rate_limits WHERE key = ?").run(key);
-  } catch {
-    // ignore
-  }
-}
-
-/**
- * General window-based rate limiter (e.g. 100 requests per minute)
- */
-const generalLimits = new Map<string, { count: number; resetAt: number }>();
-
-export function checkGeneralRateLimit(
-  key: string,
-  maxRequests = 100,
-  windowMs = 60_000
-): { allowed: boolean; remaining: number } {
-  const now = Date.now();
-  const entry = generalLimits.get(key);
-
-  if (!entry || now > entry.resetAt) {
-    generalLimits.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, remaining: maxRequests - 1 };
-  }
-
-  if (entry.count >= maxRequests) {
-    return { allowed: false, remaining: 0 };
-  }
-
-  entry.count++;
-  return { allowed: true, remaining: maxRequests - entry.count };
+export async function resetLoginRateLimit(key: string): Promise<void> {
+  await q("DELETE FROM rate_limits WHERE key = $1", [key]);
 }

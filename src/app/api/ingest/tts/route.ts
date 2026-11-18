@@ -1,16 +1,20 @@
 import crypto from "node:crypto";
 import { env } from "@/server/env";
 import { fail, handle, ok } from "@/server/http";
-import { ingestUplink, NormalizeError, UnknownIngestDeviceError } from "@/server/services/ingest";
-import { checkGeneralRateLimit } from "@/server/rate-limit";
-import { declaredBodyExceedsLimit, readBodyLimited, RequestBodyTooLargeError } from "@/server/read-body";
+import {
+  ingestUplink,
+  logIngestReject,
+  NormalizeError,
+  UnknownIngestDeviceError,
+} from "@/server/services/ingest";
+import { readBodyLimited, RequestBodyTooLargeError } from "@/server/read-body";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 10;
 
 const MAX_BODY_BYTES = 1_048_576;
-/**
- * The Things Stack webhook receiver (Phase 2 "go live"). Disabled until TTS_WEBHOOK_SECRET is set.
- * Configure TTS → Integrations → Webhooks → header `X-Webhook-Secret: <secret>` → POST <host>/api/ingest/tts
- * Idempotent: duplicate (device, time) pairs are ignored, so TTS retries and backfills are safe.
- */
+
 const safeEq = (a: string, b: string) => {
   const actual = Buffer.from(a, "utf8");
   const expected = Buffer.from(b, "utf8");
@@ -18,23 +22,42 @@ const safeEq = (a: string, b: string) => {
 };
 
 export const POST = handle(async (req: Request) => {
-  const remote = req.headers.get("x-real-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!checkGeneralRateLimit(`tts-ingest:${remote}`, 300).allowed) return fail(429, "Too many ingest requests");
-  if (!req.headers.get("content-type")?.toLowerCase().includes("application/json")) return fail(415, "Content-Type must be application/json");
-  if (declaredBodyExceedsLimit(req, MAX_BODY_BYTES)) return fail(413, "Ingest payload exceeds 1 MiB");
+  const remote =
+    req.headers.get("x-real-ip") ??
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    "unknown";
+
+  const contentType = req.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.includes("application/json")) {
+    await logIngestReject("Invalid content type: expected application/json", null, remote);
+    return fail(415, "Content-Type must be application/json");
+  }
+
   const secret = env().TTS_WEBHOOK_SECRET;
   if (!secret) return fail(503, "Live ingest is not enabled (set TTS_WEBHOOK_SECRET)");
-  if (!safeEq(req.headers.get("x-webhook-secret") ?? "", secret)) return fail(401, "Bad webhook secret");
+
+  const headerSecret = req.headers.get("x-webhook-secret") ?? "";
+  if (!safeEq(headerSecret, secret)) {
+    await logIngestReject("Invalid or missing X-Webhook-Secret", null, remote);
+    return fail(401, "Bad webhook secret");
+  }
 
   let raw: unknown;
   try {
-    raw = JSON.parse(await readBodyLimited(req, MAX_BODY_BYTES)) as unknown;
+    const bodyStr = await readBodyLimited(req, MAX_BODY_BYTES);
+    raw = JSON.parse(bodyStr) as unknown;
   } catch (error) {
-    if (error instanceof RequestBodyTooLargeError) return fail(413, "Ingest payload exceeds 1 MiB");
-    throw error;
+    if (error instanceof RequestBodyTooLargeError) {
+      await logIngestReject("Payload exceeds 1 MiB", null, remote);
+      return fail(413, "Ingest payload exceeds 1 MiB");
+    }
+    await logIngestReject("Malformed JSON payload", null, remote);
+    return fail(400, "Malformed JSON in request body");
   }
+
   try {
-    return ok({ inserted: ingestUplink(raw) });
+    const inserted = await ingestUplink(raw, remote);
+    return ok({ inserted });
   } catch (error) {
     if (error instanceof NormalizeError) return fail(422, error.message);
     if (error instanceof UnknownIngestDeviceError) return fail(422, error.message);

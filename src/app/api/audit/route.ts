@@ -4,6 +4,7 @@ import { AuditQuery } from "@/contracts/audit";
 import { listAudit } from "@/server/repos/audit";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export const GET = handle(async (req: Request) => {
   await requireRole("admin");
@@ -18,6 +19,6 @@ export const GET = handle(async (req: Request) => {
     to: url.searchParams.get("to") ?? undefined,
   });
 
-  const result = listAudit(q);
+  const result = await listAudit(q);
   return ok(result);
 });

@@ -26,7 +26,13 @@ export interface IngestClient {
 }
 
 type MqttConnect = (url: string, options: IClientOptions) => IngestClient;
-export type MqttIngestConfig = Pick<ReturnType<typeof env>, "MQTT_URL" | "MQTT_TOPIC" | "MQTT_CLIENT_ID" | "MQTT_USERNAME" | "MQTT_PASSWORD">;
+export interface MqttIngestConfig {
+  url?: string;
+  topic?: string;
+  clientId?: string;
+  username?: string;
+  password?: string;
+}
 
 export function bindMqttIngest(client: IngestClient, topic: string): void {
   client.on("connect", () => {
@@ -38,7 +44,7 @@ export function bindMqttIngest(client: IngestClient, topic: string): void {
   client.on("error", (error) => {
     log.error("MQTT client error", undefined, { errorName: error.name });
   });
-  client.handleMessage = (packet, callback) => {
+  client.handleMessage = async (packet, callback) => {
     const payloadBytes = Buffer.byteLength(packet.payload);
     if (payloadBytes > MAX_PAYLOAD_BYTES) {
       log.warn("Rejected oversized MQTT uplink", { topic: packet.topic, bytes: payloadBytes });
@@ -56,7 +62,7 @@ export function bindMqttIngest(client: IngestClient, topic: string): void {
     }
 
     try {
-      const inserted = ingestUplink(raw);
+      const inserted = await ingestUplink(raw);
       log.info("MQTT uplink processed", { topic: packet.topic, inserted });
       callback();
     } catch (error) {
@@ -73,20 +79,29 @@ export function bindMqttIngest(client: IngestClient, topic: string): void {
 
 const g = globalThis as typeof globalThis & { __ohtmsMqtt?: IngestClient };
 
-export function startMqttIngest(config: MqttIngestConfig = env(), connect: MqttConnect = mqtt.connect): IngestClient | undefined {
-  if (!config.MQTT_URL) return undefined;
+export function startMqttIngest(config?: MqttIngestConfig, connect: MqttConnect = mqtt.connect): IngestClient | undefined {
+  const e = env();
+  const resolvedConfig: MqttIngestConfig = config ?? {
+    url: e.TTS_MQTT_HOSTNAME ? `mqtts://${e.TTS_MQTT_HOSTNAME}:${e.TTS_MQTT_PORT}` : undefined,
+    topic: "v3/+/devices/+/up",
+    clientId: "ohtms-dev-" + Math.random().toString(36).slice(2, 8),
+    username: e.TTS_USER_NAME || (e.TTS_APPLICATION_ID ? `${e.TTS_APPLICATION_ID}@mams-test` : undefined),
+    password: e.TTS_API_KEY,
+  };
+
+  if (!resolvedConfig.url) return undefined;
   if (g.__ohtmsMqtt) return g.__ohtmsMqtt;
 
   const options: IClientOptions = {
-    clientId: config.MQTT_CLIENT_ID,
+    clientId: resolvedConfig.clientId,
     clean: false,
     reconnectPeriod: 1_000,
     connectTimeout: 10_000,
-    username: config.MQTT_USERNAME || undefined,
-    password: config.MQTT_PASSWORD || undefined,
+    username: resolvedConfig.username || undefined,
+    password: resolvedConfig.password || undefined,
   };
-  const client = connect(config.MQTT_URL, options);
-  bindMqttIngest(client, config.MQTT_TOPIC);
+  const client = connect(resolvedConfig.url, options);
+  bindMqttIngest(client, resolvedConfig.topic ?? "v3/+/devices/+/up");
   g.__ohtmsMqtt = client;
   return client;
 }

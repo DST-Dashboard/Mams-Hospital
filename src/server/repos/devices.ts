@@ -1,30 +1,39 @@
 import type { DeviceMeta } from "@/dataset/normalize";
-import { db } from "../db";
+import { q, q1 } from "../db";
 
-export function updateDeviceMetadata(device: DeviceMeta): boolean {
-  const result = db().prepare(`
-    UPDATE devices
-    SET dev_eui = COALESCE(?, dev_eui),
-        dev_addr = COALESCE(?, dev_addr),
-        gateway_id = COALESCE(?, gateway_id),
-        latitude = COALESCE(?, latitude),
-        longitude = COALESCE(?, longitude),
-        model = COALESCE(?, model)
-    WHERE device_id = ?
-  `).run(
-    device.devEui,
-    device.devAddr,
-    device.gatewayId,
-    device.latitude,
-    device.longitude,
-    device.model,
-    device.deviceId
+export async function updateDeviceMetadata(device: DeviceMeta): Promise<boolean> {
+  const rows = await q(
+    `UPDATE devices
+     SET dev_eui = COALESCE($1, dev_eui),
+         dev_addr = COALESCE($2, dev_addr),
+         gateway_id = COALESCE($3, gateway_id),
+         latitude = COALESCE($4, latitude),
+         longitude = COALESCE($5, longitude),
+         model = COALESCE($6, model)
+     WHERE device_id = $7
+     RETURNING device_id`,
+    [
+      device.devEui ?? null,
+      device.devAddr ?? null,
+      device.gatewayId ?? null,
+      device.latitude ?? null,
+      device.longitude ?? null,
+      device.model ?? null,
+      device.deviceId,
+    ]
   );
-  return result.changes === 1;
+  return rows.length === 1;
 }
 
-export function isActiveIngestDevice(deviceId: string): boolean {
-  return Boolean(db().prepare(
-    "SELECT 1 FROM devices WHERE device_id = ? AND deleted_at IS NULL"
-  ).get(deviceId));
+export async function isActiveIngestDevice(deviceId: string): Promise<boolean> {
+  const row = await q1<{ device_id: string }>(
+    "SELECT device_id FROM devices WHERE device_id = $1 AND deleted_at IS NULL",
+    [deviceId]
+  );
+  return Boolean(row);
+}
+
+/** Set simulated = false for device and its tank when a real uplink arrives */
+export async function markReal(deviceId: string): Promise<void> {
+  await q("UPDATE devices SET simulated = FALSE WHERE device_id = $1 AND simulated = TRUE", [deviceId]);
 }

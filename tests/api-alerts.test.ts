@@ -1,8 +1,15 @@
 // [BE-14] OWNER: backend
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
+import { createTestSchema, TestSchemaContext } from "./test-db";
+import { q, q1 } from "@/server/db";
+import { env } from "@/server/env";
+import { sign } from "@/server/auth/session";
+import * as alerts from "@/server/repos/alerts";
+import * as tanks from "@/server/repos/tanks";
+import * as readings from "@/server/repos/readings";
+import { POST as POST_ACK } from "@/app/api/alerts/[id]/ack/route";
+import { POST as POST_RESOLVE } from "@/app/api/alerts/[id]/resolve/route";
+import { GET as GET_DETAIL } from "@/app/api/alerts/[id]/route";
 
 let mockCookieValue: string | undefined = undefined;
 vi.mock("next/headers", () => ({
@@ -12,55 +19,32 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 
-let testDbPath: string;
-let dbInstance: any;
-
 describe("api-alerts", () => {
-  let sign: typeof import("@/server/auth/session").sign;
-  let alerts: typeof import("@/server/repos/alerts");
-  let tanks: typeof import("@/server/repos/tanks");
-  let readings: typeof import("@/server/repos/readings");
-  let POST_ACK: typeof import("@/app/api/alerts/[id]/ack/route").POST;
-  let POST_RESOLVE: typeof import("@/app/api/alerts/[id]/resolve/route").POST;
-  let GET_DETAIL: typeof import("@/app/api/alerts/[id]/route").GET;
-
-  const SECRET = "secret-key-must-be-long-enough-for-hs256-test";
+  let testCtx: TestSchemaContext;
   let alertId: number;
   let tankId: number;
+  let operatorId: number;
+  let viewerId: number;
   const deviceId = "device-alert-test-1";
 
   beforeAll(async () => {
-    testDbPath = path.join(os.tmpdir(), `ohtms-test-api-alerts-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-    process.env.DB_PATH = testDbPath;
-    process.env.SESSION_SECRET = SECRET;
+    testCtx = await createTestSchema();
 
-    const { openDb } = await import("@/server/db");
-    const { runMigrations } = await import("@/server/migrations/runner");
-    dbInstance = openDb(testDbPath);
-    (globalThis as any).__ohtmsDb = dbInstance;
-    runMigrations(dbInstance);
-    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
-      .run(2, "operator@test.local", "Priya Operator", "test-hash", "operator", Date.now());
-    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
-      .run(10, "viewer@test.local", "Guest Viewer", "test-hash", "viewer", Date.now());
+    const [operator] = await q<{ id: number }>(
+      "INSERT INTO users (email, name, password_hash, role, disabled, created_at) VALUES ('operator@test.local', 'Priya Operator', 'test-hash', 'operator', FALSE, $1) RETURNING id",
+      [Date.now()]
+    );
+    const [viewer] = await q<{ id: number }>(
+      "INSERT INTO users (email, name, password_hash, role, disabled, created_at) VALUES ('viewer@test.local', 'Guest Viewer', 'test-hash', 'viewer', FALSE, $1) RETURNING id",
+      [Date.now()]
+    );
 
-    const sessionMod = await import("@/server/auth/session");
-    const createSession = (await import("@/server/repos/sessions")).createSession;
-    sign = async (session, secret, hours) => sessionMod.sign({
-      ...session,
-      sessionId: createSession(session.uid, hours),
-    }, secret, hours);
-    alerts = await import("@/server/repos/alerts");
-    tanks = await import("@/server/repos/tanks");
-    readings = await import("@/server/repos/readings");
-
-    POST_ACK = (await import("@/app/api/alerts/[id]/ack/route")).POST;
-    POST_RESOLVE = (await import("@/app/api/alerts/[id]/resolve/route")).POST;
-    GET_DETAIL = (await import("@/app/api/alerts/[id]/route")).GET;
+    operatorId = operator.id;
+    viewerId = viewer.id;
 
     // Seed device and tank
-    dbInstance.prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)").run(deviceId, Date.now());
-    tankId = tanks.createTank({
+    await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ($1, FALSE, $2)", [deviceId, Date.now()]);
+    tankId = await tanks.createTank({
       label: "ICU Reserve",
       deviceId,
       shape: "cylinder",
@@ -73,13 +57,13 @@ describe("api-alerts", () => {
 
     // Seed readings
     const now = Date.now();
-    readings.upsertMany([
+    await readings.upsertMany([
       { deviceId, t: now - 60_000, distanceCm: 190, rssi: -65, snr: 12.0, batteryPct: 92 },
       { deviceId, t: now, distanceCm: 190, rssi: -64, snr: 12.5, batteryPct: 91 },
     ]);
 
     // Open a test alert
-    alertId = alerts.open({
+    alertId = await alerts.open({
       tankId,
       type: "LOW_LEVEL",
       severity: "warning",
@@ -92,18 +76,13 @@ describe("api-alerts", () => {
     });
   });
 
-  afterAll(() => {
-    if (dbInstance) {
-      dbInstance.close();
-    }
-    try {
-      if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
-      if (fs.existsSync(`${testDbPath}-wal`)) fs.unlinkSync(`${testDbPath}-wal`);
-      if (fs.existsSync(`${testDbPath}-shm`)) fs.unlinkSync(`${testDbPath}-shm`);
-    } catch {}
+  afterAll(async () => {
+    if (testCtx) await testCtx.cleanup();
   });
 
   it("ack needs operator", async () => {
+    const secret = env().SESSION_SECRET;
+
     // 1. Unauthenticated request -> 401
     mockCookieValue = undefined;
     const req1 = new Request("http://localhost/api/alerts/1/ack", {
@@ -114,7 +93,7 @@ describe("api-alerts", () => {
     expect(res1.status).toBe(401);
 
     // 2. Viewer role -> 403 (Requires operator)
-    mockCookieValue = await sign({ uid: 10, role: "viewer", name: "Guest Viewer" }, SECRET, 1);
+    mockCookieValue = await sign({ uid: viewerId, role: "viewer", name: "Guest Viewer" }, secret, 1);
     const req2 = new Request("http://localhost/api/alerts/1/ack", {
       method: "POST",
       body: JSON.stringify({ note: "Trying to ack" }),
@@ -123,7 +102,7 @@ describe("api-alerts", () => {
     expect(res2.status).toBe(403);
 
     // 3. Operator role -> 200
-    mockCookieValue = await sign({ uid: 2, role: "operator", name: "Priya Operator" }, SECRET, 1);
+    mockCookieValue = await sign({ uid: operatorId, role: "operator", name: "Priya Operator" }, secret, 1);
     const req3 = new Request("http://localhost/api/alerts/1/ack", {
       method: "POST",
       body: JSON.stringify({ note: "Pump turned on manually" }),
@@ -131,25 +110,28 @@ describe("api-alerts", () => {
     const res3 = await POST_ACK(req3, { params: Promise.resolve({ id: String(alertId) }) });
     expect(res3.status).toBe(200);
 
-    const updatedAlert = alerts.getAlert(alertId)!;
-    expect(updatedAlert.state).toBe("acknowledged");
-    expect(updatedAlert.ackNote).toBe("Pump turned on manually");
-    expect(updatedAlert.acknowledgedBy).toBe(2);
+    const updatedAlert = await alerts.getAlert(alertId);
+    expect(updatedAlert?.state).toBe("acknowledged");
+    expect(updatedAlert?.ackNote).toBe("Pump turned on manually");
+    expect(updatedAlert?.acknowledgedBy).toBe(operatorId);
   });
 
   it("ack writes audit", async () => {
-    const auditRow = dbInstance
-      .prepare("SELECT * FROM audit_log WHERE entity = 'alert' AND entity_id = ? AND action = 'alert.ack'")
-      .get(String(alertId)) as any;
+    const auditRow = await q1<{ user_id: number; action: string; after_json: string }>(
+      "SELECT * FROM audit_log WHERE entity = 'alert' AND entity_id = $1 AND action = 'alert.ack'",
+      [String(alertId)]
+    );
 
     expect(auditRow).toBeDefined();
-    expect(auditRow.user_id).toBe(2);
-    expect(auditRow.action).toBe("alert.ack");
-    expect(JSON.parse(auditRow.after_json).note).toBe("Pump turned on manually");
+    expect(auditRow?.user_id).toBe(operatorId);
+    expect(auditRow?.action).toBe("alert.ack");
+    const after = typeof auditRow?.after_json === "string" ? JSON.parse(auditRow.after_json) : auditRow?.after_json;
+    expect(after?.note).toBe("Pump turned on manually");
   });
 
   it("resolve closes alert", async () => {
-    mockCookieValue = await sign({ uid: 2, role: "operator", name: "Priya Operator" }, SECRET, 1);
+    const secret = env().SESSION_SECRET;
+    mockCookieValue = await sign({ uid: operatorId, role: "operator", name: "Priya Operator" }, secret, 1);
     const req = new Request("http://localhost/api/alerts/1/resolve", {
       method: "POST",
       body: JSON.stringify({ note: "Tank level restored" }),
@@ -157,24 +139,26 @@ describe("api-alerts", () => {
     const res = await POST_RESOLVE(req, { params: Promise.resolve({ id: String(alertId) }) });
     expect(res.status).toBe(200);
 
-    const resolvedAlert = alerts.getAlert(alertId)!;
-    expect(resolvedAlert.state).toBe("resolved");
-    expect(resolvedAlert.resolvedAt).not.toBeNull();
+    const resolvedAlert = await alerts.getAlert(alertId);
+    expect(resolvedAlert?.state).toBe("resolved");
+    expect(resolvedAlert?.resolvedAt).not.toBeNull();
 
     // Verify it is no longer listed in open alerts
-    const openAlerts = alerts.listOpen();
+    const openAlerts = await alerts.listOpen();
     expect(openAlerts.some((a) => a.id === alertId)).toBe(false);
 
     // Verify audit log entry
-    const auditRow = dbInstance
-      .prepare("SELECT * FROM audit_log WHERE entity = 'alert' AND entity_id = ? AND action = 'alert.resolve'")
-      .get(String(alertId)) as any;
+    const auditRow = await q1<{ user_id: number }>(
+      "SELECT * FROM audit_log WHERE entity = 'alert' AND entity_id = $1 AND action = 'alert.resolve'",
+      [String(alertId)]
+    );
     expect(auditRow).toBeDefined();
-    expect(auditRow.user_id).toBe(2);
+    expect(auditRow?.user_id).toBe(operatorId);
   });
 
   it("alert detail includes trigger reading", async () => {
-    mockCookieValue = await sign({ uid: 10, role: "viewer", name: "Viewer" }, SECRET, 1);
+    const secret = env().SESSION_SECRET;
+    mockCookieValue = await sign({ uid: viewerId, role: "viewer", name: "Viewer" }, secret, 1);
     const req = new Request("http://localhost/api/alerts/1");
     const res = await GET_DETAIL(req, { params: Promise.resolve({ id: String(alertId) }) });
     expect(res.status).toBe(200);

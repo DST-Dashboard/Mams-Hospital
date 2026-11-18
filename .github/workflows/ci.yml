@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["main", "backend-phase1"]
+    branches: ["main", "final/live-postgres", "integration/final"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "final/live-postgres"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,11 +14,30 @@ jobs:
   validate:
     name: Lint, Typecheck, Test & Build
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: ohtms
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       NODE_ENV: test
-      DB_PATH: ./var/ci_test.db
+      DATABASE_URL: postgresql://postgres:password@localhost:5432/ohtms
+      TEST_DATABASE_URL: postgresql://postgres:password@localhost:5432/ohtms
       SESSION_SECRET: ci-test-secret-must-be-at-least-32-characters-long
-      ENABLE_MOCKS: "0"
+      CRON_SECRET: ci-cron-secret-must-be-at-least-32-characters
+      TTS_WEBHOOK_SECRET: ci-webhook-secret-must-be-at-least-32-chars
+      ADMIN_EMAIL: admin@mams.local
+      ADMIN_PASSWORD: ChangeMe!2026
 
     steps:
       - name: Checkout repository
@@ -39,8 +58,13 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      - name: Run Backend Test Suite
-        run: npm run test
+      - name: Database Migrations & Bootstrap
+        run: |
+          npm run db:migrate
+          npm run db:bootstrap
+
+      - name: Run Test Suite
+        run: npm test
 
       - name: Production Build Verification
         run: npm run build

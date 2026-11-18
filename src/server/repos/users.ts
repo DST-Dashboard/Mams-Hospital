@@ -1,12 +1,7 @@
-/**
- * [BE-03] OWNER: backend · User repository.
- * Complete CRUD, password hashing, password resets, and session management.
- */
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
-import { db } from "../db";
+import { q, q1, tx } from "../db";
 import { assertPasswordPolicy } from "../auth/password-policy";
-import { revokeAllUserSessions } from "./sessions";
 import type { UserDTO } from "@/contracts";
 
 export interface UserRow {
@@ -16,6 +11,7 @@ export interface UserRow {
   role: "viewer" | "operator" | "admin";
   passwordHash: string;
   disabled: boolean;
+  mustChangePassword: boolean;
   createdAt: number;
   lastLoginAt: number | null;
 }
@@ -28,23 +24,25 @@ interface Raw {
   name: string;
   role: UserRow["role"];
   password_hash: string;
-  disabled: number;
+  disabled: boolean;
+  must_change_password: boolean;
   created_at: number;
   last_login_at: number | null;
 }
 
 const mapRow = (r: Raw): UserRow => ({
-  id: r.id,
+  id: Number(r.id),
   email: r.email,
   name: r.name,
   role: r.role,
   passwordHash: r.password_hash,
-  disabled: !!r.disabled,
-  createdAt: r.created_at,
-  lastLoginAt: r.last_login_at,
+  disabled: Boolean(r.disabled),
+  mustChangePassword: Boolean(r.must_change_password),
+  createdAt: Number(r.created_at),
+  lastLoginAt: r.last_login_at ? Number(r.last_login_at) : null,
 });
 
-const toDto = (u: UserRow): UserDTO => ({
+export const toDto = (u: UserRow): UserDTO => ({
   id: u.id,
   email: u.email,
   name: u.name,
@@ -54,114 +52,155 @@ const toDto = (u: UserRow): UserDTO => ({
   lastLoginAt: u.lastLoginAt,
 });
 
-export const byEmail = (email: string): UserRow | undefined => {
-  const r = db().prepare("SELECT * FROM users WHERE email=? COLLATE NOCASE").get(email) as
-    | Raw
-    | undefined;
-  return r && mapRow(r);
-};
+export async function byEmail(email: string): Promise<UserRow | undefined> {
+  const r = await q1<Raw>(
+    "SELECT * FROM users WHERE lower(email) = lower($1)",
+    [email.trim()]
+  );
+  return r ? mapRow(r) : undefined;
+}
 
-export const byId = (id: number): UserRow | undefined => {
-  const r = db().prepare("SELECT * FROM users WHERE id=?").get(id) as Raw | undefined;
-  return r && mapRow(r);
-};
+export async function byId(id: number): Promise<UserRow | undefined> {
+  const r = await q1<Raw>("SELECT * FROM users WHERE id = $1", [id]);
+  return r ? mapRow(r) : undefined;
+}
 
-export const touchLogin = (id: number): void => {
-  db().prepare("UPDATE users SET last_login_at=? WHERE id=?").run(Date.now(), id);
-};
+export async function touchLogin(id: number): Promise<void> {
+  await q("UPDATE users SET last_login_at = $1 WHERE id = $2", [Date.now(), id]);
+}
 
-export const listUsers = (): UserDTO[] => {
-  const rows = db().prepare("SELECT * FROM users ORDER BY id ASC").all() as Raw[];
+export async function listUsers(): Promise<UserDTO[]> {
+  const rows = await q<Raw>("SELECT * FROM users ORDER BY id ASC");
   return rows.map(mapRow).map(toDto);
-};
+}
 
-export const createUser = (data: {
+export async function countActiveAdmins(): Promise<number> {
+  const rows = await q<{ count: string | number }>(
+    "SELECT count(*)::int as count FROM users WHERE role = 'admin' AND disabled = FALSE"
+  );
+  return Number(rows[0]?.count ?? 0);
+}
+
+export async function createUser(data: {
   email: string;
   name: string;
   role: "viewer" | "operator" | "admin";
   password: string;
-}): UserDTO => {
+  mustChangePassword?: boolean;
+}): Promise<UserDTO> {
   assertPasswordPolicy(data.password);
 
-  const existing = byEmail(data.email);
+  const existing = await byEmail(data.email);
   if (existing) {
     throw new Error(`User with email "${data.email}" already exists`);
   }
 
   const now = Date.now();
-  const passwordHash = bcrypt.hashSync(data.password, 10);
+  const passwordHash = await bcrypt.hash(data.password, 10);
 
-  const res = db()
-    .prepare(
-      `INSERT INTO users (email, name, password_hash, role, disabled, created_at, last_login_at)
-       VALUES (?, ?, ?, ?, 0, ?, NULL)`
-    )
-    .run(data.email.trim().toLowerCase(), data.name.trim(), passwordHash, data.role, now);
+  const rows = await q<{ id: number }>(
+    `INSERT INTO users (email, name, password_hash, role, disabled, must_change_password, created_at, last_login_at)
+     VALUES ($1, $2, $3, $4, FALSE, $5, $6, NULL)
+     RETURNING id`,
+    [
+      data.email.trim().toLowerCase(),
+      data.name.trim(),
+      passwordHash,
+      data.role,
+      Boolean(data.mustChangePassword),
+      now,
+    ]
+  );
 
-  const newId = Number(res.lastInsertRowid);
-  return toDto(byId(newId)!);
-};
+  const newId = Number(rows[0].id);
+  const created = await byId(newId);
+  return toDto(created!);
+}
 
-export const updateUser = (
+export async function updateUser(
   id: number,
   patch: {
     name?: string;
     role?: "viewer" | "operator" | "admin";
     disabled?: boolean;
     password?: string;
+    mustChangePassword?: boolean;
   }
-): UserDTO => {
-  const user = byId(id);
+): Promise<UserDTO> {
+  const user = await byId(id);
   if (!user) throw new Error("User not found");
 
+  // Last admin guard: cannot disable or demote the only active admin
+  if (user.role === "admin" && !user.disabled) {
+    const isDemoting = patch.role !== undefined && patch.role !== "admin";
+    const isDisabling = patch.disabled === true;
+    if (isDemoting || isDisabling) {
+      const activeAdmins = await countActiveAdmins();
+      if (activeAdmins <= 1) {
+        throw new Error("Cannot modify the last remaining active administrator");
+      }
+    }
+  }
+
   const updates: string[] = [];
-  const params: Array<string | number> = [];
+  const params: unknown[] = [];
+  let pIdx = 1;
 
   if (patch.name !== undefined) {
-    updates.push("name = ?");
+    updates.push(`name = $${pIdx++}`);
     params.push(patch.name.trim());
   }
 
   if (patch.role !== undefined) {
-    updates.push("role = ?");
+    updates.push(`role = $${pIdx++}`);
     params.push(patch.role);
   }
 
   if (patch.disabled !== undefined) {
-    updates.push("disabled = ?");
-    params.push(patch.disabled ? 1 : 0);
+    updates.push(`disabled = $${pIdx++}`);
+    params.push(Boolean(patch.disabled));
+  }
+
+  if (patch.mustChangePassword !== undefined) {
+    updates.push(`must_change_password = $${pIdx++}`);
+    params.push(Boolean(patch.mustChangePassword));
   }
 
   if (patch.password !== undefined && patch.password.trim() !== "") {
     assertPasswordPolicy(patch.password);
-    updates.push("password_hash = ?");
-    params.push(bcrypt.hashSync(patch.password, 10));
+    updates.push(`password_hash = $${pIdx++}`);
+    params.push(await bcrypt.hash(patch.password, 10));
   }
 
   if (updates.length > 0) {
     params.push(id);
-    db().transaction(() => {
-      db().prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...params);
-      if (patch.disabled === true || patch.password !== undefined) revokeAllUserSessions(id);
-    })();
+    await q(`UPDATE users SET ${updates.join(", ")} WHERE id = $${pIdx}`, params);
   }
 
-  return toDto(byId(id)!);
-};
+  const updated = await byId(id);
+  return toDto(updated!);
+}
 
-export const deleteUser = (id: number): void => {
-  db().transaction(() => {
-    db().prepare("UPDATE users SET disabled = 1 WHERE id = ?").run(id);
-    revokeAllUserSessions(id);
-  })();
-};
+export async function deleteUser(id: number): Promise<void> {
+  const user = await byId(id);
+  if (!user) return;
 
-export const changeUserPassword = async (
+  if (user.role === "admin" && !user.disabled) {
+    const activeAdmins = await countActiveAdmins();
+    if (activeAdmins <= 1) {
+      throw new Error("Cannot delete the last remaining active administrator");
+    }
+  }
+
+  await q("UPDATE users SET disabled = TRUE WHERE id = $1", [id]);
+}
+
+export async function changeUserPassword(
   userId: number,
   current: string,
   next: string
-): Promise<void> => {
-  const user = byId(userId);
+): Promise<void> {
+  const user = await byId(userId);
   if (!user) throw new Error("User not found");
 
   const matches = await bcrypt.compare(current, user.passwordHash);
@@ -172,50 +211,57 @@ export const changeUserPassword = async (
   assertPasswordPolicy(next);
   const newHash = await bcrypt.hash(next, 10);
 
-  db().transaction(() => {
-    db().prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(newHash, userId);
-    db().prepare("UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL").run(Date.now(), userId);
-    revokeAllUserSessions(userId);
-  })();
-};
+  await tx(async (client) => {
+    await client.query(
+      "UPDATE users SET password_hash = $1, must_change_password = FALSE WHERE id = $2",
+      [newHash, userId]
+    );
+    await client.query(
+      "UPDATE password_resets SET used_at = $1 WHERE user_id = $2 AND used_at IS NULL",
+      [Date.now(), userId]
+    );
+  });
+}
 
-export const createPasswordReset = (email: string): string => {
-  const user = byEmail(email);
+/** Hashed single-use 30-minute password reset token */
+export async function createPasswordReset(email: string): Promise<string> {
+  const user = await byEmail(email);
   if (!user) {
-    // Generate dummy token to prevent email enumeration timing attacks
+    // Return dummy token to prevent email enumeration timing attacks
     return crypto.randomBytes(32).toString("hex");
   }
 
   const rawToken = crypto.randomBytes(32).toString("hex");
   const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
   const now = Date.now();
-  const expiresAt = now + 3600_000; // 1 hour expiration
+  const expiresAt = now + 30 * 60_000; // 30 minutes expiration per spec
 
-  db().transaction(() => {
-    db().prepare("UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL").run(now, user.id);
-    db().prepare(
+  await tx(async (client) => {
+    await client.query(
+      "UPDATE password_resets SET used_at = $1 WHERE user_id = $2 AND used_at IS NULL",
+      [now, user.id]
+    );
+    await client.query(
       `INSERT INTO password_resets (token_hash, user_id, created_at, expires_at, used_at)
-       VALUES (?, ?, ?, ?, NULL)`
-    )
-    .run(tokenHash, user.id, now, expiresAt);
-  })();
+       VALUES ($1, $2, $3, $4, NULL)`,
+      [tokenHash, user.id, now, expiresAt]
+    );
+  });
 
   return rawToken;
-};
+}
 
-export const verifyAndConsumePasswordReset = async (
+export async function verifyAndConsumePasswordReset(
   rawToken: string,
   newPassword: string
-): Promise<void> => {
+): Promise<void> {
   assertPasswordPolicy(newPassword);
 
   const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-  const row = db()
-    .prepare(
-      `SELECT user_id, expires_at, used_at FROM password_resets
-       WHERE token_hash = ?`
-    )
-    .get(tokenHash) as { user_id: number; expires_at: number; used_at: number | null } | undefined;
+  const row = await q1<{ user_id: number; expires_at: number; used_at: number | null }>(
+    "SELECT user_id, expires_at, used_at FROM password_resets WHERE token_hash = $1",
+    [tokenHash]
+  );
 
   if (!row) {
     throw new PasswordResetError("Invalid or expired password reset token");
@@ -225,19 +271,23 @@ export const verifyAndConsumePasswordReset = async (
     throw new PasswordResetError("This password reset token has already been used");
   }
 
-  if (row.expires_at < Date.now()) {
+  if (Number(row.expires_at) < Date.now()) {
     throw new PasswordResetError("Password reset token has expired");
   }
 
   const newHash = await bcrypt.hash(newPassword, 10);
 
-  db().transaction(() => {
-    db().prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(newHash, row.user_id);
-    const consumed = db().prepare(`
-      UPDATE password_resets SET used_at = ?
-      WHERE token_hash = ? AND used_at IS NULL AND expires_at >= ?
-    `).run(Date.now(), tokenHash, Date.now());
-    if (consumed.changes !== 1) throw new PasswordResetError("Invalid or expired password reset token");
-    revokeAllUserSessions(row.user_id);
-  })();
-};
+  await tx(async (client) => {
+    await client.query(
+      "UPDATE users SET password_hash = $1, must_change_password = FALSE WHERE id = $2",
+      [newHash, row.user_id]
+    );
+    const consumed = await client.query(
+      "UPDATE password_resets SET used_at = $1 WHERE token_hash = $2 AND used_at IS NULL AND expires_at >= $1",
+      [Date.now(), tokenHash]
+    );
+    if ((consumed.rowCount ?? 0) !== 1) {
+      throw new PasswordResetError("Invalid or expired password reset token");
+    }
+  });
+}

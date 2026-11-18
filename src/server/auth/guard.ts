@@ -1,29 +1,30 @@
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { env } from "../env";
 import { atLeast, COOKIE, verify, type Role, type Session } from "./session";
-import { authenticateApiKey } from "../repos/api-keys";
-import { validateSession } from "../repos/sessions";
 import { byId } from "../repos/users";
 
-export class HttpError extends Error { constructor(public status: number, message: string) { super(message); } }
+export class HttpError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
 
 export async function currentSession(): Promise<Session | null> {
-  const cookieSession = await verify((await cookies()).get(COOKIE)?.value, env().SESSION_SECRET);
-  if (cookieSession?.sessionId) {
-    const persisted = validateSession(cookieSession.sessionId);
-    if (persisted.valid && persisted.userId === cookieSession.uid) {
-      const user = byId(cookieSession.uid);
-      if (user && !user.disabled) {
-        return { uid: user.id, role: user.role, name: user.name, sessionId: cookieSession.sessionId };
-      }
-    }
-  }
-  const requestHeaders = await headers();
-  const authorization = requestHeaders.get("authorization");
-  const apiKey = requestHeaders.get("x-api-key") ?? (authorization?.startsWith("Bearer ") ? authorization.slice(7) : null);
-  return apiKey ? authenticateApiKey(apiKey) : null;
+  const cookieVal = (await cookies()).get(COOKIE)?.value;
+  const cookieSession = await verify(cookieVal, env().SESSION_SECRET);
+  if (!cookieSession) return null;
+
+  const user = await byId(cookieSession.uid);
+  if (!user || user.disabled) return null;
+
+  return {
+    uid: user.id,
+    role: user.role,
+    name: user.name,
+  };
 }
-/** Throws 401/403 — wrap handlers with `handle()` from server/http.ts. */
+
+/** Throws 401/403. Every mutation calls requireRole and writes audit(). */
 export async function requireRole(min: Role = "viewer"): Promise<Session> {
   const s = await currentSession();
   if (!s) throw new HttpError(401, "Not signed in");

@@ -1,26 +1,48 @@
 import { ChannelSchema } from "@/contracts/common";
 import { z } from "zod";
-import { db } from "../db";
+import { q } from "../db";
 
 const Channels = z.array(ChannelSchema).min(1).max(6);
 type Channel = z.infer<typeof ChannelSchema>;
-export interface AlertRecipient { userId: number; channels: z.infer<typeof Channels> }
 
-export function listForTank(tankId: number): AlertRecipient[] {
-  const rows = db().prepare("SELECT user_id, channels FROM alert_recipients WHERE tank_id = ?").all(tankId) as
-    Array<{ user_id: number; channels: string }>;
-  return rows.map((row) => ({ userId: row.user_id, channels: Channels.parse(JSON.parse(row.channels)) }));
+export interface AlertRecipient {
+  userId: number;
+  channels: Channel[];
+  tier?: number;
 }
 
-export function setForTank(tankId: number, userId: number, channels: Channel[]): void {
+export async function listForTank(tankId: number): Promise<AlertRecipient[]> {
+  const rows = await q<{ user_id: number; channels: unknown; tier: number }>(
+    "SELECT user_id, channels, tier FROM alert_recipients WHERE tank_id = $1 ORDER BY tier ASC, user_id ASC",
+    [tankId]
+  );
+  return rows.map((row) => ({
+    userId: Number(row.user_id),
+    channels: Channels.parse(row.channels),
+    tier: Number(row.tier ?? 1),
+  }));
+}
+
+export async function setForTank(
+  tankId: number,
+  userId: number,
+  channels: Channel[],
+  tier = 1
+): Promise<void> {
   const validated = Channels.parse(channels);
-  db().prepare(`
-    INSERT INTO alert_recipients (tank_id, user_id, channels, created_at)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(tank_id, user_id) DO UPDATE SET channels=excluded.channels
-  `).run(tankId, userId, JSON.stringify(validated), Date.now());
+  await q(
+    `INSERT INTO alert_recipients (tank_id, user_id, channels, tier, created_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (tank_id, user_id)
+     DO UPDATE SET channels = EXCLUDED.channels, tier = EXCLUDED.tier`,
+    [tankId, userId, JSON.stringify(validated), tier, Date.now()]
+  );
 }
 
-export function removeForTank(tankId: number, userId: number): boolean {
-  return db().prepare("DELETE FROM alert_recipients WHERE tank_id = ? AND user_id = ?").run(tankId, userId).changes > 0;
+export async function removeForTank(tankId: number, userId: number): Promise<boolean> {
+  const rows = await q(
+    "DELETE FROM alert_recipients WHERE tank_id = $1 AND user_id = $2 RETURNING user_id",
+    [tankId, userId]
+  );
+  return rows.length > 0;
 }

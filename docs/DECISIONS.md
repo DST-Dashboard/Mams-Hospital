@@ -19,3 +19,35 @@ This document logs all architectural, database, runtime, and dependency decision
   - PostgreSQL runtime for local Mac dev & CI testing runs real PostgreSQL binaries via `embedded-postgres` or local instance, connecting via standard `pg` connection strings. No SQLite or better-sqlite3 in production code.
 
 ---
+
+## Phase 1: PostgreSQL Engine Migration
+
+- **Engine Swap**:
+  - Removed `better-sqlite3` and `@types/better-sqlite3`.
+  - Added `pg` (v8.23.1) and `@types/pg` as production dependencies.
+  - Added `pdfkit` (v0.20.2) and `@types/pdfkit` for serverless PDF generation.
+  - Added `nodemailer` (v7.0.12) and `@types/nodemailer` for email dispatch.
+  - Configured PostgreSQL singleton pool (`src/server/db.ts`) with `max: 3` connections suitable for Neon / Vercel Hobby pooling, int8 parser mapping BIGINT to JavaScript numbers, and advisory-locked migrations (`pg_advisory_xact_lock`).
+- **Migrations**:
+  - Replaced legacy SQLite migrations with standard idempotent PostgreSQL DDL in `src/server/migrations/`:
+    - `001_init.sql`: Baseline schema with BIGINT timestamps, identity primary keys, JSONB columns, and compound indexes.
+    - `002_alerts_notify.sql`: Alert events, alert recipients, notification preferences, and delivery logging.
+    - `003_ingest_jobs.sql`: Ingest state, rejects log, job runs tracking, and rate limiting.
+    - `004_dimensions.sql`: `tank_dimensions` historical dimension records with `effective_from`.
+    - `005_auth.sql`: Password resets with 30-min expiry and `must_change_password` flag.
+  - Created migration runner `src/server/migrations/runner.ts` tracking completed migrations in `schema_migrations`.
+- **Query Optimizations**:
+  - `(device_id, t)` primary key in `readings` ensures 7-day range queries use index scans (`readings_pkey`) with minimal cost.
+  - Epoch-ms timestamps stored as BIGINT with parser mapping to Numbers, preserving exact arithmetic in pure domain modules.
+- **Test Isolation**:
+  - Created `tests/test-db.ts` which provisions unique temporary PostgreSQL schemas (`test_<timestamp>_<random>`) for parallel Vitest runners, setting `search_path` and dropping on cleanup.
+- **Out-of-Scope Cleanup**:
+  - Removed push notifications (`src/server/notify/push*`, `web-push`), SMS/WhatsApp stubs, API keys, TOTP/2FA, sessions table, and zones/templates tables in accordance with Lean Scope §0 and §5.
+  - Replaced long-running server `setInterval` with atomic slot claims in `src/server/jobs/tick.ts` and `src/server/after.ts` for opportunistic execution.
+- **Phase 1 Gate**:
+  - `npm run typecheck`: Passed with 0 errors.
+  - `npm run lint`: Passed with 0 errors and 0 warnings.
+  - `npm test`: 40 test files, 208 tests passed 100% green.
+  - `npm run build`: Production Next.js build compiled successfully with static page generation.
+
+---

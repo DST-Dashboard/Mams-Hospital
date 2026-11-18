@@ -1,119 +1,169 @@
-/**
- * [BE-14] OWNER: backend · Restore + integrity check.
- */
 import fs from "node:fs";
-import path from "node:path";
-import { openDb } from "../src/server/db";
-import { logger } from "../src/server/logger";
-import { getDatabaseIntegrity } from "./database-integrity";
+import { tx } from "../src/server/db";
 
-if (fs.existsSync(".env")) process.loadEnvFile(".env");
-
-export interface RestoreOptions {
-  backupFile?: string;
-  targetDbPath?: string;
-  createPreRestoreBackup?: boolean;
-}
-
-export function performRestore(options: RestoreOptions = {}): {
+export async function performRestore(backupFilePath: string): Promise<{
   restoredFrom: string;
-  targetDb: string;
-  preRestoreBackup: string | null;
-  integrity: string;
-} {
-  const targetDb = options.targetDbPath ?? process.env.DB_PATH ?? path.resolve(process.cwd(), "var/ohtms.db");
-  const backupDir = path.resolve(process.cwd(), "backups");
+  recordsRestored: number;
+}> {
+  if (!fs.existsSync(backupFilePath)) {
+    throw new Error(`Backup file does not exist at: ${backupFilePath}`);
+  }
 
-  let backupFile = options.backupFile;
-  if (!backupFile) {
-    if (!fs.existsSync(backupDir)) {
-      throw new Error(`No backups directory found at: ${backupDir}`);
+  const content = JSON.parse(fs.readFileSync(backupFilePath, "utf8"));
+  let recordsRestored = 0;
+
+  await tx(async (client) => {
+    // Truncate tables with cascade
+    await client.query(`
+      TRUNCATE TABLE
+        alert_events,
+        notifications,
+        alert_recipients,
+        notification_prefs,
+        alerts,
+        tank_dimensions,
+        tanks,
+        devices,
+        readings,
+        audit_log,
+        job_runs,
+        users
+      CASCADE
+    `);
+
+    // Restore users
+    for (const u of content.users || []) {
+      await client.query(
+        `INSERT INTO users (id, email, name, password_hash, role, disabled, must_change_password, created_at, last_login_at)
+         OVERRIDING SYSTEM VALUE
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          u.id,
+          u.email,
+          u.name,
+          u.password_hash,
+          u.role,
+          u.disabled,
+          u.must_change_password ?? false,
+          u.created_at,
+          u.last_login_at ?? null,
+        ]
+      );
+      recordsRestored++;
     }
-    const candidates = fs
-      .readdirSync(backupDir)
-      .filter((f) => f.startsWith("ohtms_backup_") && f.endsWith(".db"))
-      .map((f) => ({
-        name: f,
-        path: path.join(backupDir, f),
-        time: fs.statSync(path.join(backupDir, f)).mtimeMs,
-      }))
-      .sort((a, b) => b.time - a.time);
 
-    const newest = candidates[0];
-    if (!newest) throw new Error("No backup files found in backups directory");
-    backupFile = newest.path;
-  }
-
-  if (!fs.existsSync(backupFile)) {
-    throw new Error(`Backup file does not exist: ${backupFile}`);
-  }
-
-  // 1. Verify backup file integrity before touching target DB
-  const backupDb = openDb(backupFile, true);
-  let integrity: string;
-  try {
-    integrity = getDatabaseIntegrity(backupDb);
-    if (integrity !== "ok") {
-      throw new Error(`Backup file is corrupted (integrity check: ${integrity})`);
+    // Restore devices
+    for (const d of content.devices || []) {
+      await client.query(
+        `INSERT INTO devices (device_id, dev_eui, dev_addr, gateway_id, model, latitude, longitude, simulated, deleted_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          d.device_id,
+          d.dev_eui,
+          d.dev_addr,
+          d.gateway_id,
+          d.model,
+          d.latitude,
+          d.longitude,
+          d.simulated,
+          d.deleted_at,
+          d.created_at,
+        ]
+      );
+      recordsRestored++;
     }
-  } finally {
-    backupDb.close();
-  }
 
-  // 2. Create pre-restore safety copy of existing target database
-  let preRestoreBackup: string | null = null;
-  if (options.createPreRestoreBackup !== false && fs.existsSync(targetDb)) {
-    const preRestoreDir = path.dirname(targetDb);
-    preRestoreBackup = path.join(preRestoreDir, `ohtms_pre_restore_${Date.now()}.bak`);
-    fs.copyFileSync(targetDb, preRestoreBackup);
-  }
-
-  // 3. Clean any existing WAL and SHM files
-  const walFile = `${targetDb}-wal`;
-  const shmFile = `${targetDb}-shm`;
-  if (fs.existsSync(walFile)) fs.unlinkSync(walFile);
-  if (fs.existsSync(shmFile)) fs.unlinkSync(shmFile);
-
-  // 4. Restore: copy backup file to target location
-  const targetDir = path.dirname(targetDb);
-  if (!fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true });
-  }
-  fs.copyFileSync(backupFile, targetDb);
-
-  // 5. Final validation of restored database
-  const restoredDb = openDb(targetDb);
-  try {
-    const finalCheck = getDatabaseIntegrity(restoredDb);
-    if (finalCheck !== "ok") {
-      throw new Error(`Restored database failed integrity check: ${finalCheck}`);
+    // Restore tanks
+    for (const t of content.tanks || []) {
+      await client.query(
+        `INSERT INTO tanks (
+          id, device_id, label, zone, location, status, shape,
+          height_cm, radius_cm, width_cm, length_cm, dead_zone_cm, dims_confirmed,
+          warn_pct, crit_pct, empty_pct, overflow_margin_cm, persistence,
+          cooldown_min, hysteresis_pct, no_data_min, spike_cm, quiet_start, quiet_end,
+          deleted_at, created_at, updated_at
+        ) OVERRIDING SYSTEM VALUE
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7,
+          $8, $9, $10, $11, $12, $13,
+          $14, $15, $16, $17, $18,
+          $19, $20, $21, $22, $23, $24,
+          $25, $26, $27
+        )`,
+        [
+          t.id,
+          t.device_id,
+          t.label,
+          t.zone,
+          t.location,
+          t.status,
+          t.shape,
+          t.height_cm,
+          t.radius_cm,
+          t.width_cm,
+          t.length_cm,
+          t.dead_zone_cm,
+          t.dims_confirmed,
+          t.warn_pct,
+          t.crit_pct,
+          t.empty_pct,
+          t.overflow_margin_cm,
+          t.persistence,
+          t.cooldown_min,
+          t.hysteresis_pct,
+          t.no_data_min,
+          t.spike_cm,
+          t.quiet_start,
+          t.quiet_end,
+          t.deleted_at,
+          t.created_at,
+          t.updated_at,
+        ]
+      );
+      recordsRestored++;
     }
-  } finally {
-    restoredDb.close();
-  }
 
-  logger.info("Database restore completed successfully", {
-    restoredFrom: backupFile,
-    targetDb,
-    preRestoreBackup,
+    // Restore readings
+    for (const r of content.readings || []) {
+      await client.query(
+        `INSERT INTO readings (device_id, t, distance_cm, f_cnt, rssi, snr, battery_pct, gateway_id, source)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (device_id, t) DO NOTHING`,
+        [
+          r.device_id,
+          r.t,
+          r.distance_cm,
+          r.f_cnt,
+          r.rssi,
+          r.snr,
+          r.battery_pct,
+          r.gateway_id,
+          r.source ?? "ttn",
+        ]
+      );
+      recordsRestored++;
+    }
   });
 
   return {
-    restoredFrom: backupFile,
-    targetDb,
-    preRestoreBackup,
-    integrity,
+    restoredFrom: backupFilePath,
+    recordsRestored,
   };
 }
 
-// Allow CLI execution: tsx scripts/restore-db.ts [backupFile]
-if (require.main === module || (typeof process !== "undefined" && process.argv[1]?.includes("restore-db"))) {
-  const customBackup = process.argv[2];
-  try {
-    const res = performRestore({ backupFile: customBackup });
-    console.log(`Database restored successfully from: ${res.restoredFrom}`);
-  } catch (err) {
-    console.error("Restore failed:", err);
+if (process.argv[1]?.endsWith("restore-db.ts") || process.argv[1]?.endsWith("restore-db.js")) {
+  const file = process.argv[2];
+  if (!file) {
+    console.error("Usage: tsx scripts/restore-db.ts <backup-file>");
     process.exit(1);
   }
+  performRestore(file)
+    .then((res) => {
+      console.log(`Restore completed from ${res.restoredFrom} (${res.recordsRestored} records)`);
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error("Restore failed:", err);
+      process.exit(1);
+    });
 }

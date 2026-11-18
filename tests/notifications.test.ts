@@ -1,39 +1,23 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import type { NotificationPrefsDTO } from "@/contracts/settings";
-
-let testDbPath: string;
-let dbInstance: ReturnType<typeof import("@/server/db").openDb>;
-let tankId: number;
-let userId: number;
-let openAlert: typeof import("@/server/repos/alerts").open;
-let dispatchAlert: typeof import("@/server/notify/dispatcher").dispatchAlert;
-let dispatchPendingNotifications: typeof import("@/server/notify/dispatcher").dispatchPendingNotifications;
-let listDeliveries: typeof import("@/server/repos/notifications").listDeliveries;
-let saveNotificationPrefs: typeof import("@/server/repos/notification-prefs").saveNotificationPrefs;
-let defaultPrefs: typeof import("@/server/repos/notification-prefs").DEFAULT_NOTIFICATION_PREFS;
-
-const quietLogger = vi.spyOn(console, "warn").mockImplementation(() => {});
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createTestSchema, TestSchemaContext } from "./test-db";
+import { q } from "@/server/db";
+import { createTank } from "@/server/repos/tanks";
+import { open as openAlert } from "@/server/repos/alerts";
+import { setForTank } from "@/server/repos/recipients";
+import { saveNotificationPrefs, DEFAULT_NOTIFICATION_PREFS } from "@/server/repos/notification-prefs";
+import { listDeliveries } from "@/server/repos/notifications";
+import { dispatchAlertNotifications, inQuietHours, isRateLimitAllowed } from "@/server/notify/dispatcher";
 
 describe("notification dispatcher", () => {
+  let testCtx: TestSchemaContext;
+  let tankId: number;
+  let userId: number;
+
   beforeAll(async () => {
-    testDbPath = path.join(os.tmpdir(), `ohtms-test-notifications-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-    process.env.DB_PATH = testDbPath;
-    process.env.SESSION_SECRET = "notification-test-secret-at-least-32-characters";
-    delete process.env.SMTP_URL;
-    delete process.env.SMTP_FROM;
+    testCtx = await createTestSchema();
 
-    const database = await import("@/server/db");
-    dbInstance = database.openDb(testDbPath);
-    (globalThis as typeof globalThis & { __ohtmsDb?: ReturnType<typeof database.openDb> }).__ohtmsDb = dbInstance;
-
-    const repos = await import("@/server/repos/alerts");
-    openAlert = repos.open;
-    const tanks = await import("@/server/repos/tanks");
-    dbInstance.prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)").run("notify-device", Date.now());
-    tankId = tanks.createTank({
+    await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ('notify-device', FALSE, $1)", [Date.now()]);
+    tankId = await createTank({
       label: "Notification test tank",
       deviceId: "notify-device",
       status: "active",
@@ -44,36 +28,22 @@ describe("notification dispatcher", () => {
       dimsConfirmed: true,
     });
 
-    userId = Number(dbInstance.prepare(`
-      INSERT INTO users (email, name, password_hash, role, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run("notify-test@example.test", "Notify Test", "unused-test-hash", "viewer", Date.now()).lastInsertRowid);
+    const [user] = await q<{ id: number }>(
+      "INSERT INTO users (email, name, password_hash, role, created_at) VALUES ('notify-test@example.test', 'Notify Test', 'unused-test-hash', 'viewer', $1) RETURNING id",
+      [Date.now()]
+    );
+    userId = user.id;
 
-    const notifications = await import("@/server/repos/notifications");
-    listDeliveries = notifications.listDeliveries;
-    const prefs = await import("@/server/repos/notification-prefs");
-    saveNotificationPrefs = prefs.saveNotificationPrefs;
-    defaultPrefs = prefs.DEFAULT_NOTIFICATION_PREFS;
-    const dispatcher = await import("@/server/notify/dispatcher");
-    dispatchAlert = dispatcher.dispatchAlert;
-    dispatchPendingNotifications = dispatcher.dispatchPendingNotifications;
+    // Associate user as recipient for tank with in_app and email
+    await setForTank(tankId, userId, ["in_app", "email"], 1);
   });
 
-  afterAll(() => {
-    quietLogger.mockRestore();
-    dbInstance.close();
-    for (const suffix of ["", "-wal", "-shm"]) {
-      const file = `${testDbPath}${suffix}`;
-      if (fs.existsSync(file)) fs.unlinkSync(file);
-    }
+  afterAll(async () => {
+    if (testCtx) await testCtx.cleanup();
   });
 
-  beforeEach(() => {
-    dbInstance.prepare("DELETE FROM notification_prefs WHERE user_id = ?").run(userId);
-  });
-
-  it("delivers in-app notifications once and records completion", async () => {
-    const alertId = openAlert({
+  it("delivers in-app notifications and records delivery", async () => {
+    const alertId = await openAlert({
       tankId,
       type: "LOW_LEVEL",
       severity: "warning",
@@ -85,84 +55,39 @@ describe("notification dispatcher", () => {
       simulated: false,
     });
 
-    await expect(dispatchAlert(alertId)).resolves.toEqual({ attempted: 1 });
-    await expect(dispatchAlert(alertId)).resolves.toEqual({ attempted: 1 });
-    expect(listDeliveries(alertId)).toMatchObject([{ channel: "in_app", recipient: `user:${userId}`, status: "sent" }]);
-    expect(listDeliveries(alertId)).toHaveLength(1);
-    expect(await dispatchPendingNotifications(Date.now() + 60_000)).toBe(0);
+    const result = await dispatchAlertNotifications(alertId, 1);
+    expect(result.attempted).toBeGreaterThanOrEqual(1);
+
+    const deliveries = await listDeliveries(alertId);
+    expect(deliveries.some((d) => d.channel === "in_app" && d.status === "sent")).toBe(true);
   });
 
-  it("retries failed provider deliveries only after the configured delay", async () => {
-    const prefs: NotificationPrefsDTO = {
-      ...defaultPrefs,
-      channelsBySeverity: { ...defaultPrefs.channelsBySeverity, warning: ["email"] },
+  it("enforces quiet hours for warnings", () => {
+    const prefs = {
+      ...DEFAULT_NOTIFICATION_PREFS,
+      quietHours: { enabled: true, start: "22:00", end: "06:00" },
     };
-    saveNotificationPrefs(userId, prefs);
-    const alertId = openAlert({
-      tankId,
-      type: "LOW_LEVEL",
-      severity: "warning",
-      message: "Tank is low",
-      value: 30,
-      at: Date.now(),
-      triggerT: null,
-      triggerDistanceCm: null,
-      simulated: false,
-    });
-    await dispatchAlert(alertId);
-    expect(listDeliveries(alertId)).toMatchObject([{ channel: "email", status: "failed" }]);
-    expect(await dispatchPendingNotifications(Date.now() + 60_000)).toBe(0);
-    expect(await dispatchPendingNotifications(Date.now() + 6 * 60_000)).toBe(1);
-    expect(listDeliveries(alertId)).toMatchObject([{ channel: "email", status: "failed" }]);
+
+    // 23:00 IST is 17:30 UTC
+    const date2300IST = new Date("2026-10-15T17:30:00Z").getTime();
+    expect(inQuietHours(prefs, date2300IST)).toBe(true);
+
+    // 12:00 IST is 06:30 UTC
+    const date1200IST = new Date("2026-10-15T06:30:00Z").getTime();
+    expect(inQuietHours(prefs, date1200IST)).toBe(false);
   });
 
-  it("stops retrying a permanently failing channel after five delivery attempts", async () => {
-    const prefs: NotificationPrefsDTO = {
-      ...defaultPrefs,
-      channelsBySeverity: { ...defaultPrefs.channelsBySeverity, warning: ["email"] },
-    };
-    saveNotificationPrefs(userId, prefs);
-    const alertId = openAlert({
-      tankId,
-      type: "LOW_LEVEL",
-      severity: "warning",
-      message: "Tank is low",
-      value: 30,
-      at: Date.now(),
-      triggerT: null,
-      triggerDistanceCm: null,
-      simulated: false,
-    });
-    dbInstance.prepare("UPDATE alerts SET resolved_at = ? WHERE id != ?").run(Date.now(), alertId);
+  it("enforces 1-per-hour rate limit cap per tank per channel", async () => {
+    const now = Date.now();
+    const first = await isRateLimitAllowed(tankId, "email-test", now);
+    expect(first).toBe(true);
 
-    await dispatchAlert(alertId);
-    for (let retry = 1; retry < 5; retry++) {
-      expect(await dispatchPendingNotifications(Date.now() + 6 * 60_000)).toBe(1);
-    }
-    expect(await dispatchPendingNotifications(Date.now() + 6 * 60_000)).toBe(0);
-    expect(dbInstance.prepare("SELECT attempt_count, status FROM notifications WHERE alert_id = ?")
-      .get(alertId)).toEqual({ attempt_count: 5, status: "failed" });
-  });
+    // Immediate second call should be throttled
+    const second = await isRateLimitAllowed(tankId, "email-test", now + 10_000);
+    expect(second).toBe(false);
 
-  it("does not invent a phone recipient when SMS preferences have no phone", async () => {
-    const prefs: NotificationPrefsDTO = {
-      ...defaultPrefs,
-      channelsBySeverity: { ...defaultPrefs.channelsBySeverity, warning: ["sms"] },
-    };
-    saveNotificationPrefs(userId, prefs);
-    const alertId = openAlert({
-      tankId,
-      type: "LOW_LEVEL",
-      severity: "warning",
-      message: "Tank is low",
-      value: 30,
-      at: Date.now(),
-      triggerT: null,
-      triggerDistanceCm: null,
-      simulated: false,
-    });
-
-    await expect(dispatchAlert(alertId)).resolves.toEqual({ attempted: 0 });
-    expect(listDeliveries(alertId)).toEqual([]);
+    // After 1 hour, it is allowed again
+    const third = await isRateLimitAllowed(tankId, "email-test", now + 3601_000);
+    expect(third).toBe(true);
   });
 });

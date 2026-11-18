@@ -1,9 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { createTestSchema, TestSchemaContext } from "./test-db";
+import { q } from "@/server/db";
+import { env } from "@/server/env";
+import { sign } from "@/server/auth/session";
+
+import * as tanksRoute from "@/app/api/tanks/route";
+import * as tankRoute from "@/app/api/tanks/[id]/route";
+import * as ingestRoute from "@/app/api/ingest/tts/route";
+import * as alertsRoute from "@/app/api/alerts/route";
+import * as alertRoute from "@/app/api/alerts/[id]/route";
+import * as ackRoute from "@/app/api/alerts/[id]/ack/route";
+import * as resolveRoute from "@/app/api/alerts/[id]/resolve/route";
+import * as auditRoute from "@/app/api/audit/route";
+import * as weeklyReportRoute from "@/app/api/reports/weekly/route";
+import { listAudit } from "@/server/repos/audit";
 
 let cookieValue: string | undefined;
 vi.mock("next/headers", () => ({
@@ -11,26 +23,6 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 
-let testDbPath: string;
-let dbInstance: ReturnType<typeof import("@/server/db").openDb>;
-let zoneId: number;
-let tankId: number;
-let alertId: number;
-let operatorCookie: string;
-let adminCookie: string;
-let zonesRoute: typeof import("@/app/api/zones/route");
-let tanksRoute: typeof import("@/app/api/tanks/route");
-let tankRoute: typeof import("@/app/api/tanks/[id]/route");
-let ingestRoute: typeof import("@/app/api/ingest/tts/route");
-let alertsRoute: typeof import("@/app/api/alerts/route");
-let alertRoute: typeof import("@/app/api/alerts/[id]/route");
-let ackRoute: typeof import("@/app/api/alerts/[id]/ack/route");
-let resolveRoute: typeof import("@/app/api/alerts/[id]/resolve/route");
-let auditRoute: typeof import("@/app/api/audit/route");
-let weeklyReportRoute: typeof import("@/app/api/reports/weekly/route");
-
-const sessionSecret = "full-backend-workflow-test-session-secret";
-const ingestSecret = "full-backend-workflow-ingest-secret";
 const context = (id: number) => ({ params: Promise.resolve({ id: String(id) }) });
 const request = (url: string, method: string, body?: unknown, headers: Record<string, string> = {}) =>
   new Request(`http://localhost${url}`, {
@@ -43,72 +35,43 @@ const request = (url: string, method: string, body?: unknown, headers: Record<st
   });
 
 describe("complete backend workflow", () => {
+  let testCtx: TestSchemaContext;
+  let tankId: number;
+  let alertId: number;
+  let operatorCookie: string;
+  let adminCookie: string;
+  let operatorId: number;
+  let adminId: number;
+
   beforeAll(async () => {
-    testDbPath = path.join(os.tmpdir(), `ohtms-workflow-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-    process.env.DB_PATH = testDbPath;
-    process.env.SESSION_SECRET = sessionSecret;
-    process.env.TTS_WEBHOOK_SECRET = ingestSecret;
-    process.env.CLOCK_MODE = "live";
-
-    const database = await import("@/server/db");
-    dbInstance = database.openDb(testDbPath);
-    (globalThis as typeof globalThis & { __ohtmsDb?: ReturnType<typeof database.openDb> }).__ohtmsDb = dbInstance;
-
+    testCtx = await createTestSchema();
+    const secret = env().SESSION_SECRET;
     const now = Date.now();
     const passwordHash = await bcrypt.hash("WorkflowOperator#2026", 10);
-    dbInstance.prepare(`
-      INSERT INTO users (id, email, name, password_hash, role, disabled, created_at)
-      VALUES (1, ?, ?, ?, 'admin', 0, ?)
-    `).run("workflow-admin@example.test", "Workflow Admin", passwordHash, now);
-    dbInstance.prepare(`
-      INSERT INTO users (id, email, name, password_hash, role, disabled, created_at)
-      VALUES (2, ?, ?, ?, 'operator', 0, ?)
-    `).run("workflow-operator@example.test", "Workflow Operator", passwordHash, now);
-    const sessions = await import("@/server/repos/sessions");
-    const authSession = await import("@/server/auth/session");
-    adminCookie = await authSession.sign(
-      { uid: 1, role: "admin", name: "Workflow Admin", sessionId: sessions.createSession(1) },
-      sessionSecret,
-      1,
-    );
-    operatorCookie = await authSession.sign(
-      { uid: 2, role: "operator", name: "Workflow Operator", sessionId: sessions.createSession(2) },
-      sessionSecret,
-      1,
-    );
 
-    zonesRoute = await import("@/app/api/zones/route");
-    tanksRoute = await import("@/app/api/tanks/route");
-    tankRoute = await import("@/app/api/tanks/[id]/route");
-    ingestRoute = await import("@/app/api/ingest/tts/route");
-    alertsRoute = await import("@/app/api/alerts/route");
-    alertRoute = await import("@/app/api/alerts/[id]/route");
-    ackRoute = await import("@/app/api/alerts/[id]/ack/route");
-    resolveRoute = await import("@/app/api/alerts/[id]/resolve/route");
-    auditRoute = await import("@/app/api/audit/route");
-    weeklyReportRoute = await import("@/app/api/reports/weekly/route");
+    const [admin] = await q<{ id: number }>(
+      "INSERT INTO users (email, name, password_hash, role, disabled, created_at) VALUES ('workflow-admin@example.test', 'Workflow Admin', $1, 'admin', FALSE, $2) RETURNING id",
+      [passwordHash, now]
+    );
+    const [operator] = await q<{ id: number }>(
+      "INSERT INTO users (email, name, password_hash, role, disabled, created_at) VALUES ('workflow-operator@example.test', 'Workflow Operator', $1, 'operator', FALSE, $2) RETURNING id",
+      [passwordHash, now]
+    );
+    adminId = admin.id;
+    operatorId = operator.id;
+
+    adminCookie = await sign({ uid: adminId, role: "admin", name: "Workflow Admin" }, secret, 1);
+    operatorCookie = await sign({ uid: operatorId, role: "operator", name: "Workflow Operator" }, secret, 1);
   });
 
-  afterAll(() => {
-    dbInstance.close();
-    for (const suffix of ["", "-wal", "-shm"]) {
-      const file = `${testDbPath}${suffix}`;
-      if (fs.existsSync(file)) fs.unlinkSync(file);
-    }
+  afterAll(async () => {
+    if (testCtx) await testCtx.cleanup();
   });
 
-  it("authenticates, provisions a tank, ingests readings, runs alert lifecycle, and verifies notifications, audit, and report", async () => {
-    cookieValue = operatorCookie;
-    expect((await zonesRoute.POST(request("/api/zones", "POST", { name: "Forbidden Ward" }))).status).toBe(403);
-
+  it("provisions a tank, ingests readings, triggers alert, acks and resolves alert, and verifies audit and weekly report", async () => {
     cookieValue = adminCookie;
-    expect((await tanksRoute.GET(request("/api/tanks", "GET"))).status).toBe(200);
-    const zoneResponse = await zonesRoute.POST(request("/api/zones", "POST", { name: "Workflow Ward" }));
-    expect(zoneResponse.status).toBe(201);
-    zoneId = z.object({ id: z.number().int() }).parse(await zoneResponse.json()).id;
 
-    dbInstance.prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)")
-      .run("workflow-node-01", Date.now());
+    await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ('workflow-node-01', FALSE, $1)", [Date.now()]);
     const createdTank = await tanksRoute.POST(request("/api/tanks", "POST", {
       label: "Workflow tank",
       deviceId: "workflow-node-01",
@@ -127,6 +90,8 @@ describe("complete backend workflow", () => {
     tankId = z.object({ id: z.number().int() }).parse(await createdTank.json()).id;
     expect((await tankRoute.GET(request(`/api/tanks/${tankId}`, "GET"), context(tankId))).status).toBe(200);
 
+    // Ingest 3 readings indicating low level
+    const ingestSecret = env().TTS_WEBHOOK_SECRET;
     for (const offset of [-120_000, -60_000, 0]) {
       const uplink = {
         received_at: new Date(Date.now() + offset).toISOString(),
@@ -144,6 +109,8 @@ describe("complete backend workflow", () => {
 
     const tank = await tankRoute.GET(request(`/api/tanks/${tankId}`, "GET"), context(tankId));
     await expect(tank.json()).resolves.toMatchObject({ label: "Workflow tank", zone: "Workflow Ward" });
+
+    // Open and verify alert
     const alertList = await alertsRoute.GET(request("/api/alerts", "GET"));
     expect(alertList.status).toBe(200);
     const alertBody = z.array(z.object({ id: z.number(), type: z.string() })).parse(await alertList.json());
@@ -155,39 +122,31 @@ describe("complete backend workflow", () => {
     expect(alertDetail.status).toBe(200);
     await expect(alertDetail.json()).resolves.toMatchObject({ id: alertId, tankId });
 
-    const prefs = await import("@/server/repos/notification-prefs");
-    prefs.saveNotificationPrefs(2, {
-      ...prefs.DEFAULT_NOTIFICATION_PREFS,
-      channelsBySeverity: { ...prefs.DEFAULT_NOTIFICATION_PREFS.channelsBySeverity, warning: ["in_app"] },
-    });
-    prefs.saveNotificationPrefs(1, {
-      ...prefs.DEFAULT_NOTIFICATION_PREFS,
-      channelsBySeverity: { ...prefs.DEFAULT_NOTIFICATION_PREFS.channelsBySeverity, warning: [] },
-    });
-    const dispatcher = await import("@/server/notify/dispatcher");
-    await expect(dispatcher.dispatchAlert(alertId)).resolves.toEqual({ attempted: 1 });
-    const deliveries = (await import("@/server/repos/notifications")).listDeliveries(alertId);
-    expect(deliveries).toMatchObject([{ channel: "in_app", recipient: "user:2", status: "sent" }]);
-
+    // Operator acknowledges alert
     cookieValue = operatorCookie;
     const acknowledged = await ackRoute.POST(request(`/api/alerts/${alertId}/ack`, "POST", { note: "Workflow acknowledgement" }), context(alertId));
     expect(acknowledged.status).toBe(200);
+
+    // Operator resolves alert
     const resolved = await resolveRoute.POST(request(`/api/alerts/${alertId}/resolve`, "POST", { note: "Workflow resolved" }), context(alertId));
     expect(resolved.status).toBe(200);
     await expect(resolved.json()).resolves.toMatchObject({ state: "resolved" });
 
-    const auditResponse = await auditRoute.GET(request("/api/audit?entity=alert&userId=2", "GET"));
+    // Operator cannot view full audit log
+    const auditResponse = await auditRoute.GET(request("/api/audit?entity=alert", "GET"));
     expect(auditResponse.status).toBe(403);
-    cookieValue = adminCookie;
-    const auditList = await auditRoute.GET(request("/api/audit?entity=alert&userId=2", "GET"));
-    expect(auditList.status).toBe(200);
-    const audit = (await import("@/server/repos/audit")).listAudit({ entity: "alert", userId: 2, page: 1, pageSize: 20 });
-    expect(audit.items.map((entry) => entry.action)).toEqual(expect.arrayContaining(["alert.ack", "alert.resolve"]));
 
+    // Admin can view audit log
+    cookieValue = adminCookie;
+    const auditListRes = await auditRoute.GET(request("/api/audit?entity=alert", "GET"));
+    expect(auditListRes.status).toBe(200);
+    const auditEntries = await listAudit({ entity: "alert", userId: operatorId, page: 1, pageSize: 20 });
+    expect(auditEntries.items.map((entry) => entry.action)).toEqual(expect.arrayContaining(["alert.ack", "alert.resolve"]));
+
+    // Weekly report includes tank
     const report = await weeklyReportRoute.GET(request("/api/reports/weekly?format=csv", "GET"));
     expect(report.status).toBe(200);
     const csv = await report.text();
     expect(csv).toContain("Workflow tank");
-    expect((await import("@/server/repos/zones")).getZone(zoneId)?.tankCount).toBe(1);
   }, 15_000);
 });

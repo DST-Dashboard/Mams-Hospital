@@ -1,47 +1,38 @@
-import { evaluateAll } from "../services/alert-engine";
-import { runEscalation } from "./escalation";
-import { refreshRollups } from "./rollups";
-import { purgeExpiredData } from "./retention";
-import { checkGatewayHealth } from "./node-health";
-import { dispatchPendingNotifications } from "../notify/dispatcher";
-import { recordJobRun } from "./run-state";
+import { runTick } from "./tick";
 import { logger } from "../logger";
 
 const g = globalThis as unknown as { __ohtmsJobs?: NodeJS.Timeout[] };
 
 export function startJobs() {
+  if (process.env.VERCEL) {
+    // Vercel serverless functions cannot keep long-running timers
+    return;
+  }
+
   if (g.__ohtmsJobs) return;
   const timers: NodeJS.Timeout[] = [];
-  const schedule = (name: string, task: () => unknown | Promise<unknown>, intervalMs: number, runOnStart = true) => {
-    let running = false;
-    const run = async () => {
-      if (running) return;
-      running = true;
-      const startedAt = Date.now();
+
+  // Run tick every 60 seconds locally
+  timers.push(
+    setInterval(async () => {
       try {
-        await task();
-        recordJobRun(name, Date.now());
-        logger.info("Scheduled job completed", { job: name, durationMs: Date.now() - startedAt });
-      } catch (error) {
-        logger.error("Scheduled job failed", error, { job: name });
-        try {
-          recordJobRun(name, Date.now(), error);
-        } catch (stateError) {
-          logger.error("Unable to persist scheduled job status", stateError, { job: name });
-        }
-      } finally {
-        running = false;
+        await runTick();
+      } catch (err) {
+        logger.error("Local tick failed", err);
       }
-    };
-    timers.push(setInterval(() => { void run(); }, intervalMs));
-    if (runOnStart) void run();
-  };
-  schedule("alerts", () => evaluateAll(), 60_000);
-  schedule("escalation", () => runEscalation(), 60_000);
-  schedule("notifications", () => dispatchPendingNotifications(), 60_000);
-  schedule("node-health", () => checkGatewayHealth(), 5 * 60_000);
-  schedule("rollups", () => refreshRollups(), 60 * 60_000, false);
-  schedule("retention", () => purgeExpiredData(), 24 * 60 * 60_000, false);
+    }, 60_000)
+  );
+
+  // Trigger once on start
+  void runTick().catch(() => {});
+
   g.__ohtmsJobs = timers;
-  logger.info("Backend job scheduler started", { jobs: timers.length });
+  logger.info("Local job runner started");
+}
+
+export function stopJobs() {
+  if (g.__ohtmsJobs) {
+    for (const t of g.__ohtmsJobs) clearInterval(t);
+    g.__ohtmsJobs = undefined;
+  }
 }

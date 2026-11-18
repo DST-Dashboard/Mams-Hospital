@@ -5,19 +5,23 @@ import { PasswordResetError, verifyAndConsumePasswordReset } from "@/server/repo
 import { audit } from "@/server/repos/audit";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export const POST = handle(async (req: Request) => {
   const { token, password } = ResetBody.parse(await req.json());
 
   try {
     await verifyAndConsumePasswordReset(token, password);
-    audit({
+    await audit({
       userId: null,
       action: "password.reset",
       entity: "user",
       entityId: "token-consumed",
     });
-    return ok({ ok: true, message: "Password has been reset successfully. Please sign in with your new password." });
+    return ok({
+      ok: true,
+      message: "Password has been reset successfully. Please sign in with your new password.",
+    });
   } catch (err) {
     if (err instanceof PasswordResetError) return fail(400, err.message);
     throw err;

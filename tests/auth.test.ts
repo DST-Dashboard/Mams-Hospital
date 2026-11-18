@@ -1,19 +1,12 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import bcrypt from "bcryptjs";
-import { openDb } from "@/server/db";
 import { validatePassword } from "@/server/auth/password-policy";
+import { sign, verify, COOKIE } from "@/server/auth/session";
 import {
   checkLoginRateLimit,
   recordLoginFailure,
   resetLoginRateLimit,
 } from "@/server/rate-limit";
-import {
-  createSession,
-  validateSession,
-  revokeSession,
-} from "@/server/repos/sessions";
 import {
   createUser,
   updateUser,
@@ -23,32 +16,17 @@ import {
   createPasswordReset,
   verifyAndConsumePasswordReset,
 } from "@/server/repos/users";
-
-const TEST_DB = path.resolve(process.cwd(), "var/test_auth.db");
+import { createTestSchema, TestSchemaContext } from "./test-db";
 
 describe("BE-03: Authentication and User Management", () => {
-  let dbInstance: any;
+  let testCtx: TestSchemaContext;
 
-  beforeAll(() => {
-    process.env.DB_PATH = TEST_DB;
-    for (const f of [TEST_DB, `${TEST_DB}-wal`, `${TEST_DB}-shm`]) {
-      try {
-        fs.rmSync(f, { force: true });
-      } catch {}
-    }
-    dbInstance = openDb(TEST_DB);
+  beforeAll(async () => {
+    testCtx = await createTestSchema();
   });
 
-  afterAll(() => {
-    if (dbInstance) {
-      dbInstance.close();
-      dbInstance = null;
-    }
-    for (const f of [TEST_DB, `${TEST_DB}-wal`, `${TEST_DB}-shm`]) {
-      try {
-        fs.rmSync(f, { force: true });
-      } catch {}
-    }
+  afterAll(async () => {
+    if (testCtx) await testCtx.cleanup();
   });
 
   describe("Password Policy", () => {
@@ -72,8 +50,8 @@ describe("BE-03: Authentication and User Management", () => {
   });
 
   describe("User CRUD & Role Management", () => {
-    it("creates a new operator and hashes password", () => {
-      const user = createUser({
+    it("creates a new operator and hashes password", async () => {
+      const user = await createUser({
         email: "nurse.priya@mams.local",
         name: "Nurse Priya",
         role: "operator",
@@ -84,123 +62,120 @@ describe("BE-03: Authentication and User Management", () => {
       expect(user.email).toBe("nurse.priya@mams.local");
       expect(user.role).toBe("operator");
 
-      const inDb = byId(user.id);
+      const inDb = await byId(user.id);
       expect(inDb).toBeDefined();
       expect(inDb!.passwordHash).not.toBe("StrongPass#2026");
-      expect(bcrypt.compareSync("StrongPass#2026", inDb!.passwordHash)).toBe(true);
+      expect(await bcrypt.compare("StrongPass#2026", inDb!.passwordHash)).toBe(true);
     });
 
-    it("prevents duplicate user email registration", () => {
-      createUser({
+    it("prevents duplicate user email registration", async () => {
+      await createUser({
         email: "duplicate@mams.local",
         name: "Original",
         role: "viewer",
         password: "PassWord123!",
       });
 
-      expect(() =>
+      await expect(
         createUser({
           email: "duplicate@mams.local",
           name: "Second",
           role: "viewer",
           password: "PassWord123!",
         })
-      ).toThrow(/already exists/);
+      ).rejects.toThrow(/already exists/);
     });
 
-    it("updates user role and details", () => {
-      const user = createUser({
+    it("updates user role and details", async () => {
+      const user = await createUser({
         email: "update.test@mams.local",
         name: "Test User",
         role: "viewer",
         password: "PassWord123!",
       });
 
-      const updated = updateUser(user.id, { role: "admin", name: "Promoted Admin" });
+      const updated = await updateUser(user.id, { role: "admin", name: "Promoted Admin" });
       expect(updated.role).toBe("admin");
       expect(updated.name).toBe("Promoted Admin");
     });
 
-    it("disables a user", () => {
-      const user = createUser({
+    it("disables a user", async () => {
+      const user = await createUser({
         email: "disabled.test@mams.local",
         name: "Dis User",
         role: "viewer",
         password: "PassWord123!",
       });
 
-      deleteUser(user.id);
-      const after = byId(user.id);
+      await deleteUser(user.id);
+      const after = await byId(user.id);
       expect(after?.disabled).toBe(true);
     });
   });
 
   describe("Login Rate Limiting", () => {
-    it("allows up to 5 failed attempts before blocking", () => {
+    it("allows up to 5 failed attempts before blocking", async () => {
       const key = "test:ip:10.0.0.99:user@mams.local";
-      resetLoginRateLimit(key);
+      await resetLoginRateLimit(key);
 
       for (let i = 0; i < 4; i++) {
-        recordLoginFailure(key);
-        const check = checkLoginRateLimit(key);
+        await recordLoginFailure(key);
+        const check = await checkLoginRateLimit(key);
         expect(check.allowed).toBe(true);
         expect(check.remaining).toBe(5 - (i + 1));
       }
 
       // 5th failure
-      recordLoginFailure(key);
-      const blocked = checkLoginRateLimit(key);
+      await recordLoginFailure(key);
+      const blocked = await checkLoginRateLimit(key);
       expect(blocked.allowed).toBe(false);
       expect(blocked.remaining).toBe(0);
       expect(blocked.resetMs).toBeGreaterThan(0);
 
-      resetLoginRateLimit(key);
-      const cleared = checkLoginRateLimit(key);
+      await resetLoginRateLimit(key);
+      const cleared = await checkLoginRateLimit(key);
       expect(cleared.allowed).toBe(true);
     });
   });
 
-  describe("Session Lifecycle", () => {
-    it("creates, validates, and revokes sessions", () => {
-      const user = createUser({
-        email: "session.user@mams.local",
-        name: "Session User",
-        role: "viewer",
-        password: "PassWord123!",
+  describe("Session JWT Lifecycle", () => {
+    it("signs and verifies stateless JWT tokens for sessions", async () => {
+      const secret = "012345678901234567890123456789012345";
+      const token = await sign(
+        { uid: 1, role: "admin", name: "Administrator" },
+        secret,
+        8
+      );
+      expect(typeof token).toBe("string");
+
+      const session = await verify(token, secret);
+      expect(session).toMatchObject({
+        uid: 1,
+        role: "admin",
+        name: "Administrator",
       });
 
-      const sessionId = createSession(user.id, 8, "127.0.0.1", "Vitest");
-      expect(sessionId).toHaveLength(64);
-
-      const val = validateSession(sessionId);
-      expect(val.valid).toBe(true);
-      expect(val.userId).toBe(user.id);
-
-      revokeSession(sessionId);
-      const revoked = validateSession(sessionId);
-      expect(revoked.valid).toBe(false);
+      const invalid = await verify(token, "wrong-secret-must-be-at-least-32-chars-long");
+      expect(invalid).toBeNull();
     });
   });
 
   describe("Password Reset Flow", () => {
     it("issues a reset token, verifies, and consumes it", async () => {
-      const user = createUser({
+      const user = await createUser({
         email: "reset.target@mams.local",
         name: "Reset Target",
         role: "operator",
         password: "InitialPassword#1",
       });
 
-      const token = createPasswordReset(user.email);
+      const token = await createPasswordReset(user.email);
       expect(token).toBeDefined();
-      const sessionId = createSession(user.id);
-      expect(validateSession(sessionId).valid).toBe(true);
 
       await verifyAndConsumePasswordReset(token, "BrandNewPassword#99");
-      expect(validateSession(sessionId).valid).toBe(false);
 
       // Verify user can now authenticate with new password
-      const updated = byId(user.id)!;
+      const updated = (await byId(user.id))!;
       expect(await bcrypt.compare("BrandNewPassword#99", updated.passwordHash)).toBe(true);
 
       // Token cannot be reused
@@ -212,21 +187,19 @@ describe("BE-03: Authentication and User Management", () => {
 
   describe("Password Change", () => {
     it("allows user to change their password when providing correct current password", async () => {
-      const user = createUser({
+      const user = await createUser({
         email: "change.user@mams.local",
         name: "Change User",
         role: "operator",
         password: "OldPassword#1",
       });
-      const sessionId = createSession(user.id);
 
       await expect(
         changeUserPassword(user.id, "WrongPassword#1", "NewPassword#2")
       ).rejects.toThrow(/Current password is incorrect/);
 
       await changeUserPassword(user.id, "OldPassword#1", "NewPassword#2");
-      expect(validateSession(sessionId).valid).toBe(false);
-      const updated = byId(user.id)!;
+      const updated = (await byId(user.id))!;
       expect(await bcrypt.compare("NewPassword#2", updated.passwordHash)).toBe(true);
     });
   });

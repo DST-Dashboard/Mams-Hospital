@@ -6,6 +6,7 @@ import { changeUserPassword } from "@/server/repos/users";
 import { audit } from "@/server/repos/audit";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export const POST = handle(async (req: Request) => {
   const session = await requireRole("viewer");
@@ -13,7 +14,7 @@ export const POST = handle(async (req: Request) => {
 
   try {
     await changeUserPassword(session.uid, current, next);
-    audit({
+    await audit({
       userId: session.uid,
       action: "password.change",
       entity: "user",

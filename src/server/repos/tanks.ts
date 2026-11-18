@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { db, tx } from "../db";
+import { q, q1, tx } from "../db";
 import type { Thresholds, TankGeometry } from "@/domain";
-import { listForTank, setForTank } from "./recipients";
 
 export interface TankRow {
   id: number;
@@ -21,74 +20,77 @@ export interface TankRow {
 }
 
 const SELECT = `
-  SELECT t.*, COALESCE(d.simulated,0) AS simulated,
-    (SELECT COUNT(*) FROM readings r WHERE r.device_id = t.device_id) AS reading_count,
+  SELECT t.*, COALESCE(d.simulated, FALSE) AS simulated,
+    (SELECT COUNT(*)::int FROM readings r WHERE r.device_id = t.device_id) AS reading_count,
     (SELECT MAX(t) FROM readings r WHERE r.device_id = t.device_id) AS last_reading_at
   FROM tanks t
   LEFT JOIN devices d ON d.device_id = t.device_id
 `;
 
-type Raw = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+type Raw = Record<string, unknown>;
 
 const map = (r: Raw): TankRow => {
   const readingCount = r.reading_count != null ? Number(r.reading_count) : 0;
-  const isAwaitingReading = r.status === "active" && !!r.device_id && readingCount === 0;
+  const isAwaitingReading = (r.status as string) === "active" && !!r.device_id && readingCount === 0;
 
   return {
-    id: r.id,
-    deviceId: r.device_id,
-    label: r.label,
-    zone: r.zone,
-    location: r.location,
-    status: r.status,
+    id: Number(r.id),
+    deviceId: (r.device_id as string) ?? null,
+    label: r.label as string,
+    zone: (r.zone as string) ?? null,
+    location: (r.location as string) ?? null,
+    status: r.status as TankRow["status"],
     geometry: {
-      heightCm: r.height_cm,
-      deadZoneCm: r.dead_zone_cm,
+      heightCm: Number(r.height_cm),
+      deadZoneCm: Number(r.dead_zone_cm ?? 25),
       shape:
         r.shape === "cylinder"
-          ? { kind: "cylinder", radiusCm: r.radius_cm ?? 100 }
-          : { kind: "rectangle", widthCm: r.width_cm ?? 100, lengthCm: r.length_cm ?? 100 },
+          ? { kind: "cylinder", radiusCm: Number(r.radius_cm ?? 100) }
+          : { kind: "rectangle", widthCm: Number(r.width_cm ?? 100), lengthCm: Number(r.length_cm ?? 100) },
     },
     thresholds: {
-      warnPct: r.warn_pct,
-      critPct: r.crit_pct,
-      emptyPct: r.empty_pct,
-      overflowMarginCm: r.overflow_margin_cm,
-      persistence: r.persistence,
-      cooldownMin: r.cooldown_min,
-      hysteresisPct: r.hysteresis_pct,
-      noDataMin: r.no_data_min,
-      spikeCm: r.spike_cm,
-      quietStart: r.quiet_start ?? null,
-      quietEnd: r.quiet_end ?? null,
+      warnPct: Number(r.warn_pct),
+      critPct: Number(r.crit_pct),
+      emptyPct: Number(r.empty_pct),
+      overflowMarginCm: Number(r.overflow_margin_cm),
+      persistence: Number(r.persistence),
+      cooldownMin: Number(r.cooldown_min),
+      hysteresisPct: Number(r.hysteresis_pct),
+      noDataMin: Number(r.no_data_min),
+      spikeCm: Number(r.spike_cm),
+      quietStart: (r.quiet_start as string) ?? null,
+      quietEnd: (r.quiet_end as string) ?? null,
     },
-    dimsConfirmed: !!r.dims_confirmed,
-    simulated: !!r.simulated,
-    deletedAt: r.deleted_at,
+    dimsConfirmed: Boolean(r.dims_confirmed),
+    simulated: Boolean(r.simulated),
+    deletedAt: r.deleted_at ? Number(r.deleted_at) : null,
     readingCount,
-    lastReadingAt: r.last_reading_at ?? null,
+    lastReadingAt: r.last_reading_at ? Number(r.last_reading_at) : null,
     isAwaitingReading,
   };
 };
 
-export const listTanks = (opts: { includeDeleted?: boolean } = {}): TankRow[] =>
-  (
-    db()
-      .prepare(`${SELECT} ${opts.includeDeleted ? "" : "WHERE t.deleted_at IS NULL"} ORDER BY t.id`)
-      .all() as Raw[]
-  ).map(map);
+export async function listTanks(opts: { includeDeleted?: boolean } = {}): Promise<TankRow[]> {
+  const where = opts.includeDeleted ? "" : "WHERE t.deleted_at IS NULL";
+  const rows = await q<Raw>(`${SELECT} ${where} ORDER BY t.id ASC`);
+  return rows.map(map);
+}
 
-export const getTank = (id: number): TankRow | undefined => {
-  const r = db().prepare(`${SELECT} WHERE t.id = ?`).get(id) as Raw | undefined;
-  return r && map(r);
-};
+export async function getTank(id: number): Promise<TankRow | undefined> {
+  const r = await q1<Raw>(`${SELECT} WHERE t.id = $1`, [id]);
+  return r ? map(r) : undefined;
+}
 
-export const getTankByLabel = (label: string): TankRow | undefined => {
-  const r = db().prepare(`${SELECT} WHERE t.label = ? AND t.deleted_at IS NULL`).get(label) as Raw | undefined;
-  return r && map(r);
-};
+export async function getTankByDeviceId(deviceId: string): Promise<TankRow | undefined> {
+  const r = await q1<Raw>(`${SELECT} WHERE t.device_id = $1 AND t.deleted_at IS NULL`, [deviceId]);
+  return r ? map(r) : undefined;
+}
 
-/** Validation for create/update. Plausible physical ranges so bad dimensions can't poison every derived number. */
+export async function getTankByLabel(label: string): Promise<TankRow | undefined> {
+  const r = await q1<Raw>(`${SELECT} WHERE t.label = $1 AND t.deleted_at IS NULL`, [label]);
+  return r ? map(r) : undefined;
+}
+
 export const TankInput = z
   .object({
     label: z.string().min(1).max(80),
@@ -108,6 +110,12 @@ export const TankInput = z
     warnPct: z.number().min(1).max(99).optional(),
     critPct: z.number().min(1).max(99).optional(),
     emptyPct: z.number().min(0).max(50).optional(),
+    overflowMarginCm: z.number().optional(),
+    persistence: z.number().optional(),
+    cooldownMin: z.number().optional(),
+    hysteresisPct: z.number().optional(),
+    noDataMin: z.number().optional(),
+    spikeCm: z.number().optional(),
   })
   .refine((v) => v.deadZoneCm < v.heightCm, "dead zone must be smaller than tank height")
   .refine(
@@ -118,247 +126,213 @@ export const TankInput = z
     (v) => (v.warnPct ?? 40) > (v.critPct ?? 20) && (v.critPct ?? 20) > (v.emptyPct ?? 5),
     "thresholds must satisfy warning > critical > empty"
   );
+
 export type TankInput = z.infer<typeof TankInput>;
 
-function validateRelationships(i: { zone?: string | null; deviceId?: string | null }) {
-  if (i.zone) {
-    const zoneExists = db().prepare("SELECT id FROM zones WHERE name = ?").get(i.zone);
-    if (!zoneExists) {
-      // Auto-create zone if it doesn't exist, to maintain compatibility while logging
-      db().prepare("INSERT INTO zones (name, description, created_at) VALUES (?, ?, ?)").run(i.zone, "Auto-created from tank assignment", Date.now());
-    }
-  }
-  if (i.deviceId) {
-    const deviceExists = db().prepare("SELECT device_id FROM devices WHERE device_id = ?").get(i.deviceId);
-    if (!deviceExists) {
-      // Auto-register device
-      db().prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)").run(i.deviceId, Date.now());
-    }
-  }
-}
-
-const nullish = {
-  zone: null,
-  location: null,
-  radiusCm: null,
-  widthCm: null,
-  lengthCm: null,
-  deviceId: null,
-  quietStart: null,
-  quietEnd: null,
-};
-
-export function createTank(i: TankInput): number {
-  validateRelationships(i);
+export async function createTank(i: TankInput): Promise<number> {
   const t = Date.now();
-  const r = db()
-    .prepare(
-      `INSERT INTO tanks (device_id,label,zone,location,status,shape,height_cm,radius_cm,width_cm,length_cm,dead_zone_cm,dims_confirmed,quiet_start,quiet_end,warn_pct,crit_pct,empty_pct,created_at,updated_at)
-    VALUES (@deviceId,@label,@zone,@location,@status,@shape,@heightCm,@radiusCm,@widthCm,@lengthCm,@deadZoneCm,@dimsConfirmed,@quietStart,@quietEnd,@warnPct,@critPct,@emptyPct,@t,@t)`
-    )
-    .run({
-      ...nullish,
-      ...i,
-      status: i.status ?? "draft",
-      dimsConfirmed: i.dimsConfirmed ? 1 : 0,
-      warnPct: i.warnPct ?? 40,
-      critPct: i.critPct ?? 20,
-      emptyPct: i.emptyPct ?? 5,
-      t,
-    });
-  return Number(r.lastInsertRowid);
-}
-
-export function updateTank(id: number, i: Partial<TankInput>): void {
-  validateRelationships(i);
-  db()
-    .prepare(
-      `UPDATE tanks SET label=COALESCE(@label,label), device_id=COALESCE(@deviceId,device_id), zone=COALESCE(@zone,zone), location=COALESCE(@location,location), status=COALESCE(@status,status), shape=COALESCE(@shape,shape),
-    height_cm=COALESCE(@heightCm,height_cm), radius_cm=COALESCE(@radiusCm,radius_cm), width_cm=COALESCE(@widthCm,width_cm), length_cm=COALESCE(@lengthCm,length_cm), dead_zone_cm=COALESCE(@deadZoneCm,dead_zone_cm),
-    dims_confirmed=COALESCE(@dimsConfirmed,dims_confirmed), quiet_start=COALESCE(@quietStart,quiet_start), quiet_end=COALESCE(@quietEnd,quiet_end), warn_pct=COALESCE(@warnPct,warn_pct), crit_pct=COALESCE(@critPct,crit_pct), empty_pct=COALESCE(@emptyPct,empty_pct), updated_at=@t WHERE id=@id`
-    )
-    .run({
-      ...nullish,
-      status: null,
-      label: null,
-      heightCm: null,
-      deadZoneCm: null,
-      shape: null,
-      warnPct: null,
-      critPct: null,
-      emptyPct: null,
-      ...i,
-      dimsConfirmed: i.dimsConfirmed == null ? null : i.dimsConfirmed ? 1 : 0,
-      t: Date.now(),
-      id,
-    });
-}
-
-export const softDeleteTank = (id: number) =>
-  void db().prepare("UPDATE tanks SET deleted_at=?, status='decommissioned', updated_at=? WHERE id=?").run(Date.now(), Date.now(), id);
-
-export const restoreTank = (id: number) =>
-  void db().prepare("UPDATE tanks SET deleted_at=NULL, status='active', updated_at=? WHERE id=?").run(Date.now(), id);
-
-// ── Bulk Operations ──────────────────────────────────────────
-
-export function bulkUpdateStatus(ids: number[], status: string): number {
-  return tx(() => {
-    const stmt = db().prepare("UPDATE tanks SET status = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL");
-    const t = Date.now();
-    let count = 0;
-    for (const id of ids) {
-      count += stmt.run(status, t, id).changes;
-    }
-    return count;
-  });
-}
-
-export function bulkDelete(ids: number[]): number {
-  return tx(() => {
-    const stmt = db().prepare("UPDATE tanks SET deleted_at = ?, status = 'decommissioned', updated_at = ? WHERE id = ? AND deleted_at IS NULL");
-    const t = Date.now();
-    let count = 0;
-    for (const id of ids) {
-      count += stmt.run(t, t, id).changes;
-    }
-    return count;
-  });
-}
-
-export function bulkUpdateThresholds(
-  ids: number[],
-  th: { warnPct: number; critPct: number; emptyPct: number }
-): number {
-  if (th.warnPct <= th.critPct || th.critPct <= th.emptyPct) {
-    throw new Error("Thresholds must satisfy warn > crit > empty");
+  if (i.deviceId) {
+    await q(
+      "INSERT INTO devices (device_id, simulated, created_at) VALUES ($1, FALSE, $2) ON CONFLICT (device_id) DO NOTHING",
+      [i.deviceId, t]
+    );
   }
-  return tx(() => {
-    const stmt = db().prepare(
-      "UPDATE tanks SET warn_pct = ?, crit_pct = ?, empty_pct = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL"
-    );
-    const t = Date.now();
-    let count = 0;
-    for (const id of ids) {
-      count += stmt.run(th.warnPct, th.critPct, th.emptyPct, t, id).changes;
+
+  const rows = await q<{ id: number }>(
+    `INSERT INTO tanks (
+      device_id, label, zone, location, status, shape,
+      height_cm, radius_cm, width_cm, length_cm, dead_zone_cm,
+      dims_confirmed, quiet_start, quiet_end, warn_pct, crit_pct, empty_pct,
+      overflow_margin_cm, persistence, cooldown_min, hysteresis_pct, no_data_min, spike_cm,
+      created_at, updated_at
+    ) VALUES (
+      $1, $2, $3, $4, $5, $6,
+      $7, $8, $9, $10, $11,
+      $12, $13, $14, $15, $16, $17,
+      $18, $19, $20, $21, $22, $23,
+      $24, $24
+    ) RETURNING id`,
+    [
+      i.deviceId ?? null,
+      i.label,
+      i.zone ?? null,
+      i.location ?? null,
+      i.status ?? "draft",
+      i.shape ?? "cylinder",
+      i.heightCm,
+      i.radiusCm ?? null,
+      i.widthCm ?? null,
+      i.lengthCm ?? null,
+      i.deadZoneCm ?? 25,
+      Boolean(i.dimsConfirmed),
+      i.quietStart ?? null,
+      i.quietEnd ?? null,
+      i.warnPct ?? 40,
+      i.critPct ?? 20,
+      i.emptyPct ?? 5,
+      i.overflowMarginCm ?? 10,
+      i.persistence ?? 3,
+      i.cooldownMin ?? 30,
+      i.hysteresisPct ?? 5,
+      i.noDataMin ?? 15,
+      i.spikeCm ?? 80,
+      t,
+    ]
+  );
+
+  const tankId = Number(rows[0].id);
+  await q(
+    `INSERT INTO tank_dimensions (tank_id, height_cm, radius_cm, width_cm, length_cm, dead_zone_cm, effective_from, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, 0, $7)`,
+    [
+      tankId,
+      i.heightCm,
+      i.radiusCm ?? null,
+      i.widthCm ?? null,
+      i.lengthCm ?? null,
+      i.deadZoneCm ?? 25,
+      t,
+    ]
+  );
+
+  return tankId;
+}
+
+export async function updateTank(
+  id: number,
+  i: Partial<TankInput>,
+  opts: { applyFromNowOnly?: boolean; effectiveFrom?: number } = {}
+): Promise<void> {
+  const t = Date.now();
+
+  await tx(async (client) => {
+    if (i.deviceId) {
+      await client.query(
+        "INSERT INTO devices (device_id, simulated, created_at) VALUES ($1, FALSE, $2) ON CONFLICT (device_id) DO NOTHING",
+        [i.deviceId, t]
+      );
     }
-    return count;
+
+    if (opts.applyFromNowOnly && (i.heightCm != null || i.radiusCm != null || i.widthCm != null || i.lengthCm != null || i.deadZoneCm != null)) {
+      // Record historic dimensions in tank_dimensions table
+      const effectiveFrom = opts.effectiveFrom ?? t;
+      await client.query(
+        `INSERT INTO tank_dimensions (tank_id, height_cm, radius_cm, width_cm, length_cm, dead_zone_cm, effective_from, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          id,
+          i.heightCm ?? 300,
+          i.radiusCm ?? null,
+          i.widthCm ?? null,
+          i.lengthCm ?? null,
+          i.deadZoneCm ?? 25,
+          effectiveFrom,
+          t,
+        ]
+      );
+    }
+
+    await client.query(
+      `UPDATE tanks SET
+        label = COALESCE($1, label),
+        device_id = CASE WHEN $2::text IS NOT NULL THEN $2 ELSE device_id END,
+        zone = CASE WHEN $3::text IS NOT NULL THEN $3 ELSE zone END,
+        location = CASE WHEN $4::text IS NOT NULL THEN $4 ELSE location END,
+        status = COALESCE($5, status),
+        shape = COALESCE($6, shape),
+        height_cm = COALESCE($7, height_cm),
+        radius_cm = COALESCE($8, radius_cm),
+        width_cm = COALESCE($9, width_cm),
+        length_cm = COALESCE($10, length_cm),
+        dead_zone_cm = COALESCE($11, dead_zone_cm),
+        dims_confirmed = COALESCE($12, dims_confirmed),
+        quiet_start = CASE WHEN $13::text IS NOT NULL THEN $13 ELSE quiet_start END,
+        quiet_end = CASE WHEN $14::text IS NOT NULL THEN $14 ELSE quiet_end END,
+        warn_pct = COALESCE($15, warn_pct),
+        crit_pct = COALESCE($16, crit_pct),
+        empty_pct = COALESCE($17, empty_pct),
+        updated_at = $18
+      WHERE id = $19`,
+      [
+        i.label ?? null,
+        i.deviceId !== undefined ? i.deviceId : null,
+        i.zone !== undefined ? i.zone : null,
+        i.location !== undefined ? i.location : null,
+        i.status ?? null,
+        i.shape ?? null,
+        i.heightCm ?? null,
+        i.radiusCm ?? null,
+        i.widthCm ?? null,
+        i.lengthCm ?? null,
+        i.deadZoneCm ?? null,
+        i.dimsConfirmed !== undefined ? Boolean(i.dimsConfirmed) : null,
+        i.quietStart !== undefined ? i.quietStart : null,
+        i.quietEnd !== undefined ? i.quietEnd : null,
+        i.warnPct ?? null,
+        i.critPct ?? null,
+        i.emptyPct ?? null,
+        t,
+        id,
+      ]
+    );
   });
 }
 
-// ── Clone Tank ──────────────────────────────────────────────
+export async function softDeleteTank(id: number): Promise<void> {
+  const t = Date.now();
+  await q(
+    "UPDATE tanks SET deleted_at = $1, status = 'decommissioned', updated_at = $1 WHERE id = $2",
+    [t, id]
+  );
+}
 
-export function cloneTank(sourceId: number, newLabel: string, newDeviceId: string | null): number {
-  const source = getTank(sourceId);
-  if (!source || source.deletedAt != null) throw new Error("Source tank not found");
+export async function restoreTank(id: number): Promise<void> {
+  const t = Date.now();
+  await q(
+    "UPDATE tanks SET deleted_at = NULL, status = 'active', updated_at = $1 WHERE id = $2",
+    [t, id]
+  );
+}
 
-  const input: TankInput = {
-    label: newLabel,
-    deviceId: newDeviceId,
-    zone: source.zone,
-    location: source.location,
-    status: "draft",
-    shape: source.geometry.shape.kind,
-    heightCm: source.geometry.heightCm,
-    deadZoneCm: source.geometry.deadZoneCm,
-    radiusCm: source.geometry.shape.kind === "cylinder" ? source.geometry.shape.radiusCm : undefined,
-    widthCm: source.geometry.shape.kind === "rectangle" ? source.geometry.shape.widthCm : undefined,
-    lengthCm: source.geometry.shape.kind === "rectangle" ? source.geometry.shape.lengthCm : undefined,
-    dimsConfirmed: source.dimsConfirmed,
-    warnPct: source.thresholds.warnPct,
-    critPct: source.thresholds.critPct,
-    emptyPct: source.thresholds.emptyPct,
-    quietStart: source.thresholds.quietStart,
-    quietEnd: source.thresholds.quietEnd,
+/** Purge soft-deleted tanks older than 90 days (readings are preserved) */
+export async function purgeSoftDeleted(olderThanMs: number): Promise<number> {
+  const rows = await q(
+    "DELETE FROM tanks WHERE deleted_at IS NOT NULL AND deleted_at < $1 RETURNING id",
+    [olderThanMs]
+  );
+  return rows.length;
+}
+
+/** Get geometry valid at time `t` for a tank (respecting historic changes if any) */
+export async function getGeometryAt(tank: TankRow, t: number): Promise<TankGeometry> {
+  const hist = await q1<{
+    height_cm: number;
+    radius_cm: number | null;
+    width_cm: number | null;
+    length_cm: number | null;
+    dead_zone_cm: number;
+  }>(
+    `SELECT height_cm, radius_cm, width_cm, length_cm, dead_zone_cm
+     FROM tank_dimensions
+     WHERE tank_id = $1 AND effective_from <= $2
+     ORDER BY effective_from DESC
+     LIMIT 1`,
+    [tank.id, t]
+  );
+
+  if (!hist) return tank.geometry;
+
+  const shape = tank.geometry.shape;
+  return {
+    heightCm: Number(hist.height_cm),
+    deadZoneCm: Number(hist.dead_zone_cm),
+    shape:
+      shape.kind === "cylinder"
+        ? { kind: "cylinder", radiusCm: Number(hist.radius_cm ?? (shape as { radiusCm: number }).radiusCm) }
+        : {
+            kind: "rectangle",
+            widthCm: Number(hist.width_cm ?? (shape as { widthCm: number }).widthCm),
+            lengthCm: Number(hist.length_cm ?? (shape as { lengthCm: number }).lengthCm),
+          },
   };
-
-  return tx(() => {
-    const newId = createTank(input);
-    db().prepare(`
-      UPDATE tanks SET overflow_margin_cm = ?, persistence = ?, cooldown_min = ?,
-        hysteresis_pct = ?, no_data_min = ?, spike_cm = ?
-      WHERE id = ?
-    `).run(
-      source.thresholds.overflowMarginCm ?? 10,
-      source.thresholds.persistence ?? 3,
-      source.thresholds.cooldownMin ?? 30,
-      source.thresholds.hysteresisPct ?? 5,
-      source.thresholds.noDataMin ?? 15,
-      source.thresholds.spikeCm ?? 80,
-      newId
-    );
-    for (const recipient of listForTank(sourceId)) setForTank(newId, recipient.userId, recipient.channels);
-    return newId;
-  });
-}
-
-// ── Export / Import ──────────────────────────────────────────
-
-export function exportTanks(): Record<string, unknown>[] {
-  const rows = db().prepare("SELECT * FROM tanks WHERE deleted_at IS NULL ORDER BY id ASC").all() as Raw[];
-  return rows.map((r) => ({
-    label: r.label,
-    deviceId: r.device_id,
-    zone: r.zone,
-    location: r.location,
-    status: r.status,
-    shape: r.shape,
-    heightCm: r.height_cm,
-    radiusCm: r.radius_cm,
-    widthCm: r.width_cm,
-    lengthCm: r.length_cm,
-    deadZoneCm: r.dead_zone_cm,
-    dimsConfirmed: !!r.dims_confirmed,
-    warnPct: r.warn_pct,
-    critPct: r.crit_pct,
-    emptyPct: r.empty_pct,
-    overflowMarginCm: r.overflow_margin_cm,
-    persistence: r.persistence,
-    cooldownMin: r.cooldown_min,
-    hysteresisPct: r.hysteresis_pct,
-    noDataMin: r.no_data_min,
-    spikeCm: r.spike_cm,
-    quietStart: r.quiet_start,
-    quietEnd: r.quiet_end,
-  }));
-}
-
-export function importTanks(records: Record<string, unknown>[]): { imported: number; updated: number } {
-  return tx(() => {
-    let imported = 0;
-    let updated = 0;
-
-    for (const rec of records) {
-      const input = TankInput.parse({
-        label: rec.label,
-        deviceId: rec.deviceId ?? null,
-        zone: rec.zone ?? null,
-        location: rec.location ?? null,
-        status: rec.status ?? "draft",
-        shape: rec.shape ?? "cylinder",
-        heightCm: rec.heightCm,
-        radiusCm: rec.radiusCm,
-        widthCm: rec.widthCm,
-        lengthCm: rec.lengthCm,
-        deadZoneCm: rec.deadZoneCm ?? 25,
-        dimsConfirmed: !!rec.dimsConfirmed,
-        warnPct: rec.warnPct,
-        critPct: rec.critPct,
-        emptyPct: rec.emptyPct,
-        quietStart: rec.quietStart,
-        quietEnd: rec.quietEnd,
-      });
-
-      const existing = getTankByLabel(input.label);
-      if (existing) {
-        updateTank(existing.id, input);
-        updated++;
-      } else {
-        createTank(input);
-        imported++;
-      }
-    }
-
-    return { imported, updated };
-  });
 }

@@ -1,8 +1,9 @@
 import { ChannelSchema } from "@/contracts/common";
 import type { z } from "zod";
-import { db } from "../db";
+import { q, q1, tx } from "../db";
 
 type Channel = z.infer<typeof ChannelSchema>;
+
 export interface Delivery {
   id: number;
   channel: Channel;
@@ -10,64 +11,109 @@ export interface Delivery {
   status: "queued" | "sent" | "failed";
   sentAt: number | null;
   error: string | null;
+  attemptCount: number;
 }
 
-export function queueNotificationDispatch(alertId: number): void {
-  db().prepare(`
-    INSERT OR IGNORE INTO notification_dispatches (alert_id, attempted_at, completed_at, error)
-    VALUES (?, ?, NULL, NULL)
-  `).run(alertId, Date.now());
-}
-
-export function queueDelivery(alertId: number, channel: Channel, recipient: string): number | null {
-  const database = db();
+export async function queueDelivery(
+  alertId: number,
+  channel: Channel,
+  recipient: string
+): Promise<number | null> {
   const at = Date.now();
-  return database.transaction(() => {
-    const existing = database.prepare(`
-      SELECT id, status, attempt_count FROM notifications
-      WHERE alert_id = ? AND channel = ? AND recipient = ?
-      ORDER BY id DESC LIMIT 1
-    `).get(alertId, channel, recipient) as { id: number; status: string; attempt_count: number } | undefined;
+  return await tx(async (client) => {
+    const existing = await q1<{ id: number; status: string; attempt_count: number }>(
+      `SELECT id, status, attempt_count FROM notifications
+       WHERE alert_id = $1 AND channel = $2 AND recipient = $3
+       ORDER BY id DESC LIMIT 1`,
+      [alertId, channel, recipient],
+      client
+    );
+
     if (existing?.status === "sent") return null;
+
     if (existing) {
-      database.prepare(`
-        UPDATE notifications
-        SET status='queued', sent_at=NULL, error=NULL, attempted_at=?, attempt_count=attempt_count + 1
-        WHERE id=?
-      `).run(at, existing.id);
-      return existing.id;
+      await client.query(
+        `UPDATE notifications
+         SET status = 'queued', sent_at = NULL, error = NULL, attempted_at = $1, attempt_count = attempt_count + 1
+         WHERE id = $2`,
+        [at, existing.id]
+      );
+      return Number(existing.id);
     }
-    const result = database.prepare(`
-      INSERT INTO notifications (alert_id, channel, recipient, status, attempted_at, attempt_count)
-      VALUES (?, ?, ?, 'queued', ?, 1)
-    `).run(alertId, channel, recipient, at);
-    return Number(result.lastInsertRowid);
-  })();
+
+    const res = await client.query<{ id: number }>(
+      `INSERT INTO notifications (alert_id, channel, recipient, status, attempted_at, attempt_count)
+       VALUES ($1, $2, $3, 'queued', $4, 1)
+       RETURNING id`,
+      [alertId, channel, recipient, at]
+    );
+    return Number(res.rows[0].id);
+  });
 }
 
-export function completeDelivery(id: number, sent: boolean, at: number, error?: string): void {
-  db().prepare("UPDATE notifications SET status=?, sent_at=?, error=? WHERE id=?")
-    .run(sent ? "sent" : "failed", sent ? at : null, error?.slice(0, 500) ?? null, id);
+export async function completeDelivery(
+  id: number,
+  sent: boolean,
+  at: number,
+  error?: string
+): Promise<void> {
+  await q(
+    "UPDATE notifications SET status = $1, sent_at = $2, error = $3 WHERE id = $4",
+    [sent ? "sent" : "failed", sent ? at : null, error?.slice(0, 500) ?? null, id]
+  );
 }
 
-export function listDeliveries(alertId: number): Delivery[] {
-  const rows = db().prepare(`
-    SELECT id, channel, recipient, status, sent_at, error
-    FROM notifications WHERE alert_id = ? ORDER BY id
-  `).all(alertId) as Array<{
+export async function listDeliveries(alertId: number): Promise<Delivery[]> {
+  const rows = await q<{
     id: number;
-    channel: Channel;
+    channel: string;
     recipient: string | null;
-    status: "queued" | "sent" | "failed";
+    status: string;
     sent_at: number | null;
     error: string | null;
-  }>;
+    attempt_count: number;
+  }>(
+    "SELECT id, channel, recipient, status, sent_at, error, attempt_count FROM notifications WHERE alert_id = $1 ORDER BY id ASC",
+    [alertId]
+  );
+
   return rows.map((row) => ({
-    id: row.id,
+    id: Number(row.id),
     channel: ChannelSchema.parse(row.channel),
     recipient: row.recipient ?? "unknown",
-    status: row.status,
-    sentAt: row.sent_at,
+    status: (row.status === "sent" ? "sent" : row.status === "failed" ? "failed" : "queued") as "queued" | "sent" | "failed",
+    sentAt: row.sent_at ? Number(row.sent_at) : null,
     error: row.error,
+    attemptCount: Number(row.attempt_count ?? 0),
+  }));
+}
+
+/** Get pending retries (queued or failed with attempt_count < 3) */
+export async function listPendingRetries(limit = 10): Promise<Delivery[]> {
+  const rows = await q<{
+    id: number;
+    channel: string;
+    recipient: string | null;
+    status: string;
+    sent_at: number | null;
+    error: string | null;
+    attempt_count: number;
+  }>(
+    `SELECT id, channel, recipient, status, sent_at, error, attempt_count
+     FROM notifications
+     WHERE status IN ('queued', 'failed') AND attempt_count < 3
+     ORDER BY id ASC
+     LIMIT $1`,
+    [limit]
+  );
+
+  return rows.map((row) => ({
+    id: Number(row.id),
+    channel: ChannelSchema.parse(row.channel),
+    recipient: row.recipient ?? "unknown",
+    status: (row.status === "sent" ? "sent" : row.status === "failed" ? "failed" : "queued") as "queued" | "sent" | "failed",
+    sentAt: row.sent_at ? Number(row.sent_at) : null,
+    error: row.error,
+    attemptCount: Number(row.attempt_count ?? 0),
   }));
 }

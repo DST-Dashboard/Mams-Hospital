@@ -6,13 +6,14 @@ import { byId, updateUser, deleteUser } from "@/server/repos/users";
 import { audit } from "@/server/repos/audit";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export const GET = handle(async (_: Request, { params }: Ctx) => {
   await requireRole("admin");
   const id = intParam((await params).id);
-  const user = byId(id);
+  const user = await byId(id);
   if (!user) return fail(404, "User not found");
   return ok({
     id: user.id,
@@ -28,14 +29,14 @@ export const GET = handle(async (_: Request, { params }: Ctx) => {
 export const PATCH = handle(async (req: Request, { params }: Ctx) => {
   const session = await requireRole("admin");
   const id = intParam((await params).id);
-  const before = byId(id);
+  const before = await byId(id);
   if (!before) return fail(404, "User not found");
 
   const body = UserUpdateBody.parse(await req.json());
 
   try {
-    const updated = updateUser(id, body);
-    audit({
+    const updated = await updateUser(id, body);
+    await audit({
       userId: session.uid,
       action: "user.update",
       entity: "user",
@@ -53,17 +54,21 @@ export const PATCH = handle(async (req: Request, { params }: Ctx) => {
 export const DELETE = handle(async (_: Request, { params }: Ctx) => {
   const session = await requireRole("admin");
   const id = intParam((await params).id);
-  const before = byId(id);
+  const before = await byId(id);
   if (!before) return fail(404, "User not found");
 
-  deleteUser(id);
-  audit({
-    userId: session.uid,
-    action: "user.delete",
-    entity: "user",
-    entityId: String(id),
-    before: { name: before.name, role: before.role, disabled: before.disabled },
-  });
-
-  return ok({ ok: true, message: "User disabled successfully" });
+  try {
+    await deleteUser(id);
+    await audit({
+      userId: session.uid,
+      action: "user.delete",
+      entity: "user",
+      entityId: String(id),
+      before: { name: before.name, role: before.role, disabled: before.disabled },
+    });
+    return ok({ ok: true, message: "User disabled successfully" });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to delete user";
+    return fail(400, msg);
+  }
 });

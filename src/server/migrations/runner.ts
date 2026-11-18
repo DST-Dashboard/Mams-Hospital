@@ -1,47 +1,12 @@
-/**
- * [BE-01] OWNER: backend · Database migration runner.
- * Applies numbered .sql files in order, records them in _migrations,
- * supports upgrading existing databases, fresh databases, and transactional execution.
- */
 import fs from "node:fs";
 import path from "node:path";
-import type { SqliteDatabase } from "../sqlite-compat";
+import { Pool, PoolClient } from "pg";
+import { env } from "../env";
 
 export const MIGRATIONS_DIR = path.resolve(process.cwd(), "src/server/migrations");
+const MIGRATION_LOCK_ID = 849204921;
 
-export function initMigrationTable(db: SqliteDatabase): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS _migrations (
-      id TEXT PRIMARY KEY,
-      applied_at INTEGER NOT NULL
-    );
-  `);
-
-  // Existing database upgrade support:
-  // If the database has tables like 'tanks' or 'devices' from schema.sql / 001_init.sql,
-  // but _migrations was just created, mark 001_init.sql as already applied.
-  const checkTable = db.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='tanks'"
-  ).get();
-  const alreadyMarked = db.prepare(
-    "SELECT id FROM _migrations WHERE id = '001_init.sql'"
-  ).get();
-
-  if (checkTable && !alreadyMarked) {
-    db.prepare("INSERT INTO _migrations (id, applied_at) VALUES (?, ?)").run(
-      "001_init.sql",
-      Date.now()
-    );
-  }
-}
-
-export function getAppliedMigrations(db: SqliteDatabase): string[] {
-  initMigrationTable(db);
-  const rows = db.prepare("SELECT id FROM _migrations ORDER BY id ASC").all() as { id: string }[];
-  return rows.map((r) => r.id);
-}
-
-export function getMigrationFiles(dir = MIGRATIONS_DIR): string[] {
+export async function getMigrationFiles(dir = MIGRATIONS_DIR): Promise<string[]> {
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
@@ -49,39 +14,80 @@ export function getMigrationFiles(dir = MIGRATIONS_DIR): string[] {
     .sort();
 }
 
-export function getPendingMigrations(db: SqliteDatabase, dir = MIGRATIONS_DIR): string[] {
-  const applied = new Set(getAppliedMigrations(db));
-  const files = getMigrationFiles(dir);
-  return files.filter((f) => !applied.has(f));
+export async function initMigrationTable(client: PoolClient): Promise<void> {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id TEXT PRIMARY KEY,
+      applied_at BIGINT NOT NULL
+    );
+  `);
+}
+
+export async function getAppliedMigrations(client: PoolClient): Promise<string[]> {
+  await initMigrationTable(client);
+  const res = await client.query<{ id: string }>(
+    "SELECT id FROM schema_migrations ORDER BY id ASC"
+  );
+  return res.rows.map((r) => r.id);
 }
 
 /**
- * Runs all pending migrations sequentially inside transactions.
- * Returns the list of migration IDs applied in this run.
+ * Runs all pending migrations sequentially inside a transactional advisory lock.
+ * Uses DATABASE_URL_UNPOOLED if set, falling back to DATABASE_URL.
  */
-export function runMigrations(db: SqliteDatabase, dir = MIGRATIONS_DIR): string[] {
-  initMigrationTable(db);
-  const pending = getPendingMigrations(db, dir);
+export async function runMigrations(
+  connectionString?: string,
+  dir = MIGRATIONS_DIR
+): Promise<string[]> {
+  const connStr =
+    connectionString ??
+    process.env.DATABASE_URL_UNPOOLED ??
+    process.env.DATABASE_URL ??
+    env().DATABASE_URL;
+
+  const pool = new Pool({
+    connectionString: connStr,
+    max: 1,
+  });
+
+  const client = await pool.connect();
   const applied: string[] = [];
 
-  for (const filename of pending) {
-    const filePath = path.join(dir, filename);
-    const sql = fs.readFileSync(filePath, "utf8");
+  try {
+    await client.query("BEGIN");
+    // Acquire transaction-level advisory lock so concurrent deploys wait safely
+    await client.query("SELECT pg_advisory_xact_lock($1)", [MIGRATION_LOCK_ID]);
 
-    try {
-      db.transaction(() => {
-        db.exec(sql);
-        db.prepare("INSERT INTO _migrations (id, applied_at) VALUES (?, ?)").run(
-          filename,
-          Date.now()
+    await initMigrationTable(client);
+
+    const appliedSet = new Set(await getAppliedMigrations(client));
+    const files = await getMigrationFiles(dir);
+    const pending = files.filter((f) => !appliedSet.has(f));
+
+    for (const filename of pending) {
+      const filePath = path.join(dir, filename);
+      const sql = fs.readFileSync(filePath, "utf8");
+
+      try {
+        await client.query(sql);
+        await client.query(
+          "INSERT INTO schema_migrations (id, applied_at) VALUES ($1, $2)",
+          [filename, Date.now()]
         );
-      })();
-      applied.push(filename);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`Migration ${filename} failed: ${msg}`);
+        applied.push(filename);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`Migration ${filename} failed: ${msg}`);
+      }
     }
-  }
 
-  return applied;
+    await client.query("COMMIT");
+    return applied;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+    await pool.end();
+  }
 }

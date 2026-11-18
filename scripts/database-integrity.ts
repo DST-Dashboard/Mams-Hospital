@@ -1,10 +1,10 @@
-import type { SqliteDatabase } from "../src/server/sqlite-compat";
+import { q } from "../src/server/db";
 
-export function getDatabaseIntegrity(database: SqliteDatabase): string {
-  const result: unknown = database.prepare("PRAGMA integrity_check").get();
-  if (typeof result === "object" && result !== null) {
-    const integrity = Object.values(result)[0];
-    if (typeof integrity === "string") return integrity;
+export async function getDatabaseIntegrity(): Promise<string> {
+  try {
+    await q("SELECT 1");
+    return "ok";
+  } catch (err) {
+    throw new Error(`Database integrity check failed: ${String(err)}`);
   }
-  throw new Error("SQLite integrity check returned an unexpected result");
 }

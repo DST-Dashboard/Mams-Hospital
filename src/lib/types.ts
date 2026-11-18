@@ -6,7 +6,7 @@ import type { Session as MeResponse, Role } from "@/server/auth/session";
 // Type-only imports preserve strict server isolation while guaranteeing zero contract drift.
 export type { TankRow, TankInput, AlertRow, MeResponse, Role };
 
-export type DashboardData = ReturnType<typeof buildDashboard>;
+export type DashboardData = Awaited<ReturnType<typeof buildDashboard>>;
 export type TankCardData = DashboardData["tanks"][number];
 
 export interface ReadingsResponse {

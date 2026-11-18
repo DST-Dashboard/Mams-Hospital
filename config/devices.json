@@ -1,0 +1,42 @@
+[
+  {
+    "deviceId": "wio-e5-node-01",
+    "devEui": "2CF7F12063500F93",
+    "devAddr": "27FA91F0",
+    "label": "Tank 1 - Emergency Ward",
+    "location": "Block A Roof",
+    "simulated": false
+  },
+  {
+    "deviceId": "wio-e5-node-02",
+    "devEui": "2CF7F120635001D4",
+    "devAddr": "260B5B12",
+    "label": "Tank 2 - ICU & OT",
+    "location": "Block B Roof",
+    "simulated": true
+  },
+  {
+    "deviceId": "wio-e5-node-03",
+    "devEui": "2CF7F1206350085C",
+    "devAddr": "260B8F9A",
+    "label": "Tank 3 - General Ward",
+    "location": "Block C Roof",
+    "simulated": true
+  },
+  {
+    "deviceId": "wio-e5-node-04",
+    "devEui": "2CF7F1206350004C",
+    "devAddr": "260B23A1",
+    "label": "Tank 4 - Outpatient / Dialysis",
+    "location": "Block D Roof",
+    "simulated": true
+  },
+  {
+    "deviceId": "wio-e5-node-05",
+    "devEui": "2CF7F1206350005F",
+    "devAddr": "260B9C45",
+    "label": "Tank 5 - Service / Backup",
+    "location": "Block E Roof",
+    "simulated": true
+  }
+]

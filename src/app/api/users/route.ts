@@ -6,10 +6,11 @@ import { listUsers, createUser } from "@/server/repos/users";
 import { audit } from "@/server/repos/audit";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export const GET = handle(async () => {
   await requireRole("admin");
-  return ok(listUsers());
+  return ok(await listUsers());
 });
 
 export const POST = handle(async (req: Request) => {
@@ -17,8 +18,8 @@ export const POST = handle(async (req: Request) => {
   const body = UserCreateBody.parse(await req.json());
 
   try {
-    const newUser = createUser(body);
-    audit({
+    const newUser = await createUser(body);
+    await audit({
       userId: session.uid,
       action: "user.create",
       entity: "user",

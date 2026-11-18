@@ -1,8 +1,12 @@
 // [BE-13] OWNER: backend
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
+import { createTestSchema, TestSchemaContext } from "./test-db";
+import { q } from "@/server/db";
+import { sign } from "@/server/auth/session";
+import { env } from "@/server/env";
+import { getSystemStatus } from "@/server/services/system-status";
+import { logger } from "@/server/logger";
+import { GET as GET_STATUS } from "@/app/api/system/status/route";
 
 let mockCookieValue: string | undefined = undefined;
 vi.mock("next/headers", () => ({
@@ -12,80 +16,49 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 
-let testDbPath: string;
-let dbInstance: any;
-
 describe("BE-13: System Monitoring & Logging", () => {
-  let sign: typeof import("@/server/auth/session").sign;
-  let getSystemStatus: typeof import("@/server/services/system-status").getSystemStatus;
-  let logger: typeof import("@/server/logger").logger;
-  let GET_STATUS: typeof import("@/app/api/system/status/route").GET;
-
-  const SECRET = "secret-key-system-monitoring-test-32chars";
+  let testCtx: TestSchemaContext;
   let adminCookie: string;
   let viewerCookie: string;
 
   beforeAll(async () => {
-    testDbPath = path.join(os.tmpdir(), `ohtms-test-system-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-    process.env.DB_PATH = testDbPath;
-    process.env.SESSION_SECRET = SECRET;
-    process.env.TTS_WEBHOOK_SECRET = "system-test-webhook-secret";
+    testCtx = await createTestSchema();
 
-    const { openDb } = await import("@/server/db");
-    const { runMigrations } = await import("@/server/migrations/runner");
-    dbInstance = openDb(testDbPath);
-    (globalThis as any).__ohtmsDb = dbInstance;
-    runMigrations(dbInstance);
+    const [adminUser] = await q<{ id: number }>(
+      "INSERT INTO users (email, name, password_hash, role, disabled, created_at) VALUES ('admin@test.local', 'Admin', 'test-hash', 'admin', FALSE, $1) RETURNING id",
+      [Date.now()]
+    );
+    const [viewerUser] = await q<{ id: number }>(
+      "INSERT INTO users (email, name, password_hash, role, disabled, created_at) VALUES ('viewer@test.local', 'Viewer', 'test-hash', 'viewer', FALSE, $1) RETURNING id",
+      [Date.now()]
+    );
 
-    const sessionMod = await import("@/server/auth/session");
-    const createSession = (await import("@/server/repos/sessions")).createSession;
-    sign = async (session, secret, hours) => sessionMod.sign({
-      ...session,
-      sessionId: createSession(session.uid, hours),
-    }, secret, hours);
-    const sysMod = await import("@/server/services/system-status");
-    getSystemStatus = sysMod.getSystemStatus;
-    const logMod = await import("@/server/logger");
-    logger = logMod.logger;
-    GET_STATUS = (await import("@/app/api/system/status/route")).GET;
-
-    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
-      .run(1, "admin@test.local", "Admin", "test-hash", "admin", Date.now());
-    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
-      .run(2, "viewer@test.local", "Viewer", "test-hash", "viewer", Date.now());
-    adminCookie = await sign({ uid: 1, role: "admin", name: "Admin" }, SECRET, 1);
-    viewerCookie = await sign({ uid: 2, role: "viewer", name: "Viewer" }, SECRET, 1);
+    adminCookie = await sign({ uid: adminUser.id, role: "admin", name: "Admin" }, env().SESSION_SECRET, 1);
+    viewerCookie = await sign({ uid: viewerUser.id, role: "viewer", name: "Viewer" }, env().SESSION_SECRET, 1);
 
     // Seed devices and readings
     const t0 = 1700000000000;
-    dbInstance.prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)").run("dev-fresh", t0);
-    dbInstance.prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)").run("dev-stale", t0);
-    dbInstance.prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)").run("dev-offline", t0);
-    dbInstance.prepare("INSERT INTO devices (device_id, simulated, created_at) VALUES (?, 0, ?)").run("dev-none", t0);
+    await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ('dev-fresh', FALSE, $1)", [t0]);
+    await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ('dev-stale', FALSE, $1)", [t0]);
+    await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ('dev-offline', FALSE, $1)", [t0]);
+    await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ('dev-none', FALSE, $1)", [t0]);
 
     // Readings for fresh (< 15 min old at t0 + 10 min)
-    dbInstance.prepare("INSERT INTO readings (device_id, t, distance_cm, rssi, battery_pct) VALUES (?, ?, ?, ?, ?)").run("dev-fresh", t0 + 5 * 60_000, 150, -70, 95);
+    await q("INSERT INTO readings (device_id, t, distance_cm, rssi, battery_pct) VALUES ('dev-fresh', $1, 150, -70, 95)", [t0 + 5 * 60_000]);
     // Readings for stale (30 min old at t0 + 60 min)
-    dbInstance.prepare("INSERT INTO readings (device_id, t, distance_cm, rssi, battery_pct) VALUES (?, ?, ?, ?, ?)").run("dev-stale", t0 + 30 * 60_000, 160, -75, 88);
+    await q("INSERT INTO readings (device_id, t, distance_cm, rssi, battery_pct) VALUES ('dev-stale', $1, 160, -75, 88)", [t0 + 30 * 60_000]);
     // Readings for offline (> 60 min old at t0 + 150 min)
-    dbInstance.prepare("INSERT INTO readings (device_id, t, distance_cm, rssi, battery_pct) VALUES (?, ?, ?, ?, ?)").run("dev-offline", t0, 170, -85, 40);
+    await q("INSERT INTO readings (device_id, t, distance_cm, rssi, battery_pct) VALUES ('dev-offline', $1, 170, -85, 40)", [t0]);
   });
 
-  afterAll(() => {
-    if (dbInstance) {
-      dbInstance.close();
-    }
-    try {
-      if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
-      if (fs.existsSync(`${testDbPath}-wal`)) fs.unlinkSync(`${testDbPath}-wal`);
-      if (fs.existsSync(`${testDbPath}-shm`)) fs.unlinkSync(`${testDbPath}-shm`);
-    } catch {}
+  afterAll(async () => {
+    if (testCtx) await testCtx.cleanup();
   });
 
-  it("calculates system metrics and health status", () => {
+  it("calculates system metrics and health status", async () => {
     const asOf = 1700000000000 + 10 * 60_000;
-    dbInstance.prepare("INSERT INTO job_runs (name, last_run_at, ok, error) VALUES ('alerts', ?, 0, 'test failure')").run(asOf - 1000);
-    const status = getSystemStatus(asOf);
+    await q("INSERT INTO job_runs (name, last_run_at, ok, error) VALUES ('alerts', $1, FALSE, 'test failure')", [asOf - 1000]);
+    const status = await getSystemStatus(asOf);
 
     expect(status.version).toBeDefined();
     expect(status.uptimeS).toBeGreaterThanOrEqual(0);
@@ -114,31 +87,28 @@ describe("BE-13: System Monitoring & Logging", () => {
     mockCookieValue = adminCookie;
     const resAdmin = await GET_STATUS();
     expect(resAdmin.status).toBe(200);
-    const json = await resAdmin.json();
-    expect(json.db).toBeDefined();
-    expect(json.devices).toBeInstanceOf(Array);
+    const body = await resAdmin.json();
+    expect(body.uptimeS).toBeGreaterThanOrEqual(0);
+    expect(body.db.readings).toBe(3);
   });
 
-  it("structured logger redacts sensitive keys and formats json", () => {
-    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-    logger.info("User login attempt", {
-      email: "admin@mams.local",
-      password: "SuperSecretPassword123!",
-      token: "secret-token-xyz",
-      safeMeta: "all-good",
+  it("masks secrets in structured logs", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    logger.info("Processing session with token", {
+      token: "secret-token-123",
+      password: "my-password",
+      apiKey: "secret-api-key",
+      nested: {
+        clientSecret: "client-secret-xyz",
+      },
     });
 
-    expect(consoleSpy).toHaveBeenCalled();
-    const loggedStr = consoleSpy.mock.calls[0][0];
-    const loggedObj = JSON.parse(loggedStr);
-
-    expect(loggedObj.msg).toBe("User login attempt");
-    expect(loggedObj.email).toBe("admin@mams.local");
-    expect(loggedObj.password).toBe("[REDACTED]");
-    expect(loggedObj.token).toBe("[REDACTED]");
-    expect(loggedObj.safeMeta).toBe("all-good");
-
-    consoleSpy.mockRestore();
+    expect(logSpy).toHaveBeenCalled();
+    const output = logSpy.mock.calls[0][0] as string;
+    expect(output).not.toContain("secret-token-123");
+    expect(output).not.toContain("my-password");
+    expect(output).not.toContain("secret-api-key");
+    expect(output).toContain("[REDACTED]");
+    logSpy.mockRestore();
   });
 });

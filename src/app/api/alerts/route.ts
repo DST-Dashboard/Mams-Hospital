@@ -1,9 +1,12 @@
+import { safeAfter } from "@/server/after";
 import { requireRole } from "@/server/auth/guard";
 import { handle, ok } from "@/server/http";
 import * as alerts from "@/server/repos/alerts";
 import { AlertListQuery } from "@/contracts/alerts";
+import { runTick } from "@/server/jobs/tick";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export const GET = handle(async (req: Request) => {
   await requireRole("viewer");
@@ -17,7 +20,13 @@ export const GET = handle(async (req: Request) => {
     to: url.searchParams.get("to") ?? undefined,
   });
 
-  const rows = alerts.listFiltered({
+  safeAfter(async () => {
+    try {
+      await runTick();
+    } catch {}
+  });
+
+  const rows = await alerts.listFiltered({
     state: q.state,
     tankId: q.tankId,
     severity: q.severity,
