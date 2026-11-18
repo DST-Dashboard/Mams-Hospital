@@ -1,48 +1,87 @@
 # MAMS Water — Overhead Tank Management System (OHTMS)
 
-Team **DST-Dashboard** · repo `DST-Dashboard/Mams-Hospital` · 2 people: **Frontend** (UI/UX, screens) and **Backend & integrations** (API, alerts, hardware, deploy).
-**Start here:** `docs/TEAM.md` (who owns what) → `docs/TASKS.md` (your task list) → `docs/API-CONTRACT.md` (what's real vs mock).
+Hospital Overhead Tank Management System (OHTMS) for MAMS Hospital: a Next.js 15 App Router + TypeScript production application that monitors 5 rooftop water tanks via LoRaWAN ultrasonic sensors integrated with The Things Stack (TTN).
 
-A **standalone** web application: one Next.js process, one SQLite file, the dataset shipped inside the repo.
-No Supabase, no external database, no CDN, no cloud service required to run it.
+Running on **PostgreSQL**, deployed to **Vercel Hobby**, operating on **live TTN telemetry**, with zero mocks, zero locks, and full enterprise hospital alerting.
 
+---
+
+## Key Features
+
+- **Live LoRaWAN Telemetry**: End-to-end ingestion from The Things Stack (`wio-e5-node-01` .. `05`) via authenticated webhook `/api/ingest/tts` and historical storage backfill.
+- **Rooftop Fleet Dashboard**: Live water level, volume in litres, fill percentages, and sensor telemetry (RSSI, SNR, battery) across all 5 rooftop tanks.
+- **Authoritative 9 Alert Rules**:
+  - `NO_DATA` (sensor silence detection)
+  - `SENSOR_FAULT` (out-of-range, non-physical values, or transient spikes)
+  - `BATTERY_LOW` (telemetry battery ≤ 20%)
+  - `PREDICTED_EMPTY` (consumption run-out forecast < 60 min)
+  - `FLAPPING` (unstable boundary jumping)
+  - `LOW_LEVEL`, `CRITICAL_LOW`, `EMPTY` (dynamic water level threshold bands)
+  - `OVERFLOW_RISK` (sensor reading inside dead zone + margin)
+- **Lifecycle & Operational Controls**:
+  - Acknowledge, Resolve, and Snooze (15m, 1h, 4h, until tomorrow 08:00 IST).
+  - Quiet hours schedule (22:00–06:00 IST) suppressing warnings while delivering critical/emergency immediately.
+  - Automated Tier 2 supervisor escalation for unattended critical alerts after 30 minutes.
+- **On-Demand PDF & CSV Reports**:
+  - Weekly and Monthly operational summaries, and single-page forensic Incident reports generated on the fly via `pdfkit` (no cloud storage required).
+- **Security & User Management**:
+  - Hospital password policy enforcement (min 8 chars, 1 letter, 1 number/symbol).
+  - Single-use 30-minute hashed password reset tokens (active when `SMTP_URL` configured).
+  - Mandatory password change on first login.
+  - Role-based access control (Viewer, Operator, Admin) with "last active admin" protection.
+  - Strict Content Security Policy (CSP), HSTS, and frame-ancestors headers.
+  - Append-only audit logging on all administrative actions.
+
+---
+
+## Quick Start (Local Development)
+
+### 1. Requirements
+- Node.js >= 20.11 (Node 22 recommended)
+- PostgreSQL >= 15 (local daemon or cloud connection)
+
+### 2. Setup
 ```bash
-nvm use                       # Node 20+ (22 recommended)
+# Clone and install dependencies
+git clone https://github.com/DST-Dashboard/Mams-Hospital.git
+cd Mams-Hospital
 npm install
-cp .env.example .env          # set SESSION_SECRET and ADMIN_PASSWORD
-npm run setup                 # validates the dataset, builds var/ohtms.db
-npm run dev                   # http://localhost:3000  → sign in with ADMIN_EMAIL / ADMIN_PASSWORD
+
+# Configure environment
+cp .env.example .env
+# Edit .env and verify DATABASE_URL and secrets
+
+# Run migrations and bootstrap database
+npm run setup
+
+# Start development server
+npm run dev
+# Open http://localhost:3000 -> sign in with admin@mams.local / ChangeMe!2026
 ```
 
-| Command | What it does |
+---
+
+## Available Scripts
+
+| Script | Purpose |
 |---|---|
-| `npm run data:build` | `data/raw/*.json` (TTS exports) → validated `data/processed/` |
-| `npm run auth:reset` | Reset the admin login from `.env` **without** wiping data |
-| `npm run db:reset` / `db:seed` | Rebuild / create `var/ohtms.db` from `data/processed/` |
-| `npm test` | 30 unit tests (domain math, rules, analytics, dataset integrity) |
-| `npm run typecheck` · `npm run lint` | Strict TS · architecture-boundary lint |
-| `npm run alerts:replay` | Replays the week through the real alert engine on a scratch DB |
-| `npm run rules:replay` | Fast pure-rule replay for threshold tuning |
-| `docker compose up --build` | Production image, SQLite on a volume |
+| `npm run dev` | Start Next.js development server on port 3000 |
+| `npm run build` | Next.js optimized production build |
+| `npm run start` | Start Next.js production server |
+| `npm run setup` | Execute database migrations and seed bootstrap admin/devices |
+| `npm run db:migrate` | Run PostgreSQL schema migrations (`src/server/migrations/`) |
+| `npm run db:bootstrap` | Provision initial devices and admin user if missing |
+| `npm run test` | Run Vitest unit & integration test suite (236 tests) |
+| `npm run e2e` | Run Playwright end-to-end browser tests (headless Chromium) |
+| `npm run typecheck` | TypeScript compiler type-check (`tsc --noEmit`) |
+| `npm run lint` | ESLint verification |
+| `npm run ttn:smoke` | Smoke test live TTN connectivity and fetch recent uplinks |
+| `npm run auth:reset` | Reset admin account password to `.env` configuration |
+| `npm run backup:db` | Create a standalone PostgreSQL database dump |
+| `npm run restore:db` | Restore database from an existing backup dump |
 
-## What is built vs scaffolded
+---
 
-**Working, tested end to end:** dataset pipeline · SQLite store · derive/geometry · alert rules + engine (open/resolve/cooldown/hysteresis) ·
-analytics (stats, rollups, fill/drain events, forecast) · auth (JWT cookie, roles) · tank CRUD API with audit log + soft delete ·
-dashboard (5 graduated tanks, sparklines, freshness, alert banner) · tank detail (trend chart, stats, events, thresholds) ·
-TTS webhook receiver (disabled until `TTS_WEBHOOK_SECRET` set) · dark/light theme · IST/UTC toggle.
+## Deployment to Vercel Hobby
 
-**Scaffolded routes (each lists its feature IDs on screen):** analytics, alerts, alert detail, settings, admin/nodes, admin/users, admin/audit, about.
-Their **APIs mostly exist** — you are building UI, not backends. See `docs/FEATURES.md`.
-
-## Working in parallel
-Unbuilt endpoints return contract-valid sample data when `ENABLE_MOCKS=1` (header `x-mock: 1`), so frontend never waits for backend. Contracts live in `src/contracts/`. Every planned file already exists with an `OWNER` / task header — grep `STATUS: TODO` to see what's left.
-
-## Read next
-`docs/ARCHITECTURE.md` · `docs/DESIGN.md` · `docs/SCREENS.md` · `docs/AI-FRONTEND-RULES.md` · `docs/GIT-WORKFLOW.md` · `docs/RUNBOOK.md` (rules of the codebase) · `docs/DATA.md` (what the dataset really contains) · `docs/ALERTING.md` · `docs/FEATURES.md` (every feature ID → status)
-
-## Can't sign in?
-1. `.env` exists and has `ADMIN_EMAIL` / `ADMIN_PASSWORD` (a `#` inside a password starts a comment — wrap it in quotes).
-2. You changed the password after setup → run `npm run auth:reset`, then restart `npm run dev`.
-3. "Database not found" → run `npm run setup`.
-4. Default email is `admin@mams.local`.
+For full production deployment instructions with Neon/Vercel Postgres, The Things Stack webhook setup, and background cron scheduling, refer to **[docs/DEPLOY.md](docs/DEPLOY.md)**.

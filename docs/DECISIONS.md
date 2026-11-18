@@ -123,4 +123,57 @@ This document logs all architectural, database, runtime, and dependency decision
   - `npm test`: 41 test files, 223 tests passing 100% green.
   - `npm run build`: Production Next.js build compiled successfully.
 
+---
+
+## Phase 5: Unlocked Controls and Features
+
+- **Snooze & Resolve Controls**:
+  - Replaced locked buttons in `AlertDetail.tsx` and `AlertTable.tsx` with interactive dropdown `SnoozeMenu.tsx` (15m, 1h, 4h, until tomorrow 08:00 IST calculated via `calculateUntilTomorrow8amIST`).
+  - Added alert detail banner displaying "Snoozed until [timestamp]" when in snoozed state.
+  - Wired `handleResolve` directly to `POST /api/alerts/:id/resolve` with operational notes.
+  - Removed locked SMS, WhatsApp, and Voice dispatch rows from `AlertDetail.tsx` delivery card; kept in-app and email dispatch.
+- **Quiet Hours & Notification Preferences**:
+  - Fully implemented `GET/PUT /api/settings/notifications` for user email alerts, daily digest, and quiet hours schedule (default 22:00–06:00 IST).
+  - Enforced quiet hours in `dispatcher.ts`, deferring warning severity alerts during quiet hours while always delivering critical/emergency immediately.
+- **Historical Tank Dimensions ("Apply from now on only")**:
+  - Enabled option in `TankConfigForm.tsx` (Modal M5) and `EditNodeForm.tsx` to choose between "Recompute the whole history" (updates current dimensions) and "Apply from now on only" (inserts a row into `tank_dimensions` with `effective_from`).
+  - Telemetry derivation queries `tank_dimensions` across boundaries to maintain historic volume accuracy.
+- **On-Demand Reports Generation**:
+  - Enabled Weekly (PDF/CSV), Monthly (PDF/CSV), and Incident (PDF) reports generated on the fly via `pdfkit` without requiring cloud file storage.
+  - Provided direct download buttons in `ReportsList.tsx`.
+- **Anomalies Detection & Forecast Card Purge**:
+  - Replaced placeholder in `Playback.tsx` with live 24h statistical anomaly evaluation (`src/analytics/anomaly.ts`, rolling mean/σ, flags > 3σ).
+  - Purged predictive models / forecasts card entirely per §6 out-of-scope directives.
+- **Password Policies & Recovery**:
+  - Validated password complexity via `assertPasswordPolicy` (min 8 chars, 1 letter, 1 number/symbol).
+  - Implemented single-use 30-minute password reset tokens stored as SHA-256 hashes in `password_resets`.
+  - Added `ForcedPasswordModal.tsx` enforcing mandatory password update on first login or after administrative reset.
+  - Conditionally displays "Forgot password?" link on `/login` only when `SMTP_URL` is configured.
+- **Phase 5 Gate**:
+  - `tests/phase5-gate.test.ts`: 8/8 tests passed verifying snooze menu math, alert snooze/resolve database lifecycle, quiet hours preferences, historical dimension insertions, password reset token consumption, and on-demand PDF/CSV generation.
+  - Zero PhaseChips or locked controls remain in the application UI.
+
+---
+
+## Phase 6: Hardening, Security Headers, and Verification
+
+- **User Management & Last Admin Guard**:
+  - Secured `users` and `users/[id]` endpoints with bcrypt hashing; password hashes are stripped from all API outputs.
+  - Enforced "last admin guard" preventing deletion or disabling of the sole active administrator.
+  - Rejected disabled accounts in `currentSession()` and `requireRole()`.
+- **Audit Logging**:
+  - Ensured every state-changing route writes an append-only audit record to `audit_log`.
+  - Added filtering by entity, userId, action, time range, and pagination to `GET /api/audit`.
+- **Rate Limiting**:
+  - Backed login attempts with PostgreSQL `rate_limits` table: locks IP + email for 15 minutes after 5 consecutive failures.
+- **Security Headers & Connection Pooling**:
+  - Configured strict CSP, HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` in `next.config.ts`.
+  - Configured singleton pool caching on `globalThis.__ohtmsPool` across all environments to prevent connection exhaustion under heavy load.
+- **Phase 6 Verification**:
+  - `tests/phase6-hardening.test.ts`: 5/5 tests passed verifying login rate limiting, last-admin deletion prevention, password hash redaction, audit log paging, and next.config.ts security headers.
+  - Vitest test suite: 43 test files, 236 tests passed 100% green.
+  - Playwright E2E suite: 14/14 tests passed 100% green.
+  - Next.js production build (`npm run build`): Compiled successfully with 0 errors.
+
+
 
