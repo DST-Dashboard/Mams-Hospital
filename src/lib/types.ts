@@ -51,4 +51,9 @@ export interface AnalyticsResponse {
     endLevelCm: number;
     deltaCm: number;
   }[];
+  anomalies?: {
+    t: number;
+    value: number;
+    zScore: number;
+  }[];
 }

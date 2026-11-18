@@ -8,7 +8,6 @@ import { useToast } from "@/components/ui/Toast";
 import { patch, tankToInput } from "@/lib/api";
 import { validateTankForm, capacityLitres, type TankFormValues } from "@/lib/validation";
 import { ICON } from "@/components/ui/icons";
-import { PhaseChip } from "@/components/status/badges";
 import type { TankRow } from "@/lib/types";
 
 interface EditNodeFormProps {
@@ -23,6 +22,7 @@ export function EditNodeForm({ open, tank, allTanks, onClose, onSuccess }: EditN
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [m5Open, setM5Open] = useState(false);
+  const [applyFromNowOnly, setApplyFromNowOnly] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const initialShape = tank?.geometry?.shape?.kind === "cylinder" ? "cylinder" : "rectangle";
@@ -102,7 +102,10 @@ export function EditNodeForm({ open, tank, allTanks, onClose, onSuccess }: EditN
         ...(isCyl ? { radiusCm: r } : { widthCm: w, lengthCm: l }),
       });
 
-      await patch(`/api/tanks/${tank.id}`, payload);
+      await patch(`/api/tanks/${tank.id}`, {
+        ...payload,
+        applyFromNowOnly,
+      });
       toast.success(`${formValues.label} updated successfully.`);
       setM5Open(false);
       onSuccess();
@@ -353,13 +356,23 @@ export function EditNodeForm({ open, tank, allTanks, onClose, onSuccess }: EditN
 
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", background: "var(--bg-subtle)", padding: "var(--sp-4)", borderRadius: "var(--r-md)" }}>
             <label style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
-              <input type="radio" name="edit_m5_recompute" defaultChecked readOnly />
+              <input
+                type="radio"
+                name="edit_m5_recompute"
+                checked={!applyFromNowOnly}
+                onChange={() => setApplyFromNowOnly(false)}
+              />
               Recompute the whole history
             </label>
 
-            <label style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", fontSize: "13px", color: "var(--tx-quiet)", opacity: 0.6 }}>
-              <input type="radio" name="edit_m5_recompute" disabled />
-              Apply from now on only <PhaseChip phase={2} />
+            <label style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="edit_m5_recompute"
+                checked={applyFromNowOnly}
+                onChange={() => setApplyFromNowOnly(true)}
+              />
+              Apply from now on only (keep history on previous dimensions)
             </label>
           </div>
 

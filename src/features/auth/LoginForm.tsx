@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, Lock, LogIn } from "lucide-react";
-import { post } from "@/lib/api";
+import Link from "next/link";
+import { AlertCircle, LogIn } from "lucide-react";
+import { post, get } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 
@@ -19,6 +20,20 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [smtpConfigured, setSmtpConfigured] = useState(false);
+
+  useEffect(() => {
+    get<{ smtpConfigured: boolean }>("/api/auth/forgot")
+      .then((res: { smtpConfigured?: boolean }) => {
+        if (res?.smtpConfigured) {
+          setSmtpConfigured(true);
+        }
+      })
+      .catch(() => {
+        // Degrade gracefully: hide link when status check fails
+        setSmtpConfigured(false);
+      });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -77,14 +92,16 @@ export function LoginForm() {
         />
       </Field>
 
-      <div className="flex items-center justify-between pt-1">
-        {/* Reserved slot with PHASE 2 chip per spec §6.2 */}
-        <div className="flex items-center gap-1.5 text-[12px] text-[var(--tx-quiet)] select-none">
-          <Lock size={12} aria-hidden />
-          <span className="opacity-60">Forgot password?</span>
-          <span className="chip chip--phase text-[9px] py-0 px-1.5 ml-1">PHASE 2</span>
+      {smtpConfigured && (
+        <div className="flex items-center justify-end pt-1">
+          <Link
+            href="/forgot-password"
+            className="text-[12px] text-[var(--brand-500)] hover:underline"
+          >
+            Forgot password?
+          </Link>
         </div>
-      </div>
+      )}
 
       <Button
         type="submit"

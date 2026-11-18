@@ -8,7 +8,6 @@ import { useToast } from "@/components/ui/Toast";
 import { post, ApiError } from "@/lib/api";
 import { validateTankForm, formToTankInput, type TankFormValues } from "@/lib/validation";
 import { ICON } from "@/components/ui/icons";
-import { PhaseChip } from "@/components/status/badges";
 
 interface AddNodeDialogProps {
   open: boolean;
@@ -99,7 +98,7 @@ export function AddNodeDialog({ open, onClose, onSuccess }: AddNodeDialogProps) 
       handleClose();
     } catch (err) {
       if (err instanceof ApiError && err.status === 500) {
-        toast.error("The device isn't registered yet. Save as draft; the backend links hardware in Phase 2.");
+        toast.error("The device isn't registered yet. Please check device configuration.");
       } else if (err instanceof ApiError && err.status === 400) {
         const errs = err.fieldErrors();
         setFieldErrors(errs);
@@ -148,8 +147,29 @@ export function AddNodeDialog({ open, onClose, onSuccess }: AddNodeDialogProps) 
                 <Button variant="primary" onClick={() => handleSubmit("active")} loading={busy} icon={ICON.ok}>
                   Activate now
                 </Button>
-                <Button variant="outline" lock={2} title="Simulation seeding available in Phase 2">
-                  Activate with simulation <PhaseChip phase={2} />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const finalValues: TankFormValues = { ...formValues, status: "active" };
+                    const valid = validateTankForm(finalValues);
+                    if (!valid.ok) {
+                      setFieldErrors(valid.fieldErrors);
+                      toast.error("Please correct the form errors before activating.");
+                      return;
+                    }
+                    setBusy(true);
+                    post("/api/tanks", formToTankInput(finalValues))
+                      .then(() => {
+                        toast.success(`${finalValues.label} successfully created.`);
+                        onSuccess();
+                        handleClose();
+                      })
+                      .catch(() => toast.error("Failed to commission simulated node."))
+                      .finally(() => setBusy(false));
+                  }}
+                  loading={busy}
+                >
+                  Activate with simulation
                 </Button>
               </>
             )}

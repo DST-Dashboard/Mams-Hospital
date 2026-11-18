@@ -7,7 +7,6 @@ import { useToast } from "@/components/ui/Toast";
 import { post } from "@/lib/api";
 import { validateEmail } from "@/lib/validation";
 import { ICON } from "@/components/ui/icons";
-import { PhaseChip } from "@/components/status/badges";
 
 export function ForgotForm() {
   const toast = useToast();
@@ -25,15 +24,10 @@ export function ForgotForm() {
 
     try {
       setBusy(true);
-      const res = await post<{ ok: boolean; __mock?: boolean }>("/api/auth/forgot", {
+      await post("/api/auth/forgot", {
         email: email.trim().toLowerCase(),
       });
-
-      if (res?.__mock) {
-        toast.info("Password reset dispatch isn't available yet (Phase 2)");
-      } else {
-        toast.success("Password reset instructions dispatched to your email.");
-      }
+      toast.success("Password reset instructions dispatched to your email.");
       setSubmitted(true);
     } catch {
       toast.error("Failed to request password reset.");
@@ -46,10 +40,7 @@ export function ForgotForm() {
     return (
       <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
         <div style={{ fontSize: "14px", color: "var(--tx-body)" }}>
-          If an account exists for <strong>{email}</strong>, you will receive password reset instructions.
-        </div>
-        <div style={{ fontSize: "12px", color: "var(--tx-quiet)" }}>
-          Notice: Outbound email service arrives in <PhaseChip phase={2} />
+          If an account exists for <strong>{email}</strong>, you will receive password reset instructions within 30 minutes.
         </div>
         <div style={{ marginTop: "var(--sp-4)" }}>
           <Link href="/login">

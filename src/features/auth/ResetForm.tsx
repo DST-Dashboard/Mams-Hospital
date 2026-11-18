@@ -40,16 +40,11 @@ export function ResetForm() {
 
     try {
       setBusy(true);
-      const res = await post<{ ok: boolean; __mock?: boolean }>("/api/auth/reset", {
+      await post("/api/auth/reset", {
         token,
         password,
       });
-
-      if (res?.__mock) {
-        toast.info("Password reset endpoint is a sample (Phase 2 backend pending)");
-      } else {
-        toast.success("Password reset successfully. You can now sign in.");
-      }
+      toast.success("Password reset successfully. You can now sign in.");
       setResetDone(true);
     } catch {
       toast.error("Failed to reset password. Link may have expired.");

@@ -45,6 +45,7 @@ function computeCapacityL(d: TankDraft): number {
 export function DimensionsModal({ open, tanks, onSuccess }: DimensionsModalProps) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [applyFromNowOnly, setApplyFromNowOnly] = useState(false);
 
   // Initialize draft rows for unconfirmed tanks
   const [drafts, setDrafts] = useState<TankDraft[]>(() =>
@@ -120,15 +121,18 @@ export function DimensionsModal({ open, tanks, onSuccess }: DimensionsModalProps
       updateDraft(draft.id, { status: "saving" });
 
       try {
-        const payload = tankToInput(origRow, {
-          shape: draft.shape,
-          heightCm: Number(draft.heightCm),
-          radiusCm: draft.shape === "cylinder" ? Number(draft.radiusCm) : undefined,
-          widthCm: draft.shape === "rectangle" ? Number(draft.widthCm) : undefined,
-          lengthCm: draft.shape === "rectangle" ? Number(draft.lengthCm) : undefined,
-          deadZoneCm: Number(draft.deadZoneCm),
-          dimsConfirmed: true,
-        });
+        const payload = {
+          ...tankToInput(origRow, {
+            shape: draft.shape,
+            heightCm: Number(draft.heightCm),
+            radiusCm: draft.shape === "cylinder" ? Number(draft.radiusCm) : undefined,
+            widthCm: draft.shape === "rectangle" ? Number(draft.widthCm) : undefined,
+            lengthCm: draft.shape === "rectangle" ? Number(draft.lengthCm) : undefined,
+            deadZoneCm: Number(draft.deadZoneCm),
+            dimsConfirmed: true,
+          }),
+          applyFromNowOnly,
+        };
 
         await patch(`/api/tanks/${draft.id}`, payload);
         updateDraft(draft.id, { status: "done" });
@@ -285,6 +289,16 @@ export function DimensionsModal({ open, tanks, onSuccess }: DimensionsModalProps
             );
           })}
         </div>
+
+        <label className="flex items-center gap-2 text-[13px] font-semibold text-[var(--tx-head)] cursor-pointer pt-2 border-t border-[var(--bd-soft)]">
+          <input
+            type="checkbox"
+            checked={applyFromNowOnly}
+            onChange={(e) => setApplyFromNowOnly(e.target.checked)}
+            style={{ width: "16px", height: "16px", accentColor: "var(--brand-800)" }}
+          />
+          Apply from now on only (keep history on previous dimensions)
+        </label>
       </div>
     </Dialog>
   );

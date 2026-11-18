@@ -1,7 +1,6 @@
 // [BE-03] OWNER: backend · Change password API
 import { requireRole } from "@/server/auth/guard";
 import { handle, ok, fail } from "@/server/http";
-import { ChangePasswordBody } from "@/contracts";
 import { changeUserPassword } from "@/server/repos/users";
 import { audit } from "@/server/repos/audit";
 
@@ -10,7 +9,13 @@ export const runtime = "nodejs";
 
 export const POST = handle(async (req: Request) => {
   const session = await requireRole("viewer");
-  const { current, next } = ChangePasswordBody.parse(await req.json());
+  const body = await req.json();
+  const current = body.current ?? body.currentPassword;
+  const next = body.next ?? body.newPassword;
+
+  if (!current || !next) {
+    return fail(400, "Current and new password are required");
+  }
 
   try {
     await changeUserPassword(session.uid, current, next);

@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Breadcrumbs, Card } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/Button";
-import { SeverityChip, AlertStateChip, PhaseChip } from "@/components/status/badges";
+import { SeverityChip, AlertStateChip } from "@/components/status/badges";
 import { useToast } from "@/components/ui/Toast";
 import { useAlerts, useTank, useReadings, useMe, useDashboard } from "@/lib/hooks";
 import { post } from "@/lib/api";
@@ -13,6 +13,7 @@ import { useUi } from "@/lib/store";
 import { canAcknowledgeAlerts } from "@/lib/roles";
 import { ICON } from "@/components/ui/icons";
 import { TrendChart } from "@/components/charts/TrendChart";
+import { SnoozeMenu } from "./SnoozeMenu";
 import { normalizeAlert } from "./adapter";
 import "@/styles/views-ops.css";
 
@@ -104,15 +105,11 @@ export function AlertDetail({ alertId }: AlertDetailProps) {
   const handleResolve = async () => {
     try {
       setBusy(true);
-      const res = await post<{ ok: boolean; __mock?: boolean }>(`/api/alerts/${alertId}/resolve`, {
+      await post(`/api/alerts/${alertId}/resolve`, {
         note: responseNote.trim() || undefined,
       });
-      if (res && res.__mock) {
-        toast.info("Not saved: resolve isn't live yet (backend pending)");
-      } else {
-        toast.success("Alert resolved.");
-        mutateAlerts();
-      }
+      toast.success("Alert resolved.");
+      mutateAlerts();
     } catch {
       toast.error("Failed to resolve alert.");
     } finally {
@@ -168,6 +165,28 @@ export function AlertDetail({ alertId }: AlertDetailProps) {
           </Link>
         </div>
       </div>
+
+      {alert.state === "snoozed" && alert.snoozedUntil && (
+        <div
+          role="status"
+          style={{
+            background: "rgba(234, 179, 8, 0.12)",
+            border: "1px solid rgba(234, 179, 8, 0.4)",
+            color: "var(--tx-head)",
+            padding: "var(--sp-3) var(--sp-4)",
+            borderRadius: "var(--r-md)",
+            marginBottom: "var(--sp-4)",
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--sp-2)",
+            fontSize: "14px",
+            fontWeight: 600,
+          }}
+        >
+          <ICON.clock size={18} />
+          <span>Snoozed until {stamp(alert.snoozedUntil, tz, true)}</span>
+        </div>
+      )}
 
       {/* Two-up: Evidence Card | Lifecycle Card */}
       <div className="ops-grid-2">
@@ -272,13 +291,23 @@ export function AlertDetail({ alertId }: AlertDetailProps) {
               </div>
             </div>
 
-            <div className="ops-step-item" style={{ opacity: 0.5 }}>
-              <div className="ops-step-dot ops-step-dot--locked">🔒</div>
+            <div className="ops-step-item">
+              <div
+                className={`ops-step-dot ${
+                  alert.state === "escalated" ? "ops-step-dot--current" : "ops-step-dot--locked"
+                }`}
+              >
+                {alert.state === "escalated" ? "!" : "○"}
+              </div>
               <div className="ops-step-content">
                 <div className="ops-step-title">
-                  Escalated <PhaseChip phase={2} />
+                  {alert.state === "escalated" ? "Escalated to Tier 2" : "Escalation"}
                 </div>
-                <div className="ops-step-meta">Supervisor paging & incident tickets</div>
+                <div className="ops-step-meta">
+                  {alert.state === "escalated"
+                    ? "Unacknowledged past threshold — escalated to supervisors"
+                    : "Tier 2 paging active for unacknowledged critical alerts"}
+                </div>
               </div>
             </div>
           </div>
@@ -359,13 +388,11 @@ export function AlertDetail({ alertId }: AlertDetailProps) {
                 Resolve
               </Button>
 
-              <Button
-                variant="outline"
-                lock={2}
-                title="Snoozing alerts is available in Phase 2"
-              >
-                Snooze
-              </Button>
+              <SnoozeMenu
+                alertId={alertId}
+                disabled={alert.state === "resolved"}
+                onSnoozed={() => mutateAlerts()}
+              />
             </div>
           </div>
         ) : (
@@ -390,25 +417,17 @@ export function AlertDetail({ alertId }: AlertDetailProps) {
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", fontSize: "13px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>
-                <strong>In-App Webhook</strong>
+                <strong>In-App Notification</strong>
               </span>
               <span style={{ color: "var(--ok-tx)", fontWeight: 700 }}>Delivered ✓</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", opacity: 0.6 }}>
-              <span>SMS Direct Alert</span>
-              <PhaseChip phase={2} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", opacity: 0.6 }}>
-              <span>Email Digest</span>
-              <PhaseChip phase={2} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", opacity: 0.6 }}>
-              <span>WhatsApp Emergency Alert</span>
-              <PhaseChip phase={3} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", opacity: 0.6 }}>
-              <span>Automated Voice Call</span>
-              <PhaseChip phase={3} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>
+                <strong>Email Dispatch</strong>
+              </span>
+              <span style={{ color: "var(--tx-quiet)", fontWeight: 600 }}>
+                {alert.severity === "critical" || alert.severity === "emergency" ? "Dispatched ✓" : "Configured / Rate-Limited"}
+              </span>
             </div>
           </div>
         </Card>

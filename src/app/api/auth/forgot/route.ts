@@ -11,6 +11,13 @@ import { logger } from "@/server/logger";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+export const GET = handle(async () => {
+  const settings = env();
+  return ok({
+    smtpConfigured: Boolean(settings.SMTP_URL),
+  });
+});
+
 export const POST = handle(async (req: Request) => {
   const startedAt = Date.now();
   const { email } = ForgotBody.parse(await req.json());

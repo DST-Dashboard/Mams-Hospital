@@ -102,6 +102,39 @@ export function AddNodeWizard() {
         throw new Error(json?.error ?? "Failed to create tank node");
       }
 
+      const created = (await res.json().catch(() => ({}))) as { id?: number };
+      const tankId = created?.id;
+
+      // Persist recipients if tank was created successfully
+      if (tankId) {
+        const channels: ("in_app" | "email")[] = [];
+        if (data.notifyInApp) channels.push("in_app");
+        if (data.notifyEmail) channels.push("email");
+
+        if (channels.length > 0) {
+          try {
+            const usersRes = await fetch("/api/users");
+            if (usersRes.ok) {
+              const usersJson = await usersRes.json();
+              const userList = (usersJson.users || usersJson.items || usersJson) as { id: number; email: string }[];
+              const emails = data.recipientEmails.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+              for (const email of emails) {
+                const matched = userList.find((u) => u.email.toLowerCase() === email);
+                if (matched) {
+                  await fetch(`/api/tanks/${tankId}/recipients`, {
+                    method: "PUT",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ userId: matched.id, channels }),
+                  });
+                }
+              }
+            }
+          } catch {
+            // Non-blocking recipient sync
+          }
+        }
+      }
+
       success(`Tank node "${data.label}" successfully commissioned!`);
       router.push("/admin/nodes");
     } catch (err: unknown) {

@@ -6,7 +6,6 @@ import { useToast } from "@/components/ui/Toast";
 import { post } from "@/lib/api";
 import { validatePassword } from "@/lib/validation";
 import { ICON } from "@/components/ui/icons";
-import { PhaseChip } from "@/components/status/badges";
 
 export function ChangePasswordForm() {
   const toast = useToast();
@@ -31,19 +30,14 @@ export function ChangePasswordForm() {
 
     try {
       setBusy(true);
-      const res = await post<{ ok: boolean; __mock?: boolean }>("/api/auth/password", {
+      await post("/api/auth/password", {
         currentPassword,
         newPassword,
       });
-
-      if (res && res.__mock) {
-        toast.info("Password change isn't available yet (Phase 2)");
-      } else {
-        toast.success("Password updated successfully.");
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-      }
+      toast.success("Password updated successfully.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
     } catch {
       toast.error("Failed to update password.");
     } finally {
@@ -98,10 +92,7 @@ export function ChangePasswordForm() {
         />
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "var(--sp-2)" }}>
-        <span style={{ fontSize: "12px", color: "var(--tx-quiet)" }}>
-          Phase 2 Security <PhaseChip phase={2} />
-        </span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginTop: "var(--sp-2)" }}>
         <Button variant="primary" type="submit" loading={busy} icon={ICON.lock}>
           Update password
         </Button>

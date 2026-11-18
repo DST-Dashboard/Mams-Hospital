@@ -3,7 +3,7 @@ import { RoleSchema } from "@/contracts/common";
 
 export const COOKIE = "ohtms_session";
 export type Role = "viewer" | "operator" | "admin";
-export interface Session { uid: number; role: Role; name: string; sessionId?: string }
+export interface Session { uid: number; role: Role; name: string; sessionId?: string; mustChangePassword?: boolean }
 const rank: Record<Role, number> = { viewer: 0, operator: 1, admin: 2 };
 export const atLeast = (have: Role, need: Role) => rank[have] >= rank[need];
 

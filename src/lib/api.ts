@@ -73,6 +73,7 @@ async function mutate<T>(url: string, method: string, body?: unknown): Promise<T
   return attachMockMeta(data, r);
 }
 
+export const get = <T = unknown>(url: string) => fetcher<T>(url);
 export const post = <T = unknown>(url: string, body?: unknown) => mutate<T>(url, "POST", body);
 export const put = <T = unknown>(url: string, body?: unknown) => mutate<T>(url, "PUT", body);
 export const patch = <T = unknown>(url: string, body?: unknown) => mutate<T>(url, "PATCH", body);

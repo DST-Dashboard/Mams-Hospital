@@ -9,6 +9,7 @@ import { MegaNav } from "./MegaNav";
 import { GlobalAlertBanner } from "./GlobalAlertBanner";
 import { FirstLoadGate } from "./FirstLoadGate";
 import { SessionGate } from "./SessionGate";
+import { ForcedPasswordModal } from "@/features/auth/ForcedPasswordModal";
 import { PageFrame } from "./PageFrame";
 import { Footer } from "./Footer";
 import { BackToTop } from "./BackToTop";
@@ -65,6 +66,8 @@ export function Shell({ children }: ShellProps) {
     <div className="ohtms-app min-h-screen flex flex-col bg-[var(--bg-page)] text-[var(--tx-main)]">
       {/* M6 Session Expiry Modal Gate */}
       <SessionGate />
+      {/* Forced Password Change Modal */}
+      <ForcedPasswordModal />
 
       {/* Offline Status Warning Banner */}
       {!isOnline && (

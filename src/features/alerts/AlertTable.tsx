@@ -16,6 +16,7 @@ import { ICON } from "@/components/ui/icons";
 import { normalizeAlert, type NormalizedAlert } from "./adapter";
 import { AlertFilters, type AlertFilterValues } from "./AlertFilters";
 import { AckDialog } from "./AckDialog";
+import { SnoozeMenu } from "./SnoozeMenu";
 import "@/styles/views-ops.css";
 
 export function AlertTable() {
@@ -164,18 +165,26 @@ export function AlertTable() {
       header: "",
       align: "right",
       render: (r: NormalizedAlert) => {
-        if (!canAck || r.state !== "active") return null;
+        if (!canAck || r.state === "resolved") return null;
         return (
-          <div className="ops-table-action-cell" onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="outline"
+          <div className="ops-table-action-cell flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {r.state === "active" && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ICON.ok}
+                onClick={(e) => handleDirectAck(e, r)}
+                title="Acknowledge alert"
+              >
+                Acknowledge
+              </Button>
+            )}
+            <SnoozeMenu
+              alertId={r.id}
+              disabled={false}
+              onSnoozed={() => mutate()}
               size="sm"
-              icon={ICON.ok}
-              onClick={(e) => handleDirectAck(e, r)}
-              title="Acknowledge alert"
-            >
-              Acknowledge
-            </Button>
+            />
           </div>
         );
       },
