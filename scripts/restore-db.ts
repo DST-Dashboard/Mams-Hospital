@@ -39,10 +39,9 @@ export function performRestore(options: RestoreOptions = {}): {
       }))
       .sort((a, b) => b.time - a.time);
 
-    if (candidates.length === 0) {
-      throw new Error("No backup files found in backups directory");
-    }
-    backupFile = candidates[0].path;
+    const newest = candidates[0];
+    if (!newest) throw new Error("No backup files found in backups directory");
+    backupFile = newest.path;
   }
 
   if (!fs.existsSync(backupFile)) {

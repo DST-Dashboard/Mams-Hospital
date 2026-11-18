@@ -29,7 +29,14 @@ for (const f of rawFiles) {
   manifestRaw.push({ file: f, sha256: crypto.createHash("sha256").update(buf).digest("hex"), bytes: buf.length });
   const arr = JSON.parse(buf.toString("utf8")) as unknown[];
   arr.forEach((rec, i) => {
-    if (rec && typeof rec === "object" && "name" in rec && (rec as { name: string }).name !== "as.up.data.forward") return;
+    if (!rec || typeof rec !== "object") return;
+    const candidate = rec as Record<string, unknown>;
+    if ("name" in candidate && candidate.name !== "as.up.data.forward") return;
+    const nested = candidate.data;
+    const nestedObject = nested && typeof nested === "object" ? nested as Record<string, unknown> : undefined;
+    const isDirectUplink = "end_device_ids" in candidate && "uplink_message" in candidate;
+    const isNestedUplink = !!nestedObject && "end_device_ids" in nestedObject && "uplink_message" in nestedObject;
+    if (!isDirectUplink && !isNestedUplink) return;
     try {
       const { reading, device } = normalizeUplink(rec);
       (byDevice.get(reading.deviceId) ?? byDevice.set(reading.deviceId, []).get(reading.deviceId)!).push(reading);
@@ -38,6 +45,11 @@ for (const f of rawFiles) {
       throw new Error(`${f}[${i}]: ${(e as Error).message}`);
     }
   });
+}
+
+if (byDevice.size > 0 && byDevice.size < 5 && fs.existsSync(path.join(PROCESSED_DIR, "manifest.json"))) {
+  console.log(`data:build — raw exports contain ${byDevice.size} device(s); keeping the known 5-device data/processed snapshot.`);
+  process.exit(0);
 }
 
 fs.mkdirSync(path.join(PROCESSED_DIR, "readings"), { recursive: true });
