@@ -36,9 +36,17 @@ export const POST = handle(async (req: Request) => {
   const secret = env().TTS_WEBHOOK_SECRET;
   if (!secret) return fail(503, "Live ingest is not enabled (set TTS_WEBHOOK_SECRET)");
 
-  const headerSecret = req.headers.get("x-webhook-secret") ?? "";
+  const url = new URL(req.url);
+  const headerSecret =
+    req.headers.get("x-webhook-secret") ??
+    req.headers.get("x-downlink-apikey") ??
+    req.headers.get("x-tts-secret") ??
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
+    url.searchParams.get("secret") ??
+    url.searchParams.get("key") ??
+    "";
   if (!safeEq(headerSecret, secret)) {
-    await logIngestReject("Invalid or missing X-Webhook-Secret", null, remote);
+    await logIngestReject("Invalid or missing webhook secret", null, remote);
     return fail(401, "Bad webhook secret");
   }
 
