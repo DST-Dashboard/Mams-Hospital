@@ -1,0 +1,34 @@
+# Replace the two handles below with real GitHub usernames, then enable
+# "Require review from Code Owners" in branch protection.
+# FRONTEND = @FRONTEND_GITHUB_HANDLE   BACKEND = @BACKEND_GITHUB_HANDLE
+
+# Frontend lane
+/src/app/(app)/            @FRONTEND_GITHUB_HANDLE
+/src/app/login/            @FRONTEND_GITHUB_HANDLE
+/src/app/kiosk/            @FRONTEND_GITHUB_HANDLE
+/src/app/*.tsx             @FRONTEND_GITHUB_HANDLE
+/src/features/             @FRONTEND_GITHUB_HANDLE
+/src/components/           @FRONTEND_GITHUB_HANDLE
+/src/lib/                  @FRONTEND_GITHUB_HANDLE
+/src/styles/               @FRONTEND_GITHUB_HANDLE
+/public/                   @FRONTEND_GITHUB_HANDLE
+/e2e/                      @FRONTEND_GITHUB_HANDLE
+
+# Backend lane
+/src/app/api/              @BACKEND_GITHUB_HANDLE
+/src/server/               @BACKEND_GITHUB_HANDLE
+/src/domain/               @BACKEND_GITHUB_HANDLE
+/src/analytics/            @BACKEND_GITHUB_HANDLE
+/src/dataset/              @BACKEND_GITHUB_HANDLE
+/scripts/                  @BACKEND_GITHUB_HANDLE
+/data/                     @BACKEND_GITHUB_HANDLE
+/infra/                    @BACKEND_GITHUB_HANDLE
+/tests/                    @BACKEND_GITHUB_HANDLE
+/Dockerfile                @BACKEND_GITHUB_HANDLE
+/docker-compose.yml        @BACKEND_GITHUB_HANDLE
+/.github/workflows/        @BACKEND_GITHUB_HANDLE
+
+# Shared: both must approve
+/src/contracts/            @FRONTEND_GITHUB_HANDLE @BACKEND_GITHUB_HANDLE
+/package.json              @FRONTEND_GITHUB_HANDLE @BACKEND_GITHUB_HANDLE
+/docs/API-CONTRACT.md      @FRONTEND_GITHUB_HANDLE @BACKEND_GITHUB_HANDLE

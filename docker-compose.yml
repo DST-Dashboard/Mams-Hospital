@@ -1,0 +1,17 @@
+services:
+  ohtms:
+    build: .
+    ports: ["3000:3000"]
+    environment:
+      SESSION_SECRET: ${SESSION_SECRET:?generate one: openssl rand -hex 32}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@mams.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set a real admin password}
+      CLOCK_MODE: ${CLOCK_MODE:-anchored}
+      TTS_WEBHOOK_SECRET: ${TTS_WEBHOOK_SECRET:-}
+    volumes: ["ohtms-data:/data"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+volumes:
+  ohtms-data:

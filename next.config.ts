@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const config: NextConfig = {
+  serverExternalPackages: ["better-sqlite3"], // native module: keep out of the bundle
+  poweredByHeader: false,
   reactStrictMode: true,
-  serverExternalPackages: ["better-sqlite3"],
 };
-
-export default nextConfig;
+export default config;

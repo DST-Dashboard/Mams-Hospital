@@ -1,37 +1,14 @@
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
+node_modules
+.next
+out
+var/*.db*
+var/*.bak*
+backups
 .env
-
-# typescript
+.env.local
 *.tsbuildinfo
 next-env.d.ts
-
-# SQLite database
-var/*.db
-var/*.db-wal
-var/*.db-shm
-!var/.gitkeep
+coverage
+data/raw/*.json
+test-results/
+playwright-report/

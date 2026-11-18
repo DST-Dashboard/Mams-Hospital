@@ -1,35 +1,43 @@
 import type { Config } from "tailwindcss";
 
-const config: Config = {
-  content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/features/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
+// In Prompt 1, Tailwind is in legacy compatibility mode.
+// Preflight is disabled so that design-system layered CSS rules in globals.css govern base styles.
+// Legacy color aliases resolve to CSS variables in tokens.css.
+const v = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
+export default {
+  content: ["./src/**/*.{ts,tsx}"],
   darkMode: ["selector", '[data-theme="dark"]'],
+  corePlugins: {
+    preflight: false,
+  },
   theme: {
     extend: {
       colors: {
-        bg: "rgb(var(--bg) / <alpha-value>)",
-        surface: "rgb(var(--surface) / <alpha-value>)",
-        raised: "rgb(var(--raised) / <alpha-value>)",
-        line: "rgb(var(--line) / <alpha-value>)",
-        ink: "rgb(var(--ink) / <alpha-value>)",
-        muted: "rgb(var(--muted) / <alpha-value>)",
-        tide: "rgb(var(--tide) / <alpha-value>)",
-        ok: "rgb(var(--ok) / <alpha-value>)",
-        warn: "rgb(var(--warn) / <alpha-value>)",
-        crit: "rgb(var(--crit) / <alpha-value>)",
-        emerg: "rgb(var(--emerg) / <alpha-value>)",
-        info: "rgb(var(--info) / <alpha-value>)",
+        bg: v("bg"),
+        surface: v("surface"),
+        raised: v("raised"),
+        line: v("line"),
+        ink: v("ink"),
+        muted: v("muted"),
+        tide: v("tide"),
+        ok: v("ok"),
+        warn: v("warn"),
+        crit: v("crit"),
+        emerg: v("emerg"),
+        info: v("info"),
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["var(--f-ui)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--f-display)", "Georgia", "serif"],
+        mono: ["var(--f-mono)", "ui-monospace", "monospace"],
+      },
+      borderRadius: {
+        sm: "4px",
+        DEFAULT: "8px",
+        lg: "14px",
       },
     },
   },
   plugins: [],
-};
-
-export default config;
+} satisfies Config;
