@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db, tx } from "../db";
 import type { Thresholds, TankGeometry } from "@/domain";
+import { listForTank, setForTank } from "./recipients";
 
 export interface TankRow {
   id: number;
@@ -249,7 +250,7 @@ export function bulkUpdateThresholds(
 
 export function cloneTank(sourceId: number, newLabel: string, newDeviceId: string | null): number {
   const source = getTank(sourceId);
-  if (!source) throw new Error("Source tank not found");
+  if (!source || source.deletedAt != null) throw new Error("Source tank not found");
 
   const input: TankInput = {
     label: newLabel,
@@ -271,7 +272,24 @@ export function cloneTank(sourceId: number, newLabel: string, newDeviceId: strin
     quietEnd: source.thresholds.quietEnd,
   };
 
-  return createTank(input);
+  return tx(() => {
+    const newId = createTank(input);
+    db().prepare(`
+      UPDATE tanks SET overflow_margin_cm = ?, persistence = ?, cooldown_min = ?,
+        hysteresis_pct = ?, no_data_min = ?, spike_cm = ?
+      WHERE id = ?
+    `).run(
+      source.thresholds.overflowMarginCm ?? 10,
+      source.thresholds.persistence ?? 3,
+      source.thresholds.cooldownMin ?? 30,
+      source.thresholds.hysteresisPct ?? 5,
+      source.thresholds.noDataMin ?? 15,
+      source.thresholds.spikeCm ?? 80,
+      newId
+    );
+    for (const recipient of listForTank(sourceId)) setForTank(newId, recipient.userId, recipient.channels);
+    return newId;
+  });
 }
 
 // ── Export / Import ──────────────────────────────────────────

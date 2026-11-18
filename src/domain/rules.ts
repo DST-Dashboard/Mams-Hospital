@@ -1,10 +1,14 @@
 import { derive } from "./derive";
-import type { Reading, Severity, TankGeometry, Thresholds } from "./types";
+import type { AlertType, Reading, Severity, TankGeometry, Thresholds } from "./types";
+import { resolveThresholds } from "./types";
+import { rapidDrain } from "./rules/rapid-drain";
+import { predictedEmpty } from "./rules/predicted-empty";
+import { flatline } from "./rules/flatline";
+import { dataGap } from "./rules/data-gap";
+import { batteryLow } from "./rules/battery-low";
+import { flapping } from "./rules/flapping";
 
-export type AlertType =
-  | "LOW_LEVEL" | "CRITICAL_LOW" | "EMPTY" | "OVERFLOW_RISK" | "SENSOR_FAULT" | "NO_DATA"
-  // Registered for Phase 2 (see docs/ALERTING.md) — evaluators intentionally not implemented yet:
-  | "RAPID_DRAIN" | "BATTERY_LOW" | "PREDICTED_EMPTY" | "FLATLINE" | "PUMP_STUCK" | "DATA_GAP" | "GATEWAY_OFFLINE";
+
 
 export interface RuleResult {
   type: AlertType;
@@ -31,7 +35,8 @@ const median = (a: number[]) => {
 
 /** Pure: same inputs → same outputs. The server's alert engine reconciles results with stored alerts. */
 export function evaluateRules(ctx: RuleContext): RuleResult[] {
-  const { readings, geometry: g, th, now } = ctx;
+  const { readings, geometry: g, th: rawTh, now } = ctx;
+  const th = resolveThresholds(rawTh);
   const out: RuleResult[] = [];
   const latest = readings.at(-1);
   const recent = last(readings, th.persistence).map((r) => derive(r.distanceCm, g));
@@ -66,6 +71,37 @@ export function evaluateRules(ctx: RuleContext): RuleResult[] {
     message: (nm) => `${nm} sensor reporting an implausible value (${spike ? cand?.distanceCm : (latest.distanceCm ?? "none")} cm)`,
   });
   if (bad) return out; // never derive level alerts from an unusable reading
+
+  const rapid = rapidDrain(readings, g, now);
+  out.push({
+    type: "RAPID_DRAIN", severity: "critical", raise: rapid.raise, clear: rapid.clear, value: rapid.dropCm,
+    message: (name) => `${name} rapid level drop of ${rapid.dropCm} cm`,
+  });
+  const emptyForecast = predictedEmpty(readings, g, now);
+  out.push({
+    type: "PREDICTED_EMPTY", severity: "critical", raise: emptyForecast.raise, clear: emptyForecast.clear, value: emptyForecast.minutes,
+    message: (name) => `${name} predicted to be empty in ${emptyForecast.minutes ?? "unknown"} min`,
+  });
+  const flat = flatline(readings, g, now);
+  out.push({
+    type: "FLATLINE", severity: "warning", raise: flat.raise, clear: flat.clear, value: flat.rangeCm,
+    message: (name) => `${name} has not changed level for 6 hours (range ${flat.rangeCm ?? "unknown"} cm)`,
+  });
+  const gap = dataGap(readings, now);
+  out.push({
+    type: "DATA_GAP", severity: "warning", raise: gap.raise, clear: gap.clear, value: gap.gapMs,
+    message: (name) => `${name} sensor data gap detected (${gap.gapMs == null ? "unknown" : Math.round(gap.gapMs / 60_000)} min)`,
+  });
+  const battery = batteryLow(readings, now);
+  out.push({
+    type: "BATTERY_LOW", severity: "warning", raise: battery.raise, clear: battery.clear, value: battery.batteryPct,
+    message: (name) => `${name} sensor battery low (${battery.batteryPct ?? "unknown"}%)`,
+  });
+  const flap = flapping(readings, g, now);
+  out.push({
+    type: "FLAPPING", severity: "warning", raise: flap.raise, clear: flap.clear,
+    message: (name) => `${name} alternating large level changes indicate an unstable sensor`,
+  });
 
   // ── Level ladder (exclusive bands so only ONE level alert is open) ──
   const ladder = [

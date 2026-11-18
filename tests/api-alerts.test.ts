@@ -9,6 +9,7 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => (name === "ohtms_session" && mockCookieValue ? { value: mockCookieValue } : undefined),
   }),
+  headers: async () => new Headers(),
 }));
 
 let testDbPath: string;
@@ -38,9 +39,17 @@ describe("api-alerts", () => {
     dbInstance = openDb(testDbPath);
     (globalThis as any).__ohtmsDb = dbInstance;
     runMigrations(dbInstance);
+    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
+      .run(2, "operator@test.local", "Priya Operator", "test-hash", "operator", Date.now());
+    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
+      .run(10, "viewer@test.local", "Guest Viewer", "test-hash", "viewer", Date.now());
 
     const sessionMod = await import("@/server/auth/session");
-    sign = sessionMod.sign;
+    const createSession = (await import("@/server/repos/sessions")).createSession;
+    sign = async (session, secret, hours) => sessionMod.sign({
+      ...session,
+      sessionId: createSession(session.uid, hours),
+    }, secret, hours);
     alerts = await import("@/server/repos/alerts");
     tanks = await import("@/server/repos/tanks");
     readings = await import("@/server/repos/readings");

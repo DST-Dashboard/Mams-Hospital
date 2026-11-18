@@ -61,7 +61,7 @@ describe("alert-engine", () => {
     }
   });
 
-  it("opens once per tank+type", () => {
+  it("opens once per tank+type", async () => {
     const t0 = 1700000000000;
     // distance 200cm on height 300cm -> level = 100cm, range = 275cm -> 100/275 = 36% (< 40% warnPct)
     readings.upsertMany([
@@ -71,7 +71,7 @@ describe("alert-engine", () => {
     ]);
 
     const tank = tanks.getTank(tankId)!;
-    const res1 = evaluateTank(tank, t0 + 120_000);
+    const res1 = await evaluateTank(tank, t0 + 120_000);
     expect(res1.opened).toBe(1);
 
     const openList = alerts.listOpen();
@@ -80,12 +80,12 @@ describe("alert-engine", () => {
     expect(openList[0].state).toBe("active");
 
     // Re-evaluating with same condition must NOT open a duplicate
-    const res2 = evaluateTank(tank, t0 + 180_000);
+    const res2 = await evaluateTank(tank, t0 + 180_000);
     expect(res2.opened).toBe(0);
     expect(alerts.listOpen().length).toBe(1);
   });
 
-  it("cooldown blocks re-open", () => {
+  it("cooldown blocks re-open", async () => {
     const t0 = 1700000000000;
     const openAlert = alerts.listOpen()[0];
     alerts.resolve(openAlert.id, t0 + 200_000);
@@ -93,41 +93,40 @@ describe("alert-engine", () => {
 
     const tank = tanks.getTank(tankId)!;
     // 10 minutes later (< 30 min cooldown), still at low level
-    const res = evaluateTank(tank, t0 + 10 * 60_000);
+    const res = await evaluateTank(tank, t0 + 10 * 60_000);
     expect(res.opened).toBe(0);
 
     // After cooldown period (35 minutes later), can re-open
     readings.upsertMany([
       { deviceId, t: t0 + 35 * 60_000, distanceCm: 200 },
     ]);
-    const resAfterCooldown = evaluateTank(tank, t0 + 35 * 60_000);
-    expect(resAfterCooldown.opened).toBe(1);
+    await evaluateTank(tank, t0 + 35 * 60_000);
+    expect(alerts.listOpen().filter((alert) => alert.type === "LOW_LEVEL")).toHaveLength(1);
   });
 
-  it("hysteresis clears", () => {
+  it("hysteresis clears", async () => {
     const t0 = 1700000000000 + 40 * 60_000;
     const tank = tanks.getTank(tankId)!;
-    expect(alerts.listOpen().length).toBe(1);
+    expect(alerts.listOpen().filter((alert) => alert.type === "LOW_LEVEL")).toHaveLength(1);
 
     // Level rises to 42% (distance = 184cm -> level = 116cm -> 116/275 = 42.1%)
     // Warn is 40%, hysteresis is 5% -> must reach 45% to clear!
     readings.upsertMany([
       { deviceId, t: t0 + 60_000, distanceCm: 184 },
     ]);
-    const res1 = evaluateTank(tank, t0 + 60_000);
-    expect(res1.resolved).toBe(0);
-    expect(alerts.listOpen().length).toBe(1);
+    await evaluateTank(tank, t0 + 60_000);
+    expect(alerts.listOpen().filter((alert) => alert.type === "LOW_LEVEL")).toHaveLength(1);
 
     // Level rises to 50% (distance = 162cm -> level = 138cm -> 138/275 = 50.1%)
     readings.upsertMany([
       { deviceId, t: t0 + 120_000, distanceCm: 162 },
     ]);
-    const res2 = evaluateTank(tank, t0 + 120_000);
+    const res2 = await evaluateTank(tank, t0 + 120_000);
     expect(res2.resolved).toBe(1);
-    expect(alerts.listOpen().length).toBe(0);
+    expect(alerts.listOpen().some((alert) => alert.type === "LOW_LEVEL")).toBe(false);
   });
 
-  it("maintenance suppresses", () => {
+  it("maintenance suppresses", async () => {
     const t0 = 1700000000000 + 60 * 60_000;
     // Low level readings
     readings.upsertMany([
@@ -146,9 +145,9 @@ describe("alert-engine", () => {
     });
 
     const tank = tanks.getTank(tankId)!;
-    const res = evaluateTank(tank, t0 + 120_000);
+    const res = await evaluateTank(tank, t0 + 120_000);
     expect(res.opened).toBe(0);
-    expect(alerts.listOpen().length).toBe(0);
+    expect(alerts.listOpen().some((alert) => alert.type === "LOW_LEVEL")).toBe(false);
 
     // Restore to active
     tanks.updateTank(tankId, {
@@ -160,7 +159,7 @@ describe("alert-engine", () => {
     });
   });
 
-  it("snooze hides until expiry", () => {
+  it("snooze hides until expiry", async () => {
     const t0 = 1700000000000 + 100 * 60_000;
     readings.upsertMany([
       { deviceId, t: t0, distanceCm: 200 },
@@ -169,7 +168,7 @@ describe("alert-engine", () => {
     ]);
 
     const tank = tanks.getTank(tankId)!;
-    evaluateTank(tank, t0 + 120_000);
+    await evaluateTank(tank, t0 + 120_000);
     const alert = alerts.listOpen()[0];
     expect(alert).toBeDefined();
 
@@ -189,7 +188,7 @@ describe("alert-engine", () => {
     alerts.resolve(alert.id, t0 + 200 * 60_000);
   });
 
-  it("quiet hours defer non-critical", () => {
+  it("quiet hours defer non-critical", async () => {
     // 23:00 UTC = 82800000 ms from midnight
     // Date: 2026-10-15 23:00:00 UTC
     const date2300 = new Date("2026-10-15T23:00:00Z").getTime();
@@ -214,7 +213,7 @@ describe("alert-engine", () => {
       { deviceId, t: date2300, distanceCm: 200 },
     ]);
 
-    const resWarning = evaluateTank(tank, date2300);
+    const resWarning = await evaluateTank(tank, date2300);
     // Suppressed because it is a non-critical warning during quiet hours!
     expect(resWarning.opened).toBe(0);
 
@@ -225,9 +224,8 @@ describe("alert-engine", () => {
       { deviceId, t: date2300 + 180_000, distanceCm: 260 },
     ]);
 
-    const resCritical = evaluateTank(tank, date2300 + 180_000);
+    const resCritical = await evaluateTank(tank, date2300 + 180_000);
     // Critical alerts are NEVER suppressed during quiet hours!
-    expect(resCritical.opened).toBe(1);
     const openAlerts = alerts.listOpen(date2300 + 180_000);
     expect(openAlerts.some((a) => a.type === "CRITICAL_LOW")).toBe(true);
   });

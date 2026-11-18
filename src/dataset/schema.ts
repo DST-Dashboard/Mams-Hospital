@@ -27,12 +27,16 @@ const UplinkMessage = looseObject({
 });
 
 const Body = looseObject({
-  end_device_ids: looseObject({ device_id: z.string(), dev_eui: z.string().optional(), dev_addr: z.string().optional() }),
+  end_device_ids: looseObject({
+    device_id: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
+    dev_eui: z.string().optional(),
+    dev_addr: z.string().optional(),
+  }),
   received_at: z.string().optional(),
   uplink_message: UplinkMessage,
 });
 
-export const TtsUplinkSchema = looseObject({ time: z.string().optional(), data: Body.optional() }).superRefine((v: any, ctx: any) => {
+export const TtsUplinkSchema = looseObject({ time: z.string().optional(), data: Body.optional() }).superRefine((v, ctx) => {
   if (!v.data && !("end_device_ids" in v)) ctx.addIssue({ code: "custom", message: "not a TTS uplink (no data / end_device_ids)" });
 });
 export type TtsBody = z.infer<typeof Body>;

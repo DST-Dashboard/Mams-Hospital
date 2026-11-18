@@ -7,7 +7,7 @@
 import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import { loadDevices, loadManifest, loadReadings } from "../src/dataset/files";
-import { openDb, SCHEMA_PATH } from "../src/server/db";
+import { openDb } from "../src/server/db";
 import { env } from "../src/server/env";
 
 try { process.loadEnvFile(".env"); } catch { /* .env is optional in dev */ }

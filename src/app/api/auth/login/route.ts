@@ -8,8 +8,9 @@ import { audit } from "@/server/repos/audit";
 import { checkLoginRateLimit, recordLoginFailure, resetLoginRateLimit } from "@/server/rate-limit";
 import { createSession } from "@/server/repos/sessions";
 import * as users from "@/server/repos/users";
+import { hasTotpEnabled, verifyUserTotp } from "@/server/auth/totp";
 
-const Body = z.object({ email: z.string().trim().email(), password: z.string().min(1) });
+const Body = z.object({ email: z.string().trim().email(), password: z.string().min(1), totp: z.string().regex(/^\d{6}$/).optional() });
 // Constant-time comparison dummy
 const DUMMY = bcrypt.hashSync("not-a-real-password", 10);
 
@@ -17,7 +18,7 @@ export const POST = handle(async (req: Request) => {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
   const userAgent = req.headers.get("user-agent") || null;
 
-  const { email, password } = Body.parse(await req.json());
+  const { email, password, totp } = Body.parse(await req.json());
   const rateLimitKey = `login:${ip}:${email.toLowerCase()}`;
 
   // Rate limit check
@@ -36,15 +37,28 @@ export const POST = handle(async (req: Request) => {
     return fail(401, "Email or password is incorrect");
   }
 
+  if (hasTotpEnabled(u.id)) {
+    if (!totp) {
+      recordLoginFailure(rateLimitKey);
+      audit({ userId: u.id, action: "login.failed", entity: "user", entityId: String(u.id), ip });
+      return fail(401, "Two-factor authentication required", { twoFactorRequired: true });
+    }
+    if (!verifyUserTotp(u.id, totp)) {
+      recordLoginFailure(rateLimitKey);
+      audit({ userId: u.id, action: "login.failed", entity: "user", entityId: String(u.id), ip });
+      return fail(401, "Email, password, or verification code is incorrect");
+    }
+  }
+
   // Login successful
   resetLoginRateLimit(rateLimitKey);
   const e = env();
 
   // Create persisted session record
-  createSession(u.id, e.SESSION_HOURS, ip, userAgent);
+  const sessionId = createSession(u.id, e.SESSION_HOURS, ip, userAgent);
 
   const token = await sign(
-    { uid: u.id, role: u.role, name: u.name },
+    { uid: u.id, role: u.role, name: u.name, sessionId },
     e.SESSION_SECRET,
     e.SESSION_HOURS
   );

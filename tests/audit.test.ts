@@ -9,6 +9,7 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => (name === "ohtms_session" && mockCookieValue ? { value: mockCookieValue } : undefined),
   }),
+  headers: async () => new Headers(),
 }));
 
 let testDbPath: string;
@@ -34,7 +35,11 @@ describe("BE-04: Audit Management", () => {
     runMigrations(dbInstance);
 
     const sessionMod = await import("@/server/auth/session");
-    sign = sessionMod.sign;
+    const createSession = (await import("@/server/repos/sessions")).createSession;
+    sign = async (session, secret, hours) => sessionMod.sign({
+      ...session,
+      sessionId: createSession(session.uid, hours),
+    }, secret, hours);
     const auditMod = await import("@/server/repos/audit");
     audit = auditMod.audit;
     listAudit = auditMod.listAudit;
@@ -46,6 +51,8 @@ describe("BE-04: Audit Management", () => {
       .run(1, "admin@test.local", "System Admin", "hash", "admin", Date.now());
     dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
       .run(2, "op@test.local", "Nurse Operator", "hash", "operator", Date.now());
+    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
+      .run(3, "viewer@test.local", "Viewer", "hash", "viewer", Date.now());
 
     // Seed 10 audit records across different times and entities
     const baseT = 1700000000000;

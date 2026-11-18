@@ -1,7 +1,7 @@
 // [BE-03] OWNER: backend · Reset password completion endpoint
 import { handle, ok, fail } from "@/server/http";
 import { ResetBody } from "@/contracts";
-import { verifyAndConsumePasswordReset } from "@/server/repos/users";
+import { PasswordResetError, verifyAndConsumePasswordReset } from "@/server/repos/users";
 import { audit } from "@/server/repos/audit";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export const POST = handle(async (req: Request) => {
     });
     return ok({ ok: true, message: "Password has been reset successfully. Please sign in with your new password." });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Password reset failed";
-    return fail(400, msg);
+    if (err instanceof PasswordResetError) return fail(400, err.message);
+    throw err;
   }
 });

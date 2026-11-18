@@ -14,6 +14,16 @@ export interface SessionRecord {
   ip: string | null;
 }
 
+interface SessionRow {
+  id: string;
+  user_id: number;
+  created_at: number;
+  expires_at: number;
+  revoked_at: number | null;
+  user_agent: string | null;
+  ip: string | null;
+}
+
 export function createSession(
   userId: number,
   hours = 8,
@@ -57,7 +67,7 @@ export function revokeAllUserSessions(userId: number): void {
 export function listUserSessions(userId: number): SessionRecord[] {
   const rows = db()
     .prepare("SELECT * FROM sessions WHERE user_id = ? ORDER BY created_at DESC")
-    .all(userId) as any[];
+    .all(userId) as SessionRow[];
 
   return rows.map((r) => ({
     id: r.id,
@@ -70,9 +80,9 @@ export function listUserSessions(userId: number): SessionRecord[] {
   }));
 }
 
-export function cleanExpiredSessions(): number {
+export function cleanExpiredSessions(asOf = Date.now()): number {
   const res = db()
-    .prepare("DELETE FROM sessions WHERE expires_at < ? OR revoked_at IS NOT NULL")
-    .run(Date.now());
+    .prepare("DELETE FROM sessions WHERE expires_at <= ? OR revoked_at IS NOT NULL")
+    .run(asOf);
   return res.changes;
 }

@@ -1,6 +1,6 @@
 import { requireRole } from "@/server/auth/guard";
 import { handle, ok } from "@/server/http";
-import { exportTanks } from "@/server/repos/tanks";
+import { exportTanks } from "@/server/services/tank-import-export";
 
 export const dynamic = "force-dynamic";
 

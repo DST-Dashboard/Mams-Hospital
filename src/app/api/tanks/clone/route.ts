@@ -2,7 +2,8 @@ import { requireRole } from "@/server/auth/guard";
 import { fail, handle, ok } from "@/server/http";
 import { audit } from "@/server/repos/audit";
 import { CloneBody } from "@/contracts/tanks";
-import { cloneTank, getTank } from "@/server/repos/tanks";
+import { getTank } from "@/server/repos/tanks";
+import { cloneTank } from "@/server/services/tank-import-export";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export const POST = handle(async (req: Request) => {
   const body = CloneBody.parse(await req.json());
 
   const source = getTank(body.sourceId);
-  if (!source) return fail(404, "Source tank not found");
+  if (!source || source.deletedAt != null) return fail(404, "Source tank not found");
 
   const newId = cloneTank(body.sourceId, body.label, body.deviceId);
   const cloned = getTank(newId);

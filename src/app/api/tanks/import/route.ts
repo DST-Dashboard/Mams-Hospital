@@ -2,7 +2,7 @@ import { requireRole } from "@/server/auth/guard";
 import { handle, ok } from "@/server/http";
 import { audit } from "@/server/repos/audit";
 import { TankExportFile } from "@/contracts/tanks";
-import { importTanks } from "@/server/repos/tanks";
+import { importTanks } from "@/server/services/tank-import-export";
 
 export const dynamic = "force-dynamic";
 

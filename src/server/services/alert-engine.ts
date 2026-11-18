@@ -1,9 +1,10 @@
-import { evaluateRules, MIN, shouldDeferForQuietHours } from "@/domain";
+import { evaluateRules, MIN, shouldDeferForQuietHours, resolveThresholds } from "@/domain";
 import { tx } from "../db";
 import { now } from "../clock";
 import * as alerts from "../repos/alerts";
 import * as readings from "../repos/readings";
 import { listTanks, type TankRow } from "../repos/tanks";
+import { queueNotificationDispatch } from "../repos/notifications";
 
 /**
  * Reconciles pure rule results with stored alerts (open / resolve) for one tank.
@@ -20,21 +21,23 @@ export function evaluateTank(tank: TankRow, asOf = now()): { opened: number; res
 
   alerts.reopenExpiredSnoozes(asOf);
 
-  const recent = readings.recent(tank.deviceId, Math.max(12, tank.thresholds.persistence + 6), asOf);
+  const thresholds = resolveThresholds(tank.thresholds);
+  const recent = readings.recent(tank.deviceId, Math.max(12, thresholds.persistence + 6), asOf);
   const latest = recent.at(-1);
-  const results = evaluateRules({ readings: recent, geometry: tank.geometry, th: tank.thresholds, now: asOf })
+  const results = evaluateRules({ readings: recent, geometry: tank.geometry, th: thresholds, now: asOf })
     .filter((r) => tank.dimsConfirmed || r.type === "NO_DATA");
+  const openedAlertIds: number[] = [];
 
   tx(() => {
     for (const r of results) {
       const existing = alerts.findOpen(tank.id, r.type, asOf);
       if (r.raise && !existing) {
-        if (shouldDeferForQuietHours(r.severity, asOf, tank.thresholds.quietStart, tank.thresholds.quietEnd)) {
+        if (shouldDeferForQuietHours(r.severity, asOf, thresholds.quietStart, thresholds.quietEnd)) {
           continue;
         }
         const last = alerts.lastOpenedAt(tank.id, r.type);
-        if (last != null && asOf - last < tank.thresholds.cooldownMin * MIN) continue;
-        alerts.open({
+        if (last != null && asOf - last < thresholds.cooldownMin * MIN) continue;
+        openedAlertIds.push(alerts.open({
           tankId: tank.id,
           type: r.type,
           severity: r.severity,
@@ -44,7 +47,7 @@ export function evaluateTank(tank: TankRow, asOf = now()): { opened: number; res
           triggerT: latest?.t ?? null,
           triggerDistanceCm: latest?.distanceCm ?? null,
           simulated: tank.simulated,
-        });
+        }));
         out.opened++;
       } else if (r.clear && existing) {
         alerts.resolve(existing.id, asOf);
@@ -52,16 +55,17 @@ export function evaluateTank(tank: TankRow, asOf = now()): { opened: number; res
       }
     }
   });
+  for (const alertId of openedAlertIds) queueNotificationDispatch(alertId);
   return out;
 }
 
 export const evaluateAll = (asOf = now()) => {
   alerts.reopenExpiredSnoozes(asOf);
-  return listTanks().reduce(
-    (acc, t) => {
-      const r = evaluateTank(t, asOf);
-      return { opened: acc.opened + r.opened, resolved: acc.resolved + r.resolved };
-    },
-    { opened: 0, resolved: 0 }
-  );
+  const total = { opened: 0, resolved: 0 };
+  for (const tank of listTanks()) {
+    const result = evaluateTank(tank, asOf);
+    total.opened += result.opened;
+    total.resolved += result.resolved;
+  }
+  return total;
 };

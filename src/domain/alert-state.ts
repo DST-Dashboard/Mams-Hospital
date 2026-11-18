@@ -1,7 +1,7 @@
 /**
  * [BE-02] OWNER: backend · State machine: active → acknowledged → snoozed → resolved / escalated / suppressed.
  */
-import type { AlertType, Severity } from "./types";
+import type { Severity } from "./types";
 
 export type AlertState = "active" | "acknowledged" | "snoozed" | "resolved" | "suppressed" | "escalated";
 

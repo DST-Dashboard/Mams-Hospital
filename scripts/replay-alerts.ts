@@ -17,7 +17,7 @@ async function main() {
   // One evaluation per 5-minute cycle (the live scheduler decides identically, just more often).
   const times = (db().prepare("SELECT t FROM readings WHERE device_id = (SELECT MIN(device_id) FROM readings) ORDER BY t").all() as { t: number }[]).map((r) => r.t + 30_000);
   const tanks = listTanks();
-  for (const t of times) for (const tank of tanks) evaluateTank(tank, t);
+  for (const t of times) for (const tank of tanks) await evaluateTank(tank, t);
   const rows = db().prepare("SELECT t.label, a.type, a.severity, COUNT(*) n, SUM(a.resolved_at IS NULL) still_open FROM alerts a JOIN tanks t ON t.id=a.tank_id GROUP BY 1,2,3 ORDER BY 1,2").all();
   console.table(rows);
   fs.rmSync(scratch, { force: true }); fs.rmSync(`${scratch}-wal`, { force: true }); fs.rmSync(`${scratch}-shm`, { force: true });

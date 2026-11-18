@@ -9,6 +9,7 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => (name === "ohtms_session" && mockCookieValue ? { value: mockCookieValue } : undefined),
   }),
+  headers: async () => new Headers(),
 }));
 
 let testDbPath: string;
@@ -43,7 +44,11 @@ describe("BE-06: Tanks, Zones, and Templates", () => {
     runMigrations(dbInstance);
 
     const sessionMod = await import("@/server/auth/session");
-    sign = sessionMod.sign;
+    const createSession = (await import("@/server/repos/sessions")).createSession;
+    sign = async (session, secret, hours) => sessionMod.sign({
+      ...session,
+      sessionId: createSession(session.uid, hours),
+    }, secret, hours);
     tanks = await import("@/server/repos/tanks");
     zones = await import("@/server/repos/zones");
     templates = await import("@/server/repos/templates");
@@ -57,6 +62,10 @@ describe("BE-06: Tanks, Zones, and Templates", () => {
     POST_IMPORT = (await import("@/app/api/tanks/import/route")).POST;
 
     // Seed admin & viewer cookies
+    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
+      .run(1, "admin@test.local", "Admin", "test-hash", "admin", Date.now());
+    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
+      .run(2, "viewer@test.local", "Viewer", "test-hash", "viewer", Date.now());
     adminCookie = await sign({ uid: 1, role: "admin", name: "Admin" }, SECRET, 1);
     viewerCookie = await sign({ uid: 2, role: "viewer", name: "Viewer" }, SECRET, 1);
   });
@@ -272,6 +281,13 @@ describe("BE-06: Tanks, Zones, and Templates", () => {
         quietStart: "23:00",
         quietEnd: "05:00",
       });
+      dbInstance.prepare(`
+        UPDATE tanks SET overflow_margin_cm = 14, persistence = 5, cooldown_min = 60,
+          hysteresis_pct = 7, no_data_min = 20, spike_cm = 90
+        WHERE id = ?
+      `).run(sourceId);
+      const recipients = await import("@/server/repos/recipients");
+      recipients.setForTank(sourceId, 2, ["in_app", "email"]);
 
       const req = new Request("http://localhost/api/tanks/clone", {
         method: "POST",
@@ -293,13 +309,16 @@ describe("BE-06: Tanks, Zones, and Templates", () => {
       expect(cloned.geometry.shape.kind).toBe("rectangle");
       expect(cloned.thresholds.warnPct).toBe(50);
       expect(cloned.thresholds.quietStart).toBe("23:00");
+      expect(cloned.thresholds.persistence).toBe(5);
+      expect(cloned.thresholds.overflowMarginCm).toBe(14);
+      expect(recipients.listForTank(cloned.id)).toEqual([{ userId: 2, channels: ["in_app", "email"] }]);
     });
 
     it("exports and imports tanks safely in transaction", async () => {
       mockCookieValue = adminCookie;
 
       // 1. Export
-      const resExport = await GET_EXPORT(new Request("http://localhost/api/tanks/export"));
+      const resExport = await GET_EXPORT();
       expect(resExport.status).toBe(200);
       const exportData = await resExport.json();
       expect(exportData.schema).toBe(1);

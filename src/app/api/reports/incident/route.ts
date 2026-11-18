@@ -1,9 +1,13 @@
-// [BE-11] OWNER: backend · CONTRACT: file download (PDF/CSV) (src/contracts) · STATUS: mock — replace with the real implementation
+// [BE-11] OWNER: backend · CONTRACT: IncidentReportQuery (src/contracts/reports)
 import { requireRole } from "@/server/auth/guard";
-import { handle } from "@/server/http";
-import { mockOr501 } from "@/server/mock";
+import { fail, handle } from "@/server/http";
+import { IncidentReportQuery } from "@/contracts/reports";
+import { incidentReport, reportDownload } from "@/server/services/reports";
 export const dynamic = "force-dynamic";
-export const GET = handle(async () => {
+export const GET = handle(async (req: Request) => {
   await requireRole("operator");
-  return mockOr501("file download", () => ({ note: "Real endpoint returns a PDF/CSV file; no JSON mock." }));
+  const query = IncidentReportQuery.parse(Object.fromEntries(new URL(req.url).searchParams));
+  const report = incidentReport(query.alertId);
+  if (!report) return fail(404, "Alert not found");
+  return reportDownload(report, query.format);
 });

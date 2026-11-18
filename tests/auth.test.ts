@@ -193,8 +193,11 @@ describe("BE-03: Authentication and User Management", () => {
 
       const token = createPasswordReset(user.email);
       expect(token).toBeDefined();
+      const sessionId = createSession(user.id);
+      expect(validateSession(sessionId).valid).toBe(true);
 
       await verifyAndConsumePasswordReset(token, "BrandNewPassword#99");
+      expect(validateSession(sessionId).valid).toBe(false);
 
       // Verify user can now authenticate with new password
       const updated = byId(user.id)!;
@@ -215,12 +218,14 @@ describe("BE-03: Authentication and User Management", () => {
         role: "operator",
         password: "OldPassword#1",
       });
+      const sessionId = createSession(user.id);
 
       await expect(
         changeUserPassword(user.id, "WrongPassword#1", "NewPassword#2")
       ).rejects.toThrow(/Current password is incorrect/);
 
       await changeUserPassword(user.id, "OldPassword#1", "NewPassword#2");
+      expect(validateSession(sessionId).valid).toBe(false);
       const updated = byId(user.id)!;
       expect(await bcrypt.compare("NewPassword#2", updated.passwordHash)).toBe(true);
     });

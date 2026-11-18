@@ -5,6 +5,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { openDb } from "../src/server/db";
 import { logger } from "../src/server/logger";
+import { getDatabaseIntegrity } from "./database-integrity";
+
+if (fs.existsSync(".env")) process.loadEnvFile(".env");
 
 export interface RestoreOptions {
   backupFile?: string;
@@ -47,21 +50,15 @@ export function performRestore(options: RestoreOptions = {}): {
   }
 
   // 1. Verify backup file integrity before touching target DB
-  let backupDb: any = null;
-  let integrity = "ok";
+  const backupDb = openDb(backupFile, true);
+  let integrity: string;
   try {
-    backupDb = openDb(backupFile, true);
-    const result = backupDb.prepare("PRAGMA integrity_check").get() as any;
-    integrity = result?.integrity_check ?? Object.values(result ?? {})[0] ?? "unknown";
+    integrity = getDatabaseIntegrity(backupDb);
     if (integrity !== "ok") {
       throw new Error(`Backup file is corrupted (integrity check: ${integrity})`);
     }
   } finally {
-    if (backupDb) {
-      try {
-        backupDb.close();
-      } catch {}
-    }
+    backupDb.close();
   }
 
   // 2. Create pre-restore safety copy of existing target database
@@ -88,8 +85,7 @@ export function performRestore(options: RestoreOptions = {}): {
   // 5. Final validation of restored database
   const restoredDb = openDb(targetDb);
   try {
-    const res = restoredDb.prepare("PRAGMA integrity_check").get() as any;
-    const finalCheck = res?.integrity_check ?? Object.values(res ?? {})[0] ?? "unknown";
+    const finalCheck = getDatabaseIntegrity(restoredDb);
     if (finalCheck !== "ok") {
       throw new Error(`Restored database failed integrity check: ${finalCheck}`);
     }

@@ -12,6 +12,7 @@ export function handle<A extends unknown[]>(fn: (...a: A) => Promise<Response>) 
     catch (e) {
       if (e instanceof HttpError) return fail(e.status, e.message);
       if (e instanceof ZodError) return fail(400, "Invalid input", e.issues.map((i) => ({ path: i.path.join("."), message: i.message })));
+      if (e instanceof SyntaxError) return fail(400, "Invalid JSON");
       console.error("[api]", e);
       return fail(500, "Internal error");
     }

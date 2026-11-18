@@ -3,13 +3,13 @@
  * Applies numbered .sql files in order, records them in _migrations,
  * supports upgrading existing databases, fresh databases, and transactional execution.
  */
-import type Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import type { SqliteDatabase } from "../sqlite-compat";
 
 export const MIGRATIONS_DIR = path.resolve(process.cwd(), "src/server/migrations");
 
-export function initMigrationTable(db: Database.Database): void {
+export function initMigrationTable(db: SqliteDatabase): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
       id TEXT PRIMARY KEY,
@@ -35,7 +35,7 @@ export function initMigrationTable(db: Database.Database): void {
   }
 }
 
-export function getAppliedMigrations(db: Database.Database): string[] {
+export function getAppliedMigrations(db: SqliteDatabase): string[] {
   initMigrationTable(db);
   const rows = db.prepare("SELECT id FROM _migrations ORDER BY id ASC").all() as { id: string }[];
   return rows.map((r) => r.id);
@@ -49,7 +49,7 @@ export function getMigrationFiles(dir = MIGRATIONS_DIR): string[] {
     .sort();
 }
 
-export function getPendingMigrations(db: Database.Database, dir = MIGRATIONS_DIR): string[] {
+export function getPendingMigrations(db: SqliteDatabase, dir = MIGRATIONS_DIR): string[] {
   const applied = new Set(getAppliedMigrations(db));
   const files = getMigrationFiles(dir);
   return files.filter((f) => !applied.has(f));
@@ -59,7 +59,7 @@ export function getPendingMigrations(db: Database.Database, dir = MIGRATIONS_DIR
  * Runs all pending migrations sequentially inside transactions.
  * Returns the list of migration IDs applied in this run.
  */
-export function runMigrations(db: Database.Database, dir = MIGRATIONS_DIR): string[] {
+export function runMigrations(db: SqliteDatabase, dir = MIGRATIONS_DIR): string[] {
   initMigrationTable(db);
   const pending = getPendingMigrations(db, dir);
   const applied: string[] = [];

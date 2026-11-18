@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { db } from "../db";
 import { assertPasswordPolicy } from "../auth/password-policy";
+import { revokeAllUserSessions } from "./sessions";
 import type { UserDTO } from "@/contracts";
 
 export interface UserRow {
@@ -19,7 +20,18 @@ export interface UserRow {
   lastLoginAt: number | null;
 }
 
-type Raw = Record<string, any>;
+export class PasswordResetError extends Error {}
+
+interface Raw {
+  id: number;
+  email: string;
+  name: string;
+  role: UserRow["role"];
+  password_hash: string;
+  disabled: number;
+  created_at: number;
+  last_login_at: number | null;
+}
 
 const mapRow = (r: Raw): UserRow => ({
   id: r.id,
@@ -103,7 +115,7 @@ export const updateUser = (
   if (!user) throw new Error("User not found");
 
   const updates: string[] = [];
-  const params: any[] = [];
+  const params: Array<string | number> = [];
 
   if (patch.name !== undefined) {
     updates.push("name = ?");
@@ -128,15 +140,20 @@ export const updateUser = (
 
   if (updates.length > 0) {
     params.push(id);
-    db().prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+    db().transaction(() => {
+      db().prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+      if (patch.disabled === true || patch.password !== undefined) revokeAllUserSessions(id);
+    })();
   }
 
   return toDto(byId(id)!);
 };
 
 export const deleteUser = (id: number): void => {
-  // Soft disable user
-  db().prepare("UPDATE users SET disabled = 1 WHERE id = ?").run(id);
+  db().transaction(() => {
+    db().prepare("UPDATE users SET disabled = 1 WHERE id = ?").run(id);
+    revokeAllUserSessions(id);
+  })();
 };
 
 export const changeUserPassword = async (
@@ -155,7 +172,11 @@ export const changeUserPassword = async (
   assertPasswordPolicy(next);
   const newHash = await bcrypt.hash(next, 10);
 
-  db().prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(newHash, userId);
+  db().transaction(() => {
+    db().prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(newHash, userId);
+    db().prepare("UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL").run(Date.now(), userId);
+    revokeAllUserSessions(userId);
+  })();
 };
 
 export const createPasswordReset = (email: string): string => {
@@ -170,12 +191,14 @@ export const createPasswordReset = (email: string): string => {
   const now = Date.now();
   const expiresAt = now + 3600_000; // 1 hour expiration
 
-  db()
-    .prepare(
+  db().transaction(() => {
+    db().prepare("UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL").run(now, user.id);
+    db().prepare(
       `INSERT INTO password_resets (token_hash, user_id, created_at, expires_at, used_at)
        VALUES (?, ?, ?, ?, NULL)`
     )
     .run(tokenHash, user.id, now, expiresAt);
+  })();
 
   return rawToken;
 };
@@ -195,24 +218,26 @@ export const verifyAndConsumePasswordReset = async (
     .get(tokenHash) as { user_id: number; expires_at: number; used_at: number | null } | undefined;
 
   if (!row) {
-    throw new Error("Invalid or expired password reset token");
+    throw new PasswordResetError("Invalid or expired password reset token");
   }
 
   if (row.used_at !== null) {
-    throw new Error("This password reset token has already been used");
+    throw new PasswordResetError("This password reset token has already been used");
   }
 
   if (row.expires_at < Date.now()) {
-    throw new Error("Password reset token has expired");
+    throw new PasswordResetError("Password reset token has expired");
   }
 
   const newHash = await bcrypt.hash(newPassword, 10);
 
   db().transaction(() => {
     db().prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(newHash, row.user_id);
-    db().prepare("UPDATE password_resets SET used_at = ? WHERE token_hash = ?").run(
-      Date.now(),
-      tokenHash
-    );
+    const consumed = db().prepare(`
+      UPDATE password_resets SET used_at = ?
+      WHERE token_hash = ? AND used_at IS NULL AND expires_at >= ?
+    `).run(Date.now(), tokenHash, Date.now());
+    if (consumed.changes !== 1) throw new PasswordResetError("Invalid or expired password reset token");
+    revokeAllUserSessions(row.user_id);
   })();
 };

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TankStatusSchema } from "./common";
+import { ChannelSchema, TankStatusSchema } from "./common";
 
 /** POST /api/tanks/bulk (admin) */
 export const BulkBody = z.discriminatedUnion("action", [
@@ -11,6 +11,15 @@ export const BulkBody = z.discriminatedUnion("action", [
 export const CloneBody = z.object({ sourceId: z.number().int(), label: z.string().min(1).max(80), deviceId: z.string().min(1).nullable() });
 /** POST /api/tanks/import (admin)  ·  GET /api/tanks/export → file download */
 export const TankExportFile = z.object({ schema: z.literal(1), exportedAt: z.string(), tanks: z.array(z.record(z.string(), z.unknown())) });
+
+export const TankRecipientInput = z.object({
+  userId: z.number().int().positive(),
+  channels: z.array(ChannelSchema).min(1).max(6),
+});
+export const TankRecipientDTO = TankRecipientInput.extend({
+  email: z.string().email(),
+  name: z.string(),
+});
 
 /** Zones API */
 export const ZoneDTO = z.object({
@@ -60,4 +69,3 @@ export const ThresholdTemplateInput = z.object({
   spikeCm: z.number().min(0).max(500).default(80),
 }).refine((v) => v.warnPct > v.critPct && v.critPct > v.emptyPct, "thresholds must satisfy warning > critical > empty");
 export type ThresholdTemplateInput = z.infer<typeof ThresholdTemplateInput>;
-

@@ -1,22 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
+import BetterSqlite3 from "better-sqlite3";
 import { env } from "./env";
 import { runMigrations } from "./migrations/runner";
-import { SqliteCompat } from "./sqlite-compat";
+import { SqliteCompat, type SqliteDatabase } from "./sqlite-compat";
 
-const g = globalThis as unknown as { __ohtmsDb?: any };
-export const SCHEMA_PATH = path.join(process.cwd(), "src/server/schema.sql");
+const g = globalThis as typeof globalThis & { __ohtmsDb?: SqliteDatabase };
 
-function createDbInstance(file: string): any {
+function createDbInstance(file: string): SqliteDatabase {
   try {
-    const BetterSqlite = require("better-sqlite3");
-    return new BetterSqlite(file);
+    return new BetterSqlite3(file);
   } catch {
     return new SqliteCompat(file);
   }
 }
 
-export function openDb(file = env().DB_PATH, skipMigrations = false): any {
+export function openDb(file = env().DB_PATH, skipMigrations = false): SqliteDatabase {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = createDbInstance(file);
   try {
@@ -36,7 +35,7 @@ export function openDb(file = env().DB_PATH, skipMigrations = false): any {
 }
 
 /** Singleton (survives Next dev hot-reload). Throws a helpful error if the DB hasn't been seeded. */
-export function db(): any {
+export function db(): SqliteDatabase {
   if (g.__ohtmsDb) return g.__ohtmsDb;
   const file = env().DB_PATH;
   if (!fs.existsSync(file)) throw new Error(`Database not found at ${file}. Run: npm run setup`);

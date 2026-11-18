@@ -1,9 +1,18 @@
-// [BE-11] OWNER: backend · CONTRACT: file download (PDF/CSV) (src/contracts) · STATUS: mock — replace with the real implementation
+// [BE-11] OWNER: backend · CONTRACT: ReadingExportQuery (src/contracts/reports)
 import { requireRole } from "@/server/auth/guard";
-import { handle } from "@/server/http";
-import { mockOr501 } from "@/server/mock";
+import { now } from "@/server/clock";
+import { DAY } from "@/domain";
+import { fail, handle } from "@/server/http";
+import { ReadingExportQuery } from "@/contracts/reports";
+import { getTank } from "@/server/repos/tanks";
+import { readingsExport, reportDownload } from "@/server/services/reports";
 export const dynamic = "force-dynamic";
-export const GET = handle(async () => {
+export const GET = handle(async (req: Request) => {
   await requireRole("operator");
-  return mockOr501("file download", () => ({ note: "Real endpoint returns a PDF/CSV file; no JSON mock." }));
+  const query = ReadingExportQuery.parse(Object.fromEntries(new URL(req.url).searchParams));
+  const to = query.to ?? now();
+  const from = query.from ?? to - 7 * DAY;
+  if (from >= to || to - from > 90 * DAY) return fail(400, "Readings export range must be between 0 and 90 days");
+  if (query.tankId != null && !getTank(query.tankId)) return fail(404, "Tank not found");
+  return reportDownload(readingsExport(from, to, query.tankId), query.format);
 });

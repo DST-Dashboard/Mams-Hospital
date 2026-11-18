@@ -1,9 +1,16 @@
-// [BE-11] OWNER: backend · CONTRACT: file download (PDF/CSV) (src/contracts) · STATUS: mock — replace with the real implementation
+// [BE-11] OWNER: backend · CONTRACT: ReportQuery (src/contracts/reports)
 import { requireRole } from "@/server/auth/guard";
-import { handle } from "@/server/http";
-import { mockOr501 } from "@/server/mock";
+import { now } from "@/server/clock";
+import { DAY } from "@/domain";
+import { fail, handle } from "@/server/http";
+import { ReportQuery } from "@/contracts/reports";
+import { reportDownload, summaryReport } from "@/server/services/reports";
 export const dynamic = "force-dynamic";
-export const GET = handle(async () => {
+export const GET = handle(async (req: Request) => {
   await requireRole("operator");
-  return mockOr501("file download", () => ({ note: "Real endpoint returns a PDF/CSV file; no JSON mock." }));
+  const query = ReportQuery.parse(Object.fromEntries(new URL(req.url).searchParams));
+  const to = query.to ?? now();
+  const from = query.from ?? to - 30 * DAY;
+  if (from >= to || to - from > 366 * DAY) return fail(400, "Invalid report time range");
+  return reportDownload(summaryReport(from, to, "Monthly tank operations report"), query.format);
 });

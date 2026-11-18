@@ -5,6 +5,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { openDb } from "../src/server/db";
 import { logger } from "../src/server/logger";
+import { recordJobRun } from "../src/server/jobs/run-state";
+import { getDatabaseIntegrity } from "./database-integrity";
+
+if (fs.existsSync(".env")) process.loadEnvFile(".env");
 
 export interface BackupOptions {
   sourceDbPath?: string;
@@ -35,31 +39,17 @@ export function performBackup(options: BackupOptions = {}): {
   const db = openDb(sourceDbPath);
 
   try {
-    // 1. Checkpoint WAL to flush all transactions to main database
-    try {
-      db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").run();
-    } catch {
-      // Ignore if not in WAL mode
-    }
-
-    // 2. Perform online vacuum into destination file
     const escapedDest = backupFile.replace(/'/g, "''");
-    try {
-      db.prepare(`VACUUM INTO '${escapedDest}'`).run();
-    } catch {
-      // Fallback: Copy file
-      fs.copyFileSync(sourceDbPath, backupFile);
-    }
+    db.prepare(`VACUUM INTO '${escapedDest}'`).run();
   } finally {
     db.close();
   }
 
-  // 3. Verify backup file integrity
+  // Verify backup file integrity before rotating old backups.
   const backupDb = openDb(backupFile, true);
-  let integrity = "ok";
+  let integrity: string;
   try {
-    const result = backupDb.prepare("PRAGMA integrity_check").get() as any;
-    integrity = result?.integrity_check ?? Object.values(result ?? {})[0] ?? "unknown";
+    integrity = getDatabaseIntegrity(backupDb);
     if (integrity !== "ok") {
       throw new Error(`Backup failed integrity check: ${integrity}`);
     }
@@ -68,8 +58,14 @@ export function performBackup(options: BackupOptions = {}): {
   }
 
   const stats = fs.statSync(backupFile);
+  const statusDb = openDb(sourceDbPath);
+  try {
+    recordJobRun("backup", Date.now(), undefined, statusDb);
+  } finally {
+    statusDb.close();
+  }
 
-  // 4. Rotate old backups
+  // Rotate old backups only after the new backup passes integrity validation.
   try {
     const files = fs
       .readdirSync(backupDir)

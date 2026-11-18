@@ -4,6 +4,8 @@ import { getTank } from "./tanks";
 import { derive } from "@/domain/derive";
 import * as readings from "./readings";
 import type { AlertDTO, AlertDetailDTO } from "@/contracts/alerts";
+import { ChannelSchema } from "@/contracts/common";
+import type { z } from "zod";
 
 export interface AlertRow {
   id: number;
@@ -237,7 +239,7 @@ export function getDetail(id: number, asOf = Date.now()): AlertDetailDTO | undef
   const deliveriesRaw = db()
     .prepare("SELECT channel, recipient, status, sent_at, error FROM notifications WHERE alert_id = ?")
     .all(id) as Array<{
-    channel: "in_app" | "email" | "sms" | "whatsapp";
+    channel: z.infer<typeof ChannelSchema>;
     recipient: string;
     status: "queued" | "sent" | "failed";
     sent_at: number | null;
@@ -245,7 +247,7 @@ export function getDetail(id: number, asOf = Date.now()): AlertDetailDTO | undef
   }>;
 
   const deliveries = deliveriesRaw.map((d) => ({
-    channel: d.channel,
+    channel: ChannelSchema.parse(d.channel),
     recipient: d.recipient,
     status: d.status,
     sentAt: d.sent_at,

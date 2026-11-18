@@ -9,6 +9,7 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => (name === "ohtms_session" && mockCookieValue ? { value: mockCookieValue } : undefined),
   }),
+  headers: async () => new Headers(),
 }));
 
 let testDbPath: string;
@@ -28,6 +29,7 @@ describe("BE-13: System Monitoring & Logging", () => {
     testDbPath = path.join(os.tmpdir(), `ohtms-test-system-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
     process.env.DB_PATH = testDbPath;
     process.env.SESSION_SECRET = SECRET;
+    process.env.TTS_WEBHOOK_SECRET = "system-test-webhook-secret";
 
     const { openDb } = await import("@/server/db");
     const { runMigrations } = await import("@/server/migrations/runner");
@@ -36,13 +38,21 @@ describe("BE-13: System Monitoring & Logging", () => {
     runMigrations(dbInstance);
 
     const sessionMod = await import("@/server/auth/session");
-    sign = sessionMod.sign;
+    const createSession = (await import("@/server/repos/sessions")).createSession;
+    sign = async (session, secret, hours) => sessionMod.sign({
+      ...session,
+      sessionId: createSession(session.uid, hours),
+    }, secret, hours);
     const sysMod = await import("@/server/services/system-status");
     getSystemStatus = sysMod.getSystemStatus;
     const logMod = await import("@/server/logger");
     logger = logMod.logger;
     GET_STATUS = (await import("@/app/api/system/status/route")).GET;
 
+    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
+      .run(1, "admin@test.local", "Admin", "test-hash", "admin", Date.now());
+    dbInstance.prepare("INSERT INTO users (id, email, name, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
+      .run(2, "viewer@test.local", "Viewer", "test-hash", "viewer", Date.now());
     adminCookie = await sign({ uid: 1, role: "admin", name: "Admin" }, SECRET, 1);
     viewerCookie = await sign({ uid: 2, role: "viewer", name: "Viewer" }, SECRET, 1);
 
@@ -74,6 +84,7 @@ describe("BE-13: System Monitoring & Logging", () => {
 
   it("calculates system metrics and health status", () => {
     const asOf = 1700000000000 + 10 * 60_000;
+    dbInstance.prepare("INSERT INTO job_runs (name, last_run_at, ok, error) VALUES ('alerts', ?, 0, 'test failure')").run(asOf - 1000);
     const status = getSystemStatus(asOf);
 
     expect(status.version).toBeDefined();
@@ -81,6 +92,8 @@ describe("BE-13: System Monitoring & Logging", () => {
     expect(status.db.readings).toBe(3);
     expect(status.db.firstReadingAt).toBe(1700000000000);
     expect(status.db.lastReadingAt).toBe(1700000000000 + 30 * 60_000);
+    expect(status.jobs).toEqual([{ name: "alerts", lastRunAt: asOf - 1000, ok: false }]);
+    expect(status.ingest.enabled).toBe(true);
 
     const devFresh = status.devices.find((d) => d.deviceId === "dev-fresh")!;
     expect(devFresh.status).toBe("fresh");

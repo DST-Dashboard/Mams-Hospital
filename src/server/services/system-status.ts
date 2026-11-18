@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { db } from "../db";
 import { now, clockMode } from "../clock";
 import type { SystemStatusDTO } from "@/contracts/system";
+import { logger } from "../logger";
 
 export function getSystemStatus(asOf = now()): SystemStatusDTO {
   const database = db();
@@ -12,17 +13,16 @@ export function getSystemStatus(asOf = now()): SystemStatusDTO {
   if (dbFile && fs.existsSync(dbFile)) {
     try {
       sizeMb = Math.round((fs.statSync(dbFile).size / (1024 * 1024)) * 100) / 100;
-    } catch {
-      sizeMb = 0;
+    } catch (error) {
+      logger.warn("Unable to read database file size", { error });
     }
   } else {
-    // SQLite pragma fallback
     try {
-      const pageCount = (database.prepare("PRAGMA page_count").get() as any)?.page_count ?? 0;
-      const pageSize = (database.prepare("PRAGMA page_size").get() as any)?.page_size ?? 4096;
+      const pageCount = (database.prepare("PRAGMA page_count").get() as { page_count: number } | undefined)?.page_count ?? 0;
+      const pageSize = (database.prepare("PRAGMA page_size").get() as { page_size: number } | undefined)?.page_size ?? 4096;
       sizeMb = Math.round(((pageCount * pageSize) / (1024 * 1024)) * 100) / 100;
-    } catch {
-      sizeMb = 0;
+    } catch (error) {
+      logger.warn("Unable to read database size from SQLite", { error });
     }
   }
 
@@ -82,12 +82,13 @@ export function getSystemStatus(asOf = now()): SystemStatusDTO {
       lastReadingAt: readingStats.max_t ?? null,
     },
     devices,
-    jobs: [
-      { name: "alerts", lastRunAt: asOf, ok: true },
-      { name: "backup", lastRunAt: null, ok: true },
-    ],
+    jobs: (database.prepare("SELECT name, last_run_at, ok FROM job_runs ORDER BY name").all() as Array<{ name: string; last_run_at: number; ok: number }>).map((job) => ({
+      name: job.name,
+      lastRunAt: job.last_run_at,
+      ok: job.ok === 1,
+    })),
     ingest: {
-      enabled: false,
+      enabled: Boolean(process.env.TTS_WEBHOOK_SECRET),
       lastUplinkAt: readingStats.max_t ?? null,
     },
   };

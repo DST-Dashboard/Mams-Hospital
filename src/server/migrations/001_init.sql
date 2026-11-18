@@ -1,5 +1,4 @@
--- [BE-01] OWNER: backend · initial schema (identical to src/server/schema.sql today).
--- schema.sql stays the runtime source until BE-01 lands the migration runner; then it is deleted.
+-- [BE-01] Initial schema baseline. Runtime schema evolution is applied by the migration runner.
 -- OHTMS runtime store (SQLite). Readings keep the SAME shape as the original Supabase `uplinks`
 -- table (device + time + distance) with the signal columns promoted out of the JSON blob.
 -- Derived values (level, %, litres) are NEVER stored — changing tank H/R recomputes history instantly.

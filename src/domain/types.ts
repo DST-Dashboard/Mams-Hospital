@@ -37,21 +37,44 @@ export interface Derived {
 
 export type Severity = "info" | "warning" | "critical" | "emergency";
 
+/**
+ * Types of alerts emitted by the system.
+ */
+export type AlertType =
+  | "LOW_LEVEL"
+  | "CRITICAL_LOW"
+  | "EMPTY"
+  | "OVERFLOW_RISK"
+  | "SENSOR_FAULT"
+  | "NO_DATA"
+  | "RAPID_DRAIN"
+  | "BATTERY_LOW"
+  | "PREDICTED_EMPTY"
+  | "FLATLINE"
+  | "PUMP_STUCK"
+  | "DATA_GAP"
+  | "GATEWAY_OFFLINE"
+  | "FLAPPING";
+
+
+
 export interface Thresholds {
   warnPct: number; // default 40
   critPct: number; // default 20
   emptyPct: number; // default 5
-  overflowMarginCm: number; // alert when distance <= deadZone + margin (default 10)
-  persistence: number; // consecutive readings required to raise (default 3 ≈ 15 min)
-  cooldownMin: number; // minimum minutes between repeat raises of the same rule (default 30)
-  hysteresisPct: number; // must recover this far above a threshold to clear (default 5)
-  noDataMin: number; // silence before NO_DATA (default 15)
-  spikeCm: number; // |jump| vs. recent median that counts as a sensor spike
+  overflowMarginCm?: number; // alert when distance <= deadZone + margin (default 10)
+  persistence?: number; // consecutive readings required to raise (default 3 ≈ 15 min)
+  cooldownMin?: number; // minimum minutes between repeat raises of the same rule (default 30)
+  hysteresisPct?: number; // must recover this far above a threshold to clear (default 5)
+  noDataMin?: number; // silence before NO_DATA (default 15)
+  spikeCm?: number; // |jump| vs. recent median that counts as a sensor spike
   quietStart?: string | null; // e.g. "22:00"
   quietEnd?: string | null; // e.g. "06:00"
+
+
 }
 
-export const DEFAULT_THRESHOLDS: Thresholds = {
+export const DEFAULT_THRESHOLDS: Required<Thresholds> = {
   warnPct: 40,
   critPct: 20,
   emptyPct: 5,
@@ -61,4 +84,22 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   hysteresisPct: 5,
   noDataMin: 15,
   spikeCm: 80,
+  quietStart: null,
+  quietEnd: null,
 };
+
+export function resolveThresholds(thresholds: Thresholds): Required<Thresholds> {
+  return {
+    warnPct: thresholds.warnPct,
+    critPct: thresholds.critPct,
+    emptyPct: thresholds.emptyPct,
+    overflowMarginCm: thresholds.overflowMarginCm ?? DEFAULT_THRESHOLDS.overflowMarginCm,
+    persistence: thresholds.persistence ?? DEFAULT_THRESHOLDS.persistence,
+    cooldownMin: thresholds.cooldownMin ?? DEFAULT_THRESHOLDS.cooldownMin,
+    hysteresisPct: thresholds.hysteresisPct ?? DEFAULT_THRESHOLDS.hysteresisPct,
+    noDataMin: thresholds.noDataMin ?? DEFAULT_THRESHOLDS.noDataMin,
+    spikeCm: thresholds.spikeCm ?? DEFAULT_THRESHOLDS.spikeCm,
+    quietStart: thresholds.quietStart ?? null,
+    quietEnd: thresholds.quietEnd ?? null,
+  };
+}

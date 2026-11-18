@@ -1,5 +1,13 @@
-/**
- * [BE-05] OWNER: backend · 7×24 aggregation using analytics/heatmap.ts → HeatmapDTO.
- * STATUS: TODO
- */
-export {};
+import { heatmap, type HeatmapTimezone } from "@/analytics/heatmap";
+import type { Reading, TankGeometry } from "@/domain";
+
+export function tankHeatmap(
+  tankId: number,
+  geometry: TankGeometry,
+  readings: Reading[],
+  from: number,
+  to: number,
+  tz: HeatmapTimezone,
+) {
+  return { tankId, tz, from, to, cells: heatmap(readings, geometry, from, to, tz) };
+}
