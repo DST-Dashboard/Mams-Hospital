@@ -15,15 +15,17 @@ export interface RawReadingItem {
   levelPct: number | null;
   volumeL: number | null;
   quality: string;
+  source?: string;
 }
 
 export interface RawInspectorProps {
   points: RawReadingItem[];
   win: Win;
   className?: string;
+  onOpenManualEntry?: () => void;
 }
 
-export function RawInspector({ points, win, className }: RawInspectorProps) {
+export function RawInspector({ points, win, className, onOpenManualEntry }: RawInspectorProps) {
   const tz = useUi((s) => s.tz);
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(0);
@@ -80,30 +82,45 @@ export function RawInspector({ points, win, className }: RawInspectorProps) {
                   Telemetry frame log ({points.length} readings recorded)
                 </span>
 
-                {/* Pagination Controls */}
-                {totalPages > 1 && (
-                  <div className="flex items-center gap-2 text-[12px]">
+                <div className="flex items-center gap-2">
+                  {onOpenManualEntry && (
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={page === 0}
-                      onClick={() => setPage(page - 1)}
+                      onClick={onOpenManualEntry}
+                      className="text-[11.5px] h-7 px-2.5"
                     >
-                      Previous
+                      + Record Reading
                     </Button>
-                    <span className="font-mono text-[var(--tx-quiet)]">
-                      Page {page + 1} of {totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page >= totalPages - 1}
-                      onClick={() => setPage(page + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                )}
+                  )}
+
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-1.5 text-[12px]">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={page === 0}
+                        onClick={() => setPage(page - 1)}
+                        className="h-7 px-2 text-[11px]"
+                      >
+                        Prev
+                      </Button>
+                      <span className="font-mono text-[11px] text-[var(--tx-quiet)]">
+                        {page + 1}/{totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={page >= totalPages - 1}
+                        onClick={() => setPage(page + 1)}
+                        className="h-7 px-2 text-[11px]"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="table-wrap max-h-[360px] overflow-auto border border-[var(--bd)] rounded-lg">
@@ -111,6 +128,7 @@ export function RawInspector({ points, win, className }: RawInspectorProps) {
                   <thead>
                     <tr className="bg-[var(--bg-th)] border-b border-[var(--bd-table)]">
                       <th className="p-2 text-left">Time ({tz})</th>
+                      <th className="p-2 text-center">Source</th>
                       <th className="p-2 text-right">Distance</th>
                       <th className="p-2 text-right">Level</th>
                       <th className="p-2 text-right">Fill %</th>
@@ -122,6 +140,17 @@ export function RawInspector({ points, win, className }: RawInspectorProps) {
                     {paginated.map((p, idx) => (
                       <tr key={`${p.t}-${idx}`} className="border-b border-[var(--bd-table)]">
                         <td className="p-2 font-mono text-[11px]">{stampSeconds(p.t, tz)}</td>
+                        <td className="p-2 text-center">
+                          {p.source === "manual" ? (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-[var(--accent-100)] text-[var(--accent-800)] border border-[var(--accent-200)]">
+                              Manual
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-[var(--bg-subtle)] text-[var(--tx-quiet)] border border-[var(--bd-soft)]">
+                              IoT
+                            </span>
+                          )}
+                        </td>
                         <td className="p-2 text-right font-mono font-bold text-[var(--accent-700)]">
                           {fmtCm(p.distanceCm)}
                         </td>
@@ -133,7 +162,7 @@ export function RawInspector({ points, win, className }: RawInspectorProps) {
                         <td className="p-2 text-right">
                           <span
                             className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                              p.quality === "good"
+                              p.quality === "good" || p.quality === "ok"
                                 ? "bg-[var(--ok-bg)] text-[var(--ok-tx)]"
                                 : "bg-[var(--warn-bg)] text-[var(--warn-tx)]"
                             }`}

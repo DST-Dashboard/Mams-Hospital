@@ -29,6 +29,7 @@ Source of truth for request/response shapes: **`src/contracts/*.ts`** (zod) and 
 | GET `/tanks/:id/analytics` | viewer | LIVE | `?from&to` → `AnalyticsResponse` (events, anomalies, consumption) | Tank analytics & statistics |
 | GET · PUT `/tanks/:id/recipients` | operator | LIVE | `TankRecipientInput[]` → `TankRecipientDTO[]` | Per-tank alert notification recipients |
 | GET `/readings` | viewer | LIVE | `?tankId&from&to&res=auto\|raw\|15m\|1h\|1d` → `ReadingsResponse` | Telemetry series |
+| POST `/readings` | operator | LIVE | `{tankId, t?, distanceCm?, levelCm?, batteryPct?, rssi?, snr?, notes?}` → `{ok: true, reading}` | Role-based Manual Data Entry (Admin & Tank Owner, conflict guard, audited) |
 | GET `/readings/export` | operator | LIVE | `?tankId&from&to` → CSV streaming download | Raw telemetry export (audited) |
 | GET `/alerts` | viewer | LIVE | `?state=open\|acknowledged\|snoozed\|resolved\|all` → `AlertRow[]` | Active & historical incidents |
 | GET `/alerts/:id` | viewer | LIVE | → `AlertDetailDTO` with evidence & telemetry | Forensic incident record |
@@ -42,6 +43,5 @@ Source of truth for request/response shapes: **`src/contracts/*.ts`** (zod) and 
 | GET · POST `/users` | admin | LIVE | → `UserDTO[]` · `UserCreateBody` → `UserDTO` | User management |
 | GET · PATCH · DELETE `/users/:id` | admin | LIVE | `UserUpdateBody` → `UserDTO` | User update / disable ("last admin" protected) |
 | GET `/audit` | admin | LIVE | `?page&pageSize&entity&userId&action&from&to` → `AuditPage` | Append-only audit trail |
-| GET `/system/status` | admin | LIVE | → System health, TTN connectivity, ingest rejects | Hardware & operational status |
-| POST `/ingest/tts` | public | LIVE | TTN v3 uplink JSON payload | LoRaWAN uplink ingestion (header: `X-Webhook-Secret`) |
+| GET `/system/status` | admin | LIVE | → System health, database size, device statuses | System & hardware operational status |
 | GET `/cron/tick` | public | LIVE | `?full=1` (bearer: `CRON_SECRET`) → `{ok: true, jobs}` | Scheduled background evaluator |

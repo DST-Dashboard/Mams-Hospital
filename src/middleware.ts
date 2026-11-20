@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE, verify } from "@/server/auth/session";
 
-// Public: login page, recovery pages, kiosk, auth endpoints, health, ingest, and cron
+// Public: login page, recovery pages, kiosk, auth endpoints, health, and cron
 const PUBLIC = [
   /^\/login$/,
   /^\/forgot-password$/,
@@ -9,7 +9,6 @@ const PUBLIC = [
   /^\/kiosk$/,
   /^\/api\/auth\//,
   /^\/api\/health$/,
-  /^\/api\/ingest\//,
   /^\/api\/cron\//,
 ];
 

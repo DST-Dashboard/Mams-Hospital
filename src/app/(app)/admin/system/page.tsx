@@ -62,10 +62,10 @@ export default function SystemAdminPage() {
               <ICON.gateway size={24} />
             </div>
             <div className="kpi-value" style={{ fontSize: "24px" }}>
-              SenseCap LoRaWAN
+              Manual Entry
             </div>
-            <div className="kpi-caption">Gateway Status</div>
-            <div className="kpi-def">Online · Uplink interval ~293 s · Ingest latency ~1.2 s</div>
+            <div className="kpi-caption">Telemetry Source</div>
+            <div className="kpi-def">Role-based manual data entry & historical telemetry</div>
           </div>
 
           <div className="kpi">
@@ -94,25 +94,25 @@ export default function SystemAdminPage() {
         {/* Ingestion & Background Workers */}
         <div className="ops-grid-2">
           <Card
-            eyebrow={{ icon: ICON.gateway, text: "INGESTION PIPELINE" }}
-            title="The Things Stack (TTS) Ingestion"
+            eyebrow={{ icon: ICON.gateway, text: "TELEMETRY INGESTION" }}
+            title="Manual Data Entry Pipeline"
           >
             <div className="ops-dl-grid">
-              <div className="ops-dl-dt">Webhook Ingestion</div>
+              <div className="ops-dl-dt">Ingestion Mode</div>
               <div className="ops-dl-dd" style={{ color: "var(--ok-tx)", fontWeight: 700 }}>
-                {sys.ingest.enabled ? "Active ✓ (Listening on /api/ingest/tts)" : "Disabled"}
+                Role-Based Manual Entry Active ✓
               </div>
 
-              <div className="ops-dl-dt">Last Received Packet</div>
+              <div className="ops-dl-dt">Last Recorded Reading</div>
               <div className="ops-dl-dd">
                 {sys.ingest.lastUplinkAt ? ago(sys.ingest.lastUplinkAt, asOf) : "Never"}
               </div>
 
-              <div className="ops-dl-dt">Gateway Latency</div>
-              <div className="ops-dl-dd">1.2 seconds end-to-end</div>
+              <div className="ops-dl-dt">Authorization</div>
+              <div className="ops-dl-dd">Admin & Assigned Tank Owners</div>
 
-              <div className="ops-dl-dt">Payload Decoder</div>
-              <div className="ops-dl-dd">SenseCap LoRaWAN binary v1.0.4</div>
+              <div className="ops-dl-dt">Audit Logging</div>
+              <div className="ops-dl-dd">Enabled with User & Timestamp Verification</div>
             </div>
           </Card>
 

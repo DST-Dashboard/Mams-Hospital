@@ -1,4 +1,4 @@
-import type { DeviceMeta } from "@/dataset/normalize";
+import type { DeviceMeta } from "@/domain";
 import { q, q1 } from "../db";
 
 export async function updateDeviceMetadata(device: DeviceMeta): Promise<boolean> {
@@ -25,13 +25,15 @@ export async function updateDeviceMetadata(device: DeviceMeta): Promise<boolean>
   return rows.length === 1;
 }
 
-export async function isActiveIngestDevice(deviceId: string): Promise<boolean> {
+export async function isActiveDevice(deviceId: string): Promise<boolean> {
   const row = await q1<{ device_id: string }>(
     "SELECT device_id FROM devices WHERE device_id = $1 AND deleted_at IS NULL",
     [deviceId]
   );
   return Boolean(row);
 }
+
+export const isActiveIngestDevice = isActiveDevice;
 
 /** Set simulated = false for device and its tank when a real uplink arrives */
 export async function markReal(deviceId: string): Promise<void> {

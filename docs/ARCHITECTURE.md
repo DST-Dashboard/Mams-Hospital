@@ -4,10 +4,9 @@
 One deployable. Next.js (App Router) serves pages **and** the REST API; an in-process scheduler (`src/instrumentation.ts` → `server/jobs`) runs the alert engine; SQLite (`better-sqlite3`) stores everything. The browser only ever talks to `/api/*`.
 
 ```
-data/raw ─► scripts/build-dataset ─► data/processed ─► scripts/seed-db ─► var/ohtms.db
-                                                                    │
-TTS webhook ─► /api/ingest/tts ─► normalize ─► readings (upsert) ───┤
-                                                                    ▼
+Manual Entry Modal ─► POST /api/readings ─► validate & RBAC ─► readings (upsert) ───┤
+                                                                                      │
+                                                                                      ▼
                          domain (pure) ◄── services (alert-engine, dashboard, analytics) ──► /api/* ──► React UI
 ```
 
@@ -15,8 +14,7 @@ TTS webhook ─► /api/ingest/tts ─► normalize ─► readings (upsert) ─
 ```
 src/domain      pure physics + rules. No I/O, no React.            ← depends on nothing
 src/analytics   pure stats/rollups/events/forecast.                ← domain
-src/dataset     TTS schema, normalize, validate, file formats.     ← (zod only)
-src/server      db, repos (SQL), services, auth, jobs, http.       ← domain, analytics, dataset
+src/server      db, repos (SQL), services, auth, jobs, http.       ← domain, analytics
 src/app         routes: pages + /api handlers (thin).              ← server, features
 src/features    screen-level client components (one folder per screen)
 src/components  shared UI: tank/, charts/, status/, ui/

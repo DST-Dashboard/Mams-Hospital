@@ -25,6 +25,18 @@ export interface Reading {
   rssi?: number | null;
   snr?: number | null;
   batteryPct?: number | null;
+  source?: string;
+  userId?: number | null;
+}
+
+export interface DeviceMeta {
+  deviceId: string;
+  devEui?: string;
+  devAddr?: string;
+  gatewayId?: string;
+  latitude?: number;
+  longitude?: number;
+  model?: string;
 }
 
 export interface Derived {

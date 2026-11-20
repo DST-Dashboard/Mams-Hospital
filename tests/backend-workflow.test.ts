@@ -8,7 +8,7 @@ import { sign } from "@/server/auth/session";
 
 import * as tanksRoute from "@/app/api/tanks/route";
 import * as tankRoute from "@/app/api/tanks/[id]/route";
-import * as ingestRoute from "@/app/api/ingest/tts/route";
+import * as readingsRoute from "@/app/api/readings/route";
 import * as alertsRoute from "@/app/api/alerts/route";
 import * as alertRoute from "@/app/api/alerts/[id]/route";
 import * as ackRoute from "@/app/api/alerts/[id]/ack/route";
@@ -90,21 +90,19 @@ describe("complete backend workflow", () => {
     tankId = z.object({ id: z.number().int() }).parse(await createdTank.json()).id;
     expect((await tankRoute.GET(request(`/api/tanks/${tankId}`, "GET"), context(tankId))).status).toBe(200);
 
-    // Ingest 3 readings indicating low level
-    const ingestSecret = env().TTS_WEBHOOK_SECRET;
+    // Record 3 manual readings indicating low level
     for (const offset of [-120_000, -60_000, 0]) {
-      const uplink = {
-        received_at: new Date(Date.now() + offset).toISOString(),
-        end_device_ids: { device_id: "workflow-node-01" },
-        uplink_message: { decoded_payload: { Node1_distance_cm: 200 } },
-      };
-      const response = await ingestRoute.POST(request(
-        "/api/ingest/tts",
+      const response = await readingsRoute.POST(request(
+        "/api/readings",
         "POST",
-        uplink,
-        { "x-webhook-secret": ingestSecret, "x-forwarded-for": "192.0.2.77" },
+        {
+          tankId,
+          distanceCm: 200,
+          t: Date.now() + offset,
+          notes: "Routine ward manual inspection",
+        }
       ));
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(201);
     }
 
     const tank = await tankRoute.GET(request(`/api/tanks/${tankId}`, "GET"), context(tankId));

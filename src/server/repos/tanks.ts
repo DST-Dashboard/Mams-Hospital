@@ -14,6 +14,7 @@ export interface TankRow {
   dimsConfirmed: boolean;
   simulated: boolean;
   deletedAt: number | null;
+  ownerId?: number | null;
   readingCount?: number;
   lastReadingAt?: number | null;
   isAwaitingReading?: boolean;
@@ -64,6 +65,7 @@ const map = (r: Raw): TankRow => {
     dimsConfirmed: Boolean(r.dims_confirmed),
     simulated: Boolean(r.simulated),
     deletedAt: r.deleted_at ? Number(r.deleted_at) : null,
+    ownerId: r.owner_id != null ? Number(r.owner_id) : null,
     readingCount,
     lastReadingAt: r.last_reading_at ? Number(r.last_reading_at) : null,
     isAwaitingReading,
@@ -105,6 +107,7 @@ export const TankInput = z
     lengthCm: z.number().min(10).max(5000).optional(),
     deadZoneCm: z.number().min(0).max(100).default(25),
     dimsConfirmed: z.boolean().optional(),
+    ownerId: z.number().int().positive().nullable().optional(),
     quietStart: z.string().nullable().optional(),
     quietEnd: z.string().nullable().optional(),
     warnPct: z.number().min(1).max(99).optional(),
@@ -144,13 +147,13 @@ export async function createTank(i: TankInput): Promise<number> {
       height_cm, radius_cm, width_cm, length_cm, dead_zone_cm,
       dims_confirmed, quiet_start, quiet_end, warn_pct, crit_pct, empty_pct,
       overflow_margin_cm, persistence, cooldown_min, hysteresis_pct, no_data_min, spike_cm,
-      created_at, updated_at
+      owner_id, created_at, updated_at
     ) VALUES (
       $1, $2, $3, $4, $5, $6,
       $7, $8, $9, $10, $11,
       $12, $13, $14, $15, $16, $17,
       $18, $19, $20, $21, $22, $23,
-      $24, $24
+      $24, $25, $25
     ) RETURNING id`,
     [
       i.deviceId ?? null,
@@ -176,6 +179,7 @@ export async function createTank(i: TankInput): Promise<number> {
       i.hysteresisPct ?? 5,
       i.noDataMin ?? 15,
       i.spikeCm ?? 80,
+      i.ownerId ?? null,
       t,
     ]
   );
@@ -251,8 +255,9 @@ export async function updateTank(
         warn_pct = COALESCE($15, warn_pct),
         crit_pct = COALESCE($16, crit_pct),
         empty_pct = COALESCE($17, empty_pct),
-        updated_at = $18
-      WHERE id = $19`,
+        owner_id = CASE WHEN $18::text = '__CLEAR__' THEN NULL WHEN $19::int IS NOT NULL THEN $19 ELSE owner_id END,
+        updated_at = $20
+      WHERE id = $21`,
       [
         i.label ?? null,
         i.deviceId !== undefined ? i.deviceId : null,
@@ -271,6 +276,8 @@ export async function updateTank(
         i.warnPct ?? null,
         i.critPct ?? null,
         i.emptyPct ?? null,
+        i.ownerId === null ? "__CLEAR__" : null,
+        i.ownerId ?? null,
         t,
         id,
       ]
@@ -335,4 +342,52 @@ export async function getGeometryAt(tank: TankRow, t: number): Promise<TankGeome
             lengthCm: Number(hist.length_cm ?? (shape as { lengthCm: number }).lengthCm),
           },
   };
+}
+
+/**
+ * Checks whether a user has permission to submit a manual reading for a specific tank:
+ * - Admin can submit for any tank.
+ * - Operator can submit if they are the tank's owner or an assigned alert recipient for that tank.
+ * - Viewers/others cannot submit.
+ */
+export async function canUserSubmitManualReading(
+  userId: number,
+  role: string,
+  tankId: number
+): Promise<boolean> {
+  if (role === "admin") return true;
+  if (role !== "operator") return false;
+
+  const tank = await getTank(tankId);
+  if (!tank || tank.deletedAt != null) return false;
+  if (tank.ownerId === userId) return true;
+
+  const recipient = await q1(
+    "SELECT 1 FROM alert_recipients WHERE tank_id = $1 AND user_id = $2",
+    [tankId, userId]
+  );
+  return Boolean(recipient);
+}
+
+/**
+ * Lists all tanks that a user is authorized to submit manual readings for:
+ * - Admin: all non-deleted tanks.
+ * - Operator: tanks where user is owner_id or in alert_recipients.
+ * - Viewer: empty list.
+ */
+export async function listAuthorizedTanksForUser(
+  userId: number,
+  role: string
+): Promise<TankRow[]> {
+  const allTanks = await listTanks();
+  if (role === "admin") return allTanks;
+  if (role !== "operator") return [];
+
+  const recipientRows = await q<{ tank_id: number }>(
+    "SELECT DISTINCT tank_id FROM alert_recipients WHERE user_id = $1",
+    [userId]
+  );
+  const assignedIds = new Set(recipientRows.map((r) => Number(r.tank_id)));
+
+  return allTanks.filter((t) => (t.ownerId != null && t.ownerId === userId) || assignedIds.has(t.id));
 }

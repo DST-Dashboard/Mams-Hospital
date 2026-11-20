@@ -5,7 +5,6 @@ import { getTank, purgeSoftDeleted } from "../repos/tanks";
 import { listPendingRetries, completeDelivery } from "../repos/notifications";
 import { sendEmail } from "../notify/email";
 import { runSimulatorTick } from "../simulator";
-import { runBackfillTick } from "../services/backfill";
 import { runEscalationTick } from "../services/escalation";
 
 /**
@@ -113,19 +112,7 @@ export async function runTick(opts: { full?: boolean; tankId?: number } = {}): P
     }
   }
 
-  // 5. Backfill (every 10 min or full)
-  if (opts.full || (await claimJobSlot("backfill", 10 * 60_000, asOf))) {
-    try {
-      await runBackfillTick(asOf);
-      await recordJobResult("backfill", true);
-      executed.backfill = true;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await recordJobResult("backfill", false, msg);
-    }
-  }
-
-  // 6. Retention (every 24 h or full)
+  // 5. Retention (every 24 h or full)
   if (opts.full || (await claimJobSlot("retention", 24 * 3600_000, asOf))) {
     try {
       // Purge soft-deleted tanks older than 90 days (readings are never purged)

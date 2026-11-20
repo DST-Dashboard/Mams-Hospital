@@ -34,7 +34,7 @@ export function IdentityStep({
           />
         </Field>
 
-        <Field label="Hardware Device ID" hint="The Things Stack Device ID (e.g. wio-e5-node-06)">
+        <Field label="Hardware Device ID" hint="Hardware Identifier / Node ID (e.g. node-06)">
           <input
             type="text"
             value={data.deviceId}

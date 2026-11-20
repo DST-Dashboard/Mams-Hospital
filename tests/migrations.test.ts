@@ -40,6 +40,8 @@ describe("BE-01: Database Migration System (PostgreSQL)", () => {
       "003_ingest_jobs.sql",
       "004_dimensions.sql",
       "005_auth.sql",
+      "006_manual_entry_tank_owners.sql",
+      "007_manual_reading_user.sql",
     ]);
 
     const pool = new Pool({ connectionString: schemaConn, max: 1 });

@@ -24,6 +24,8 @@ export interface ReadingsResponse {
     levelPct: number | null;
     volumeL: number | null;
     quality: string;
+    source?: string;
+    userId?: number | null;
   }[];
 }
 

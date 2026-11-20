@@ -40,10 +40,10 @@ export function Methodology() {
 
           <div style={{ background: "var(--bg-card)", border: "1px solid var(--bd)", borderRadius: "var(--r-lg)", padding: "var(--sp-4)", marginTop: "var(--sp-2)" }}>
             <div style={{ fontWeight: 700, color: "var(--tx-head)", marginBottom: "var(--sp-2)" }}>
-              Live Telemetry & Production Clock
+              Role-Based Telemetry & Production Clock
             </div>
             <p style={{ margin: 0, fontSize: "13px" }}>
-              In production mode (<code>clockMode === &apos;live&apos;</code>), the system streams live LoRaWAN telemetry from rooftop sensors via The Things Stack. All timestamps and analytics are calculated against the real-time server clock.
+              In production mode (<code>clockMode === &apos;live&apos;</code>), tank readings are recorded directly through the role-based Manual Data Entry interface by authorized administrators and assigned tank owners. All timestamps and analytics are validated and tracked against the server clock with strict audit logging.
             </p>
           </div>
         </div>

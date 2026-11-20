@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Database, Hourglass } from "lucide-react";
-import { useTank, useDashboard, useReadings, useAnalytics } from "@/lib/hooks";
+import { ArrowLeft, Database, Droplet, Hourglass } from "lucide-react";
+import { useTank, useDashboard, useReadings, useAnalytics, useMe } from "@/lib/hooks";
 import { useUi } from "@/lib/store";
 import { ViewGuide } from "@/components/ui/primitives";
 import { Skeleton } from "@/components/ui/primitives";
 import { Select } from "@/components/ui/Select";
+import { Button } from "@/components/ui/Button";
 import { TankHeroCard } from "./TankHeroCard";
 import { ReadingCard } from "./ReadingCard";
 import { StatusCard } from "./StatusCard";
@@ -17,6 +18,7 @@ import { EventTimeline } from "./EventTimeline";
 import { AlertHistory } from "./AlertHistory";
 import { SignalPanel } from "./SignalPanel";
 import { RawInspector } from "./RawInspector";
+import { ManualDataEntryModal } from "./ManualDataEntryModal";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { TimeNavPanel } from "@/features/time-nav/TimeNavPanel";
 import { useBrushSync } from "@/features/time-nav/BrushSync";
@@ -54,6 +56,8 @@ export function TankDetailView({ id }: TankDetailViewProps) {
 
   const { data: tank, error: tankError, isLoading: tankLoading, mutate: refreshTank } = useTank(id);
   const { data: dashboard, mutate: refreshDashboard } = useDashboard();
+  const { data: me } = useMe();
+  const [manualEntryOpen, setManualEntryOpen] = useState(false);
 
   const asOf = dashboard?.asOf ?? Date.now();
   const cardData = dashboard?.tanks.find((t) => t.id === id);
@@ -255,17 +259,31 @@ export function TankDetailView({ id }: TankDetailViewProps) {
           </p>
         </div>
 
-        {/* Tank Switcher Dropdown */}
-        {tankSwitcherOptions.length > 0 && (
-          <div className="w-60">
-            <Select
-              value={String(id)}
-              onChange={(e) => handleSwitchTank(e.target.value)}
-              options={tankSwitcherOptions}
-              aria-label="Switch selected water tank"
-            />
-          </div>
-        )}
+        {/* Right side: Action Button + Tank Switcher Dropdown */}
+        <div className="flex items-center gap-3">
+          {me?.role !== "viewer" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setManualEntryOpen(true)}
+              className="text-[12.5px] font-semibold h-10 px-3 flex items-center gap-1.5"
+            >
+              <Droplet size={14} className="text-[var(--accent-500)]" />
+              <span>+ Record Reading</span>
+            </Button>
+          )}
+
+          {tankSwitcherOptions.length > 0 && (
+            <div className="w-56">
+              <Select
+                value={String(id)}
+                onChange={(e) => handleSwitchTank(e.target.value)}
+                options={tankSwitcherOptions}
+                aria-label="Switch selected water tank"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Top 3-Up Cards Grid */}
@@ -373,8 +391,22 @@ export function TankDetailView({ id }: TankDetailViewProps) {
         <RawInspector
           points={rawInspectorPoints}
           win={dayWin}
+          onOpenManualEntry={me?.role !== "viewer" ? () => setManualEntryOpen(true) : undefined}
         />
       </section>
+
+      {/* Manual Data Entry Modal */}
+      <ManualDataEntryModal
+        open={manualEntryOpen}
+        onClose={() => setManualEntryOpen(false)}
+        preselectedTankId={id}
+        onSuccess={() => {
+          refreshTank();
+          refreshDashboard();
+          dayReadings.mutate();
+          weekReadings.mutate();
+        }}
+      />
     </div>
   );
 }

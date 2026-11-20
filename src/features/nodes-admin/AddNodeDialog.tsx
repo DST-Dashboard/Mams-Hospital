@@ -209,7 +209,7 @@ export function AddNodeDialog({ open, onClose, onSuccess }: AddNodeDialogProps) 
             </Field>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Hardware Device ID" hint="The Things Stack Device ID (e.g. wio-e5-node-06)">
+              <Field label="Hardware Device ID" hint="Hardware Identifier / Node ID (e.g. node-06)">
                 <input
                   type="text"
                   value={formValues.deviceId ?? ""}

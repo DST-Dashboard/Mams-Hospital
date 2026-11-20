@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, AlertTriangle, Layers } from "lucide-react";
-import { useDashboard, useReadings, useAnalytics } from "@/lib/hooks";
+import { AlertCircle, AlertTriangle, Droplet, Layers } from "lucide-react";
+import { useDashboard, useReadings, useAnalytics, useMe } from "@/lib/hooks";
 import { useUi } from "@/lib/store";
 import { PageHeader, ViewGuide, Glossary } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/Button";
 import { ModeBadge } from "@/components/status/badges";
+import { ManualDataEntryModal } from "@/features/tank-detail/ManualDataEntryModal";
 import { TankGrid } from "./TankGrid";
 import { FleetHealth } from "./FleetHealth";
 import { WeekHeatmap } from "./WeekHeatmap";
@@ -41,7 +43,9 @@ export function DashboardView() {
     router.replace("/kiosk");
   }
 
-  const { data: dashboard, isLoading } = useDashboard();
+  const { data: dashboard, isLoading, mutate: refreshDashboard } = useDashboard();
+  const { data: me } = useMe();
+  const [manualEntryOpen, setManualEntryOpen] = useState(false);
   const weekSectionRef = useRef<HTMLDivElement>(null);
 
   // Reference timestamp: live server clock or now
@@ -269,13 +273,27 @@ export function DashboardView() {
 
       {/* 4. Tank Status Grid (5 tiles, 180px TankSvg, 32px font, sparklines) */}
       <section aria-labelledby="tank-status-heading">
-        <div className="flex items-center justify-between mb-4">
-          <h2 id="tank-status-heading" className="text-[18px] font-bold text-[var(--tx-head)]">
-            Tank status
-          </h2>
-          <span className="text-[12px] text-[var(--tx-quiet)] font-medium">
-            5 rooftop vessels · click any tile for deep dive
-          </span>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <h2 id="tank-status-heading" className="text-[18px] font-bold text-[var(--tx-head)]">
+              Tank status
+            </h2>
+            <span className="text-[12px] text-[var(--tx-quiet)] font-medium hidden sm:inline">
+              5 rooftop vessels · click any tile for deep dive
+            </span>
+          </div>
+
+          {me?.role !== "viewer" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setManualEntryOpen(true)}
+              className="text-[12.5px] font-semibold h-8 px-3 flex items-center gap-1.5"
+            >
+              <Droplet size={14} className="text-[var(--accent-500)]" />
+              <span>+ Record Manual Reading</span>
+            </Button>
+          )}
         </div>
 
         <TankGrid tanks={tanks} asOf={asOf} loading={isLoading} />
@@ -366,6 +384,20 @@ export function DashboardView() {
       <section aria-label="Overhead tank terminology glossary">
         <Glossary terms={DASHBOARD_GLOSSARY} />
       </section>
+
+      {/* Manual Telemetry Data Entry Modal */}
+      <ManualDataEntryModal
+        open={manualEntryOpen}
+        onClose={() => setManualEntryOpen(false)}
+        onSuccess={() => {
+          refreshDashboard();
+          d1.mutate();
+          d2.mutate();
+          d3.mutate();
+          d4.mutate();
+          d5.mutate();
+        }}
+      />
     </div>
   );
 }

@@ -8,6 +8,8 @@ interface ReadingRow {
   rssi: number | null;
   snr: number | null;
   battery_pct: number | null;
+  source?: string | null;
+  user_id?: number | null;
 }
 
 const map = (r: ReadingRow): Reading => ({
@@ -17,12 +19,14 @@ const map = (r: ReadingRow): Reading => ({
   rssi: r.rssi,
   snr: r.snr,
   batteryPct: r.battery_pct,
+  source: r.source ?? "manual",
+  userId: r.user_id ? Number(r.user_id) : null,
 });
 
 /** Inclusive range, ascending. Uses (device_id, t) primary index. */
 export async function range(deviceId: string, from: number, to: number): Promise<Reading[]> {
   const rows = await q<ReadingRow>(
-    "SELECT t, distance_cm, f_cnt, rssi, snr, battery_pct FROM readings WHERE device_id = $1 AND t BETWEEN $2 AND $3 ORDER BY t ASC",
+    "SELECT t, distance_cm, f_cnt, rssi, snr, battery_pct, source, user_id FROM readings WHERE device_id = $1 AND t BETWEEN $2 AND $3 ORDER BY t ASC",
     [deviceId, from, to]
   );
   return rows.map(map);
@@ -31,7 +35,7 @@ export async function range(deviceId: string, from: number, to: number): Promise
 /** Last `n` readings at or before `asOf`, returned ascending. */
 export async function recent(deviceId: string, n: number, asOf: number): Promise<Reading[]> {
   const rows = await q<ReadingRow>(
-    "SELECT t, distance_cm, f_cnt, rssi, snr, battery_pct FROM readings WHERE device_id = $1 AND t <= $2 ORDER BY t DESC LIMIT $3",
+    "SELECT t, distance_cm, f_cnt, rssi, snr, battery_pct, source, user_id FROM readings WHERE device_id = $1 AND t <= $2 ORDER BY t DESC LIMIT $3",
     [deviceId, asOf, n]
   );
   return rows.map(map).reverse();
@@ -62,10 +66,11 @@ export interface InsertReading {
   batteryPct?: number | null;
   gatewayId?: string | null;
   source?: string;
+  userId?: number | null;
 }
 
 /**
- * Idempotent insert (same device+time ignored) — the live webhook and backfills can overlap safely.
+ * Idempotent insert (same device+time ignored).
  * Returns number of rows actually inserted.
  */
 export async function upsertMany(rows: InsertReading[]): Promise<number> {
@@ -75,8 +80,8 @@ export async function upsertMany(rows: InsertReading[]): Promise<number> {
     let inserted = 0;
     for (const r of rows) {
       const res = await client.query(
-        `INSERT INTO readings (device_id, t, distance_cm, f_cnt, rssi, snr, battery_pct, gateway_id, source)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO readings (device_id, t, distance_cm, f_cnt, rssi, snr, battery_pct, gateway_id, source, user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT (device_id, t) DO NOTHING`,
         [
           r.deviceId,
@@ -87,7 +92,8 @@ export async function upsertMany(rows: InsertReading[]): Promise<number> {
           r.snr ?? null,
           r.batteryPct ?? null,
           r.gatewayId ?? null,
-          r.source ?? "ttn",
+          r.source ?? "manual",
+          r.userId ?? null,
         ]
       );
       inserted += res.rowCount ?? 0;
