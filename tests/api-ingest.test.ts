@@ -1,33 +1,28 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestSchema, TestSchemaContext } from "./test-db";
 import { q, q1 } from "@/server/db";
-import { env } from "@/server/env";
-import { createTank, softDeleteTank } from "@/server/repos/tanks";
-import { POST as POST_INGEST } from "@/app/api/ingest/tts/route";
+import { createTank } from "@/server/repos/tanks";
+import { createApiKey, revokeApiKey } from "@/server/repos/api-keys";
+import { upsertMany } from "@/server/repos/readings";
+import { POST as POST_V1_READINGS } from "@/app/api/v1/readings/route";
 
-const timestamp = "2026-10-30T05:41:48.287704342Z";
-
-function request(body: string, webhookSecret?: string, contentType = "application/json"): Request {
-  const secret = webhookSecret ?? env().TTS_WEBHOOK_SECRET;
-  return new Request("http://localhost/api/ingest/tts", {
-    method: "POST",
-    headers: { "content-type": contentType, "x-webhook-secret": secret },
-    body,
-  });
-}
-
-describe("TTS ingest API", () => {
+describe("Generic REST API (POST /api/v1/readings) and Manual Ingestion", () => {
   let testCtx: TestSchemaContext;
+  let validApiKey: string;
+  let tank1ApiKey: string;
+  let revokedApiKey: string;
+  let viewerApiKey: string;
+  let tank1Id: number;
+  let tank2Id: number;
 
   beforeAll(async () => {
     testCtx = await createTestSchema();
 
     await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ('wio-e5-node-01', FALSE, $1)", [Date.now()]);
     await q("INSERT INTO devices (device_id, simulated, created_at) VALUES ('wio-e5-node-02', FALSE, $1)", [Date.now()]);
-    await q("INSERT INTO devices (device_id, simulated, created_at, deleted_at) VALUES ('retired-node-03', FALSE, $1, $1)", [Date.now()]);
 
-    await createTank({
-      label: "Ingest test tank",
+    tank1Id = await createTank({
+      label: "Rest API Test Tank 1",
       deviceId: "wio-e5-node-01",
       status: "active",
       shape: "cylinder",
@@ -36,147 +31,176 @@ describe("TTS ingest API", () => {
       deadZoneCm: 25,
       dimsConfirmed: true,
     });
-    const deletedTankId = await createTank({
-      label: "Deleted-tank ingest test",
+
+    tank2Id = await createTank({
+      label: "Rest API Test Tank 2",
       deviceId: "wio-e5-node-02",
       status: "active",
       shape: "cylinder",
-      heightCm: 300,
-      radiusCm: 100,
-      deadZoneCm: 25,
+      heightCm: 250,
+      radiusCm: 80,
+      deadZoneCm: 20,
       dimsConfirmed: true,
     });
-    await softDeleteTank(deletedTankId);
+
+    const key1 = await createApiKey({ name: "Global Ingest Key", role: "operator" });
+    validApiKey = key1.rawKey;
+
+    const key2 = await createApiKey({ name: "Tank 1 Scoped Key", role: "operator", tankId: tank1Id });
+    tank1ApiKey = key2.rawKey;
+
+    const key3 = await createApiKey({ name: "Revoked Key", role: "operator" });
+    revokedApiKey = key3.rawKey;
+    await revokeApiKey(key3.id);
+
+    viewerApiKey = (await createApiKey({ name: "Viewer Key", role: "viewer" })).rawKey;
   });
 
   afterAll(async () => {
     if (testCtx) await testCtx.cleanup();
   });
 
-  it("authenticates, validates, idempotently stores, and records live device metadata", async () => {
-    const uplink = {
-      time: timestamp,
-      data: {
-        end_device_ids: { device_id: "wio-e5-node-01", dev_eui: "0102030405060708" },
-        uplink_message: {
-          f_cnt: 1,
-          decoded_payload: { Node1_distance_cm: 202 },
-          rx_metadata: [{ gateway_ids: { gateway_id: "gateway-test" }, rssi: -70, snr: 8 }],
-        },
-      },
-    };
-
-    const denied = await POST_INGEST(request(JSON.stringify(uplink), "wrong-secret"));
-    expect(denied.status).toBe(401);
-
-    const first = await POST_INGEST(request(JSON.stringify(uplink)));
-    expect(first.status).toBe(200);
-    await expect(first.json()).resolves.toEqual({ inserted: 1 });
-
-    const repeated = await POST_INGEST(request(JSON.stringify(uplink)));
-    expect(repeated.status).toBe(200);
-    await expect(repeated.json()).resolves.toEqual({ inserted: 0 });
-
-    const countRow = await q1<{ count: number }>("SELECT COUNT(*) AS count FROM readings WHERE device_id = $1", ["wio-e5-node-01"]);
-    expect(Number(countRow?.count)).toBe(1);
-
-    const devRow = await q1<{ gateway_id: string; dev_eui: string }>("SELECT gateway_id, dev_eui FROM devices WHERE device_id = $1", ["wio-e5-node-01"]);
-    expect(devRow).toMatchObject({ gateway_id: "gateway-test", dev_eui: "0102030405060708" });
+  it("rejects request without API key with 401", async () => {
+    const req = new Request("http://localhost/api/v1/readings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tankId: tank1Id, distanceCm: 150 }),
+    });
+    const res = await POST_V1_READINGS(req);
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toMatch(/API key required/i);
   });
 
-  it("rejects malformed, oversized, and unregistered input with client errors", async () => {
-    const malformed = await POST_INGEST(request("{"));
-    expect(malformed.status).toBe(400);
+  it("rejects invalid or revoked API key with 401", async () => {
+    const req = new Request("http://localhost/api/v1/readings", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": revokedApiKey },
+      body: JSON.stringify({ tankId: tank1Id, distanceCm: 150 }),
+    });
+    const res = await POST_V1_READINGS(req);
+    expect(res.status).toBe(401);
+  });
 
-    const empty = await POST_INGEST(request(""));
-    expect(empty.status).toBe(400);
+  it("rejects viewer API keys with 403", async () => {
+    const req = new Request("http://localhost/api/v1/readings", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": viewerApiKey },
+      body: JSON.stringify({ tankId: tank1Id, distanceCm: 150 }),
+    });
+    expect((await POST_V1_READINGS(req)).status).toBe(403);
+  });
 
-    const unsupported = await POST_INGEST(request("{}", undefined, "text/plain"));
-    expect(unsupported.status).toBe(415);
+  it("rejects malformed JSON with 400", async () => {
+    const req = new Request("http://localhost/api/v1/readings", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": validApiKey },
+      body: "not-valid-json",
+    });
+    const res = await POST_V1_READINGS(req);
+    expect(res.status).toBe(400);
+  });
 
-    const unknownDevice = {
-      time: timestamp,
-      data: {
-        end_device_ids: { device_id: "unknown-node-99" },
-        uplink_message: { decoded_payload: { Node9_distance_cm: 100 } },
-      },
-    };
-    const unknown = await POST_INGEST(request(JSON.stringify(unknownDevice)));
-    expect(unknown.status).toBe(422);
+  it("rejects invalid distanceCm values with 400", async () => {
+    const req = new Request("http://localhost/api/v1/readings", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": validApiKey },
+      body: JSON.stringify({ tankId: tank1Id, distanceCm: -10 }),
+    });
+    const res = await POST_V1_READINGS(req);
+    expect(res.status).toBe(400);
+  });
 
-    const invalidTimestamp = {
-      time: "not-a-timestamp",
-      data: {
-        end_device_ids: { device_id: "wio-e5-node-01" },
-        uplink_message: { decoded_payload: { Node1_distance_cm: 100 } },
-      },
-    };
-    expect((await POST_INGEST(request(JSON.stringify(invalidTimestamp)))).status).toBe(422);
+  it("rejects when API key is scoped to a different tank with 403", async () => {
+    const req = new Request("http://localhost/api/v1/readings", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": tank1ApiKey },
+      body: JSON.stringify({ tankId: tank2Id, distanceCm: 120 }),
+    });
+    const res = await POST_V1_READINGS(req);
+    expect(res.status).toBe(403);
+    const json = await res.json();
+    expect(json.error).toMatch(/not authorized for tank/i);
+  });
 
-    const oversized = await POST_INGEST(request(" ".repeat(1_048_577)));
-    expect(oversized.status).toBe(413);
-
-    let streamRead = false;
-    const declaredTooLarge = new Request("http://localhost/api/ingest/tts", {
+  it("accepts valid reading, persists with source 'API', and returns derived values", async () => {
+    const timestamp = Date.now() - 1000;
+    const req = new Request("http://localhost/api/v1/readings", {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-webhook-secret": env().TTS_WEBHOOK_SECRET,
-        "content-length": "1048577",
+        "authorization": `Bearer ${validApiKey}`,
       },
-      body: new ReadableStream<Uint8Array>({
-        pull() { streamRead = true; },
-      }, { highWaterMark: 0 }),
-      duplex: "half",
-    } as RequestInit & { duplex: "half" });
-    expect((await POST_INGEST(declaredTooLarge)).status).toBe(413);
-    expect(streamRead).toBe(false);
+      body: JSON.stringify({
+        tankId: tank1Id,
+        distanceCm: 100,
+        batteryPct: 90,
+        t: timestamp,
+      }),
+    });
+    const res = await POST_V1_READINGS(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.source).toBe("API");
+    expect(json.distanceCm).toBe(100);
+    expect(json.levelCm).toBe(200); // 300 - 100
+
+    // Verify stored reading in Postgres
+    const row = await q1<{ device_id: string; distance_cm: number; source: string; battery_pct: number }>(
+      "SELECT device_id, distance_cm, source, battery_pct FROM readings WHERE device_id = 'wio-e5-node-01' AND t = $1",
+      [timestamp]
+    );
+    expect(row).toBeDefined();
+    expect(row?.source).toBe("API");
+    expect(row?.distance_cm).toBe(100);
+    expect(row?.battery_pct).toBe(90);
   });
 
-  it("accepts registered devices regardless of tank soft-deletion and rejects retired devices", async () => {
-    const makeUplink = (deviceId: string, slot: string, time: string) => ({
-      time,
-      data: {
-        end_device_ids: { device_id: deviceId },
-        uplink_message: { decoded_payload: { [`${slot}_distance_cm`]: 100 } },
-      },
-    });
-    const deletedTankDevice = await POST_INGEST(request(JSON.stringify(
-      makeUplink("wio-e5-node-02", "Node2", "2026-10-30T05:42:48.000Z"),
-    )));
-    expect(deletedTankDevice.status).toBe(200);
-    await expect(deletedTankDevice.json()).resolves.toEqual({ inserted: 1 });
-
-    const countRow = await q1<{ count: number }>("SELECT COUNT(*) AS count FROM readings WHERE device_id = $1", ["wio-e5-node-02"]);
-    expect(Number(countRow?.count)).toBe(1);
-
-    const retiredDevice = await POST_INGEST(request(JSON.stringify(
-      makeUplink("retired-node-03", "Node3", "2026-10-30T05:43:48.000Z"),
-    )));
-    expect(retiredDevice.status).toBe(422);
-
-    const invalidDeviceId = await POST_INGEST(request(JSON.stringify(
-      makeUplink("", "Node1", "2026-10-30T05:44:48.000Z"),
-    )));
-    expect(invalidDeviceId.status).toBe(400);
-  });
-
-  it("enforces the body limit while streaming a chunked request", async () => {
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode("{"));
-        controller.enqueue(new Uint8Array(1_048_576));
-      },
-    });
-    const oversized = new Request("http://localhost/api/ingest/tts", {
+  it("accepts batch of readings", async () => {
+    const tBase = Date.now() - 10_000;
+    const req = new Request("http://localhost/api/v1/readings", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-webhook-secret": env().TTS_WEBHOOK_SECRET },
-      body: stream,
-      duplex: "half",
-    } as RequestInit & { duplex: "half" });
+      headers: { "content-type": "application/json", "x-api-key": validApiKey },
+      body: JSON.stringify([
+        { tankId: tank1Id, distanceCm: 110, t: tBase + 1000 },
+        { tankId: tank1Id, distanceCm: 115, t: tBase + 2000 },
+      ]),
+    });
+    const res = await POST_V1_READINGS(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.count).toBe(2);
+  });
 
-    const response = await POST_INGEST(oversized);
-    expect(response.status).toBe(413);
-    await expect(response.json()).resolves.toMatchObject({ error: "Ingest payload exceeds 1 MiB" });
+  it("reports mixed duplicate/new batch inserts correctly without overwriting history", async () => {
+    const duplicateTime = Date.now() - 20_000;
+    const newTime = duplicateTime + 1_000;
+    await upsertMany([{
+      deviceId: "wio-e5-node-01",
+      t: duplicateTime,
+      distanceCm: 121,
+      source: "MANUAL",
+    }]);
+
+    const req = new Request("http://localhost/api/v1/readings", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": validApiKey },
+      body: JSON.stringify([
+        { tankId: tank1Id, distanceCm: 90, t: duplicateTime },
+        { tankId: tank1Id, distanceCm: 100, t: newTime },
+      ]),
+    });
+    const res = await POST_V1_READINGS(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.readings.map((reading: { inserted: boolean }) => reading.inserted)).toEqual([false, true]);
+
+    const original = await q1<{ distance_cm: number; source: string }>(
+      "SELECT distance_cm, source FROM readings WHERE device_id = 'wio-e5-node-01' AND t = $1",
+      [duplicateTime]
+    );
+    expect(original).toMatchObject({ distance_cm: 121, source: "MANUAL" });
   });
 });

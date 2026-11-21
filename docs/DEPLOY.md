@@ -1,6 +1,6 @@
 # OHTMS Deployment Guide
 
-This guide covers deploying the **Overhead Tank Management System (OHTMS)** to **Vercel Hobby** with a managed PostgreSQL database (Neon / Vercel Postgres / Supabase) and live The Things Stack (TTN) LoRaWAN sensor uplinks.
+This guide covers deploying the **Overhead Tank Management System (OHTMS)** to **Vercel Hobby** with managed PostgreSQL (Neon / Vercel Postgres / Supabase) and generic REST/manual reading ingestion.
 
 ---
 
@@ -20,9 +20,9 @@ DATABASE_URL_UNPOOLED=postgres://user:pass@ep-cool-fog-12345.us-east-2.aws.neon.
 
 ## 2. Secrets Generation
 
-Generate high-entropy 32-byte hexadecimal secrets for session signing, webhooks, and cron authentication:
+Generate high-entropy 32-byte hexadecimal secrets for session signing and cron authentication:
 ```bash
-openssl rand -hex 32  # Run 3 times for TTS_WEBHOOK_SECRET, CRON_SECRET, SESSION_SECRET
+openssl rand -hex 32  # Run twice for CRON_SECRET and SESSION_SECRET
 ```
 
 ---
@@ -40,11 +40,8 @@ openssl rand -hex 32  # Run 3 times for TTS_WEBHOOK_SECRET, CRON_SECRET, SESSION
 | `DATABASE_URL_UNPOOLED` | Direct PostgreSQL connection string (optional) | `postgres://user:pass@ep-xyz...` |
 | `SESSION_SECRET` | 32-byte secret for JWT session tokens | Generated hex string |
 | `CRON_SECRET` | Secret token for securing `/api/cron/*` endpoints | Generated hex string |
-| `TTS_WEBHOOK_SECRET` | Shared secret header for `/api/ingest/tts` | Generated hex string |
 | `ADMIN_EMAIL` | Initial administrator login email | `admin@mams.local` |
 | `ADMIN_PASSWORD` | Initial administrator password (change required) | `HospitalSecure!2026` |
-| `TTS_APPLICATION_ID` | The Things Stack Application ID | `mams-hospital` |
-| `TTS_API_KEY` | TTN API Key (storage & device read) | `NNSXS...` |
 | `SMTP_URL` | (Optional) Outbound email SMTP relay | `smtp://user:pass@smtp.example.com:587` |
 | `EMAIL_FROM` | (Optional) Outbound email sender | `alerts@mams.local` |
 
@@ -61,27 +58,17 @@ openssl rand -hex 32  # Run 3 times for TTS_WEBHOOK_SECRET, CRON_SECRET, SESSION
 
 ---
 
-## 5. The Things Stack (TTN) Webhook Integration
+## 5. REST API Ingestion
 
-Configure live LoRaWAN telemetry delivery from your TTN Console:
+Provision keys only through an authenticated admin session:
 
-1. Log into your **The Things Stack Console**.
-2. Navigate to **Applications → `mams-hospital` → Integrations → Webhooks**.
-3. Click **Add custom webhook**:
-   - **Webhook ID**: `ohtms-live-webhook`
-   - **Base URL**: `https://<your-vercel-domain>`
-   - **Uplink message path**: `/api/ingest/tts`
-   - **Additional headers**:
-     - Key: `X-Webhook-Secret`
-     - Value: `<TTS_WEBHOOK_SECRET>` (must match your environment variable)
-   - **Enabled messages**: Check **Uplink message**.
-4. Click **Create webhook**.
-5. Enable the Storage Integration:
-   - Navigate to **Integrations → Storage Integration**.
-   - Click **Enable Storage Integration**.
-   - Ensure the `TTS_API_KEY` in Vercel has permissions: `Read application traffic (uplink and downlink)` and `View application information`.
+1. Sign in as an administrator.
+2. Call `POST /api/keys` with a key name, role, optional tank scope, and optional expiry.
+3. Store the returned raw key immediately; it is not returned again.
+4. Send readings to `POST /api/v1/readings` with `X-API-Key` or `Authorization: Bearer mams_api_...`.
+5. Revoke keys with `DELETE /api/keys/:id`.
 
-Uplinks arriving from devices (`wio-e5-node-01` through `wio-e5-node-05`) every 5 minutes will immediately update tank levels, water volumes, and fire any threshold alerts.
+No TTN or MQTT credentials are required by MAMS. Existing TTN resources and historical PostgreSQL readings remain unchanged.
 
 ---
 

@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Database, Hourglass } from "lucide-react";
+import { ArrowLeft, Database, Hourglass, PlusCircle } from "lucide-react";
 import { useTank, useDashboard, useReadings, useAnalytics } from "@/lib/hooks";
 import { useUi } from "@/lib/store";
 import { ViewGuide } from "@/components/ui/primitives";
 import { Skeleton } from "@/components/ui/primitives";
 import { Select } from "@/components/ui/Select";
+import { Button } from "@/components/ui/Button";
+import { ManualEntryDialog } from "@/features/data-entry/ManualEntryDialog";
 import { TankHeroCard } from "./TankHeroCard";
 import { ReadingCard } from "./ReadingCard";
 import { StatusCard } from "./StatusCard";
@@ -54,6 +56,7 @@ export function TankDetailView({ id }: TankDetailViewProps) {
 
   const { data: tank, error: tankError, isLoading: tankLoading, mutate: refreshTank } = useTank(id);
   const { data: dashboard, mutate: refreshDashboard } = useDashboard();
+  const [manualModalOpen, setManualModalOpen] = useState(false);
 
   const asOf = dashboard?.asOf ?? Date.now();
   const cardData = dashboard?.tanks.find((t) => t.id === id);
@@ -255,18 +258,39 @@ export function TankDetailView({ id }: TankDetailViewProps) {
           </p>
         </div>
 
-        {/* Tank Switcher Dropdown */}
-        {tankSwitcherOptions.length > 0 && (
-          <div className="w-60">
-            <Select
-              value={String(id)}
-              onChange={(e) => handleSwitchTank(e.target.value)}
-              options={tankSwitcherOptions}
-              aria-label="Switch selected water tank"
-            />
-          </div>
-        )}
+        {/* Actions & Tank Switcher */}
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setManualModalOpen(true)}
+            className="flex items-center gap-1.5 font-semibold"
+          >
+            <PlusCircle size={15} />
+            <span>Log Reading</span>
+          </Button>
+
+          {tankSwitcherOptions.length > 0 && (
+            <div className="w-56">
+              <Select
+                value={String(id)}
+                onChange={(e) => handleSwitchTank(e.target.value)}
+                options={tankSwitcherOptions}
+                aria-label="Switch selected water tank"
+              />
+            </div>
+          )}
+        </div>
       </div>
+
+      <ManualEntryDialog
+        open={manualModalOpen}
+        onClose={() => {
+          setManualModalOpen(false);
+          refreshTank();
+        }}
+        defaultTankId={id}
+      />
 
       {/* Top 3-Up Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

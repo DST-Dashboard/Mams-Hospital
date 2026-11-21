@@ -42,6 +42,52 @@ Source of truth for request/response shapes: **`src/contracts/*.ts`** (zod) and 
 | GET · POST `/users` | admin | LIVE | → `UserDTO[]` · `UserCreateBody` → `UserDTO` | User management |
 | GET · PATCH · DELETE `/users/:id` | admin | LIVE | `UserUpdateBody` → `UserDTO` | User update / disable ("last admin" protected) |
 | GET `/audit` | admin | LIVE | `?page&pageSize&entity&userId&action&from&to` → `AuditPage` | Append-only audit trail |
-| GET `/system/status` | admin | LIVE | → System health, TTN connectivity, ingest rejects | Hardware & operational status |
-| POST `/ingest/tts` | public | LIVE | TTN v3 uplink JSON payload | LoRaWAN uplink ingestion (header: `X-Webhook-Secret`) |
+| GET `/system/status` | admin | LIVE | → System health and operational status | Hardware & operational status |
+| GET · POST `/readings/manual` | operator/admin | LIVE | GET → permitted tanks; POST `{tankId,distanceCm,batteryPct?,t?,notes?}` → reading | Manual entry; server validates tank assignments |
+| GET · DELETE `/keys` · `/keys/:id` | operator · admin · admin | LIVE | GET key metadata; POST `{name,role,tankId?,expiresAt?}` → raw key once; DELETE revokes | API key provisioning and revocation |
+| POST `/v1/readings` | API key | LIVE | `{tankId?,deviceId?,distanceCm,batteryPct?,t?,rssi?,snr?,fCnt?,gatewayId?}` or array up to 100 | Generic REST ingestion (operator/admin key, optional tank scope) |
 | GET `/cron/tick` | public | LIVE | `?full=1` (bearer: `CRON_SECRET`) → `{ok: true, jobs}` | Scheduled background evaluator |
+
+## Generic REST Reading Ingestion
+
+- **Endpoint:** `POST /api/v1/readings`
+- **Authentication:** `X-API-Key: mams_api_...` or `Authorization: Bearer mams_api_...`
+- **Provisioning:** Admin calls `POST /api/keys` with `{ "name", "role", "tankId", "expiresAt" }`. The raw key is returned only in the `201` response and must be stored securely.
+- **Revocation:** Admin calls `DELETE /api/keys/:id`. Revoked and expired keys return `401`.
+- **Tank scope:** Set `tankId` to scope a key to one tank. Omit it for a key that may submit to any tank. Server-side authorization is always enforced.
+- **Payload:** one reading or an array of 1–100 readings. Fields: `tankId` or `deviceId`, `distanceCm`, optional `batteryPct`, `t` (epoch ms), `rssi`, `snr`, `fCnt`, `gatewayId`.
+- **Limits:** 1 MiB body; 120 requests/minute per key; timestamps must be within 5 minutes in the future and 1 year in the past.
+- **Source:** accepted readings are stored as `API`; duplicate `(deviceId,t)` rows are ignored for idempotency.
+- **Responses:** `200 {ok:true,...}` or `200 {ok:true,count,readings}`; `400` validation, `401` key, `403` role/tank scope, `404` tank, `413` body size, `429` rate limit.
+
+cURL:
+```bash
+curl -X POST https://mams-hospital-app.vercel.app/api/v1/readings \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: mams_api_REPLACE_ME" \
+  -d '{"tankId":1,"distanceCm":150,"batteryPct":90}'
+```
+
+Python:
+```python
+import requests
+
+requests.post(
+    "https://mams-hospital-app.vercel.app/api/v1/readings",
+    headers={"X-API-Key": "mams_api_REPLACE_ME"},
+    json={"tankId": 1, "distanceCm": 150, "batteryPct": 90},
+    timeout=15,
+).raise_for_status()
+```
+
+JavaScript:
+```javascript
+await fetch("https://mams-hospital-app.vercel.app/api/v1/readings", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-API-Key": "mams_api_REPLACE_ME",
+  },
+  body: JSON.stringify({ tankId: 1, distanceCm: 150, batteryPct: 90 }),
+});
+```

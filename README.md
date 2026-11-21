@@ -1,14 +1,14 @@
 # MAMS Water — Overhead Tank Management System (OHTMS)
 
-Hospital Overhead Tank Management System (OHTMS) for MAMS Hospital: a Next.js 15 App Router + TypeScript production application that monitors 5 rooftop water tanks via LoRaWAN ultrasonic sensors integrated with The Things Stack (TTN).
+Hospital Overhead Tank Management System (OHTMS) for MAMS Hospital: a Next.js 15 App Router + TypeScript production application that monitors rooftop water tanks through generic REST ingestion and manual data entry.
 
-Running on **PostgreSQL**, deployed to **Vercel Hobby**, operating on **live TTN telemetry**, with zero mocks, zero locks, and full enterprise hospital alerting.
+Running on **PostgreSQL** and deployed to **Vercel Hobby**, with generic REST/manual telemetry ingestion and hospital alerting.
 
 ---
 
 ## Key Features
 
-- **Live LoRaWAN Telemetry**: End-to-end ingestion from The Things Stack (`wio-e5-node-01` .. `05`) via authenticated webhook `/api/ingest/tts` and historical storage backfill.
+- **Generic Telemetry Ingestion**: Secure API-key ingestion through `POST /api/v1/readings` plus authorized manual entry through `POST /api/readings/manual`.
 - **Rooftop Fleet Dashboard**: Live water level, volume in litres, fill percentages, and sensor telemetry (RSSI, SNR, battery) across all 5 rooftop tanks.
 - **Authoritative 9 Alert Rules**:
   - `NO_DATA` (sensor silence detection)
@@ -75,7 +75,6 @@ npm run dev
 | `npm run e2e` | Run Playwright end-to-end browser tests (headless Chromium) |
 | `npm run typecheck` | TypeScript compiler type-check (`tsc --noEmit`) |
 | `npm run lint` | ESLint verification |
-| `npm run ttn:smoke` | Smoke test live TTN connectivity and fetch recent uplinks |
 | `npm run auth:reset` | Reset admin account password to `.env` configuration |
 | `npm run backup:db` | Create a standalone PostgreSQL database dump |
 | `npm run restore:db` | Restore database from an existing backup dump |
@@ -84,4 +83,4 @@ npm run dev
 
 ## Deployment to Vercel Hobby
 
-For full production deployment instructions with Neon/Vercel Postgres, The Things Stack webhook setup, and background cron scheduling, refer to **[docs/DEPLOY.md](docs/DEPLOY.md)**.
+For full production deployment instructions with Neon/Vercel Postgres, REST API setup, and background cron scheduling, refer to **[docs/DEPLOY.md](docs/DEPLOY.md)**.

@@ -39,7 +39,7 @@ Feature IDs (F-, C-, A-, N-, U-, S-, I-, M-) refer to `00-project-definition.md`
 | BE-07 | Notifications core: prefs, recipients, dispatcher, email channel | `notify/*` `repos/notification-prefs.ts` | FE-08 | 2 |
 | BE-08 | SMS, WhatsApp, webhook channels; escalation job; per-channel rate limit | `notify/*` `jobs/escalation.ts` | — | 2 |
 | BE-09 | Phase-2 rules: RAPID_DRAIN, PREDICTED_EMPTY, FLATLINE, DATA_GAP, BATTERY_LOW, **FLAPPING** (+ tests) | `domain/rules/*` | — | 2 |
-| BE-10 | **Go live:** harden webhook, optional MQTT, backfill, `CLOCK_MODE=live` cutover runbook | `app/api/ingest/tts` `docs/RUNBOOK.md` | production | 2 |
+| BE-10 | **Go live:** secure REST ingestion, manual entry, PostgreSQL cutover, and runbook | `app/api/v1/readings` `docs/RUNBOOK.md` | production | 2 |
 | BE-11 | Reports (weekly/monthly/incident PDF+CSV), readings export | `services/reports.ts` | FE-09 | 3 |
 | BE-12 | Jobs: rollups cache, retention purge, node health | `jobs/*` | — | 3 |
 | BE-13 | System status API, structured logging | `app/api/system/status` `logger.ts` | FE-10 | 2 |

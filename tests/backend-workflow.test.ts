@@ -8,7 +8,7 @@ import { sign } from "@/server/auth/session";
 
 import * as tanksRoute from "@/app/api/tanks/route";
 import * as tankRoute from "@/app/api/tanks/[id]/route";
-import * as ingestRoute from "@/app/api/ingest/tts/route";
+import * as manualReadingRoute from "@/app/api/readings/manual/route";
 import * as alertsRoute from "@/app/api/alerts/route";
 import * as alertRoute from "@/app/api/alerts/[id]/route";
 import * as ackRoute from "@/app/api/alerts/[id]/ack/route";
@@ -39,6 +39,7 @@ describe("complete backend workflow", () => {
   let tankId: number;
   let alertId: number;
   let operatorCookie: string;
+  let viewerCookie: string;
   let adminCookie: string;
   let operatorId: number;
   let adminId: number;
@@ -57,11 +58,16 @@ describe("complete backend workflow", () => {
       "INSERT INTO users (email, name, password_hash, role, disabled, created_at) VALUES ('workflow-operator@example.test', 'Workflow Operator', $1, 'operator', FALSE, $2) RETURNING id",
       [passwordHash, now]
     );
+    const [viewer] = await q<{ id: number }>(
+      "INSERT INTO users (email, name, password_hash, role, disabled, created_at) VALUES ('workflow-viewer@example.test', 'Workflow Viewer', $1, 'viewer', FALSE, $2) RETURNING id",
+      [passwordHash, now]
+    );
     adminId = admin.id;
     operatorId = operator.id;
 
     adminCookie = await sign({ uid: adminId, role: "admin", name: "Workflow Admin" }, secret, 1);
     operatorCookie = await sign({ uid: operatorId, role: "operator", name: "Workflow Operator" }, secret, 1);
+    viewerCookie = await sign({ uid: viewer.id, role: "viewer", name: "Workflow Viewer" }, secret, 1);
   });
 
   afterAll(async () => {
@@ -90,23 +96,38 @@ describe("complete backend workflow", () => {
     tankId = z.object({ id: z.number().int() }).parse(await createdTank.json()).id;
     expect((await tankRoute.GET(request(`/api/tanks/${tankId}`, "GET"), context(tankId))).status).toBe(200);
 
-    // Ingest 3 readings indicating low level
-    const ingestSecret = env().TTS_WEBHOOK_SECRET;
+    // Record 3 manual readings indicating low level
     for (const offset of [-120_000, -60_000, 0]) {
-      const uplink = {
-        received_at: new Date(Date.now() + offset).toISOString(),
-        end_device_ids: { device_id: "workflow-node-01" },
-        uplink_message: { decoded_payload: { Node1_distance_cm: 200 } },
-      };
-      const response = await ingestRoute.POST(request(
-        "/api/ingest/tts",
+      const response = await manualReadingRoute.POST(request(
+        "/api/readings/manual",
         "POST",
-        uplink,
-        { "x-webhook-secret": ingestSecret, "x-forwarded-for": "192.0.2.77" },
+        { tankId, distanceCm: 200, t: Date.now() + offset },
       ));
       expect(response.status).toBe(200);
     }
 
+    await q(
+      "INSERT INTO tank_assignments (tank_id, user_id, assigned_at) VALUES ($1, $2, $3)",
+      [tankId, operatorId, Date.now()]
+    );
+    cookieValue = operatorCookie;
+    const ownerEntry = await manualReadingRoute.POST(request(
+      "/api/readings/manual",
+      "POST",
+      { tankId, distanceCm: 199 },
+    ));
+    expect(ownerEntry.status).toBe(200);
+    await expect(ownerEntry.json()).resolves.toMatchObject({ source: "MANUAL" });
+
+    cookieValue = viewerCookie;
+    const viewerEntry = await manualReadingRoute.POST(request(
+      "/api/readings/manual",
+      "POST",
+      { tankId, distanceCm: 198 },
+    ));
+    expect(viewerEntry.status).toBe(403);
+
+    cookieValue = adminCookie;
     const tank = await tankRoute.GET(request(`/api/tanks/${tankId}`, "GET"), context(tankId));
     await expect(tank.json()).resolves.toMatchObject({ label: "Workflow tank", zone: "Workflow Ward" });
 

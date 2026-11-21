@@ -36,5 +36,5 @@ IDs are from `00-project-definition.md` §4.
 | S-01,S-02 | Login, roles | Built |
 | S-03 | Audit log | Written on every change; viewer UI to build |
 | S-04..S-10 | Sessions, API keys, reset, SSO, export, backup, health | Phase 2–3 (/api/health exists) |
-| I-01 | TTS webhook receiver | Built (needs TTS_WEBHOOK_SECRET) |
+| I-01 | Generic REST ingestion | Built (API key and tank authorization) |
 | M-01..M-06 | Simulator | Dataset already contains sim/real data; generator only if you need more weeks |

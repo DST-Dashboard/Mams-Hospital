@@ -51,22 +51,30 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           {children}
         </ToastProvider>
 
-        {/* PWA Service Worker Registration in Production */}
-        {process.env.NODE_ENV === "production" && (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                if ('serviceWorker' in navigator) {
-                  window.addEventListener('load', function() {
-                    navigator.serviceWorker.register('/sw.js').catch(function(err) {
-                      console.warn('SW registration failed:', err);
-                    });
+        {/* Remove only legacy MAMS/OHTMS workers and caches, preserving unrelated browser storage. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  for (var r of regs) {
+                    var scriptURL = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL;
+                    if (!scriptURL) continue;
+                    var workerURL = new URL(scriptURL);
+                    if (workerURL.origin === location.origin && workerURL.pathname === '/sw.js') r.unregister();
+                  }
+                });
+                if ('caches' in window) {
+                  caches.keys().then(function(keys) {
+                    for (var k of keys) {
+                      if (/^(mams-|ohtms-|next-pwa-)/i.test(k)) caches.delete(k);
+                    }
                   });
                 }
-              `,
-            }}
-          />
-        )}
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );

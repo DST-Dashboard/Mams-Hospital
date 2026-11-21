@@ -15,13 +15,6 @@ const Env = z.object({
   SESSION_HOURS: z.coerce.number().default(8),
   CRON_SECRET: z.string().min(16, "CRON_SECRET is required"),
 
-  TTS_USER_NAME: z.string().optional(),
-  TTS_APPLICATION_ID: z.string().optional(),
-  TTS_MQTT_HOSTNAME: z.string().optional(),
-  TTS_MQTT_PORT: z.coerce.number().optional().default(8883),
-  TTS_API_KEY: z.string().optional(),
-  TTS_WEBHOOK_SECRET: z.string().min(16, "TTS_WEBHOOK_SECRET is required"),
-
   ADMIN_EMAIL: z.string().email("ADMIN_EMAIL must be valid email").default("admin@mams.local"),
   ADMIN_PASSWORD: z.string().min(8, "ADMIN_PASSWORD must be >= 8 chars").default("ChangeMe!2026"),
 
@@ -43,14 +36,10 @@ export function env(): EnvConfig {
   const defaultCronSecret =
     process.env.NODE_ENV === "production" ? undefined : "dev-cron-secret-dev-cron-secret-32ch";
 
-  const defaultWebhookSecret =
-    process.env.NODE_ENV === "production" ? undefined : "dev-webhook-secret-dev-webhook-secret-32ch";
-
   const parsed = Env.safeParse({
     ...process.env,
     SESSION_SECRET: process.env.SESSION_SECRET ?? defaultSessionSecret,
     CRON_SECRET: process.env.CRON_SECRET ?? defaultCronSecret,
-    TTS_WEBHOOK_SECRET: process.env.TTS_WEBHOOK_SECRET ?? defaultWebhookSecret,
   });
 
   if (!parsed.success) {

@@ -25,6 +25,7 @@ export interface Reading {
   rssi?: number | null;
   snr?: number | null;
   batteryPct?: number | null;
+  source?: string | null;
 }
 
 export interface Derived {

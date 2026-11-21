@@ -30,7 +30,7 @@ export const GET = handle(async (req: Request) => {
   const rows = await readings.range(tank.deviceId, from, to);
   const src =
     res === "raw"
-      ? rows.map((r) => ({ t: r.t, distanceCm: r.distanceCm }))
+      ? rows.map((r) => ({ t: r.t, distanceCm: r.distanceCm, source: r.source ?? null }))
       : rollup(rows, RES_MS[res]).map((b) => ({ t: b.t, distanceCm: b.distanceCm }));
   const points = src.map((p) => {
     const d = derive(p.distanceCm, tank.geometry);
@@ -41,6 +41,7 @@ export const GET = handle(async (req: Request) => {
       levelPct: d.levelPct,
       volumeL: d.volumeL,
       quality: d.quality,
+      source: "source" in p ? p.source : null,
     };
   });
   return ok({
@@ -54,3 +55,5 @@ export const GET = handle(async (req: Request) => {
     points,
   });
 });
+
+export { POST } from "./manual/route";

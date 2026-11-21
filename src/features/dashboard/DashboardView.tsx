@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, AlertTriangle, Layers } from "lucide-react";
+import { AlertCircle, AlertTriangle, Layers, PlusCircle } from "lucide-react";
 import { useDashboard, useReadings, useAnalytics } from "@/lib/hooks";
 import { useUi } from "@/lib/store";
 import { PageHeader, ViewGuide, Glossary } from "@/components/ui/primitives";
 import { ModeBadge } from "@/components/status/badges";
+import { Button } from "@/components/ui/Button";
+import { ManualEntryDialog } from "@/features/data-entry/ManualEntryDialog";
 import { TankGrid } from "./TankGrid";
 import { FleetHealth } from "./FleetHealth";
 import { WeekHeatmap } from "./WeekHeatmap";
@@ -42,6 +44,7 @@ export function DashboardView() {
   }
 
   const { data: dashboard, isLoading } = useDashboard();
+  const [manualModalOpen, setManualModalOpen] = useState(false);
   const weekSectionRef = useRef<HTMLDivElement>(null);
 
   // Reference timestamp: live server clock or now
@@ -208,7 +211,23 @@ export function DashboardView() {
         intro="Continuous level, volume and consumption monitoring across 5 hospital rooftop tanks."
         as="h2"
         modeBadge={<ModeBadge tanks={tanks} />}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setManualModalOpen(true)}
+            className="flex items-center gap-1.5 font-semibold"
+          >
+            <PlusCircle size={15} />
+            <span>Log Reading</span>
+          </Button>
+        }
         modeLine={modeLineText}
+      />
+
+      <ManualEntryDialog
+        open={manualModalOpen}
+        onClose={() => setManualModalOpen(false)}
       />
 
       {/* 2. System & Telemetry Banners */}

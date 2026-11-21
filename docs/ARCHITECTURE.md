@@ -1,12 +1,12 @@
 # Architecture
 
 ## 1. Shape
-One deployable. Next.js (App Router) serves pages **and** the REST API; an in-process scheduler (`src/instrumentation.ts` → `server/jobs`) runs the alert engine; SQLite (`better-sqlite3`) stores everything. The browser only ever talks to `/api/*`.
+One deployable. Next.js (App Router) serves pages and the REST API; an in-process scheduler runs the alert engine; PostgreSQL stores everything. The browser only talks to `/api/*`.
 
 ```
 data/raw ─► scripts/build-dataset ─► data/processed ─► scripts/seed-db ─► var/ohtms.db
                                                                     │
-TTS webhook ─► /api/ingest/tts ─► normalize ─► readings (upsert) ───┤
+REST/API key or manual entry ─► validate/authorize ─► readings (upsert) ──┤
                                                                     ▼
                          domain (pure) ◄── services (alert-engine, dashboard, analytics) ──► /api/* ──► React UI
 ```

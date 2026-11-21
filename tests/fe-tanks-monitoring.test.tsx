@@ -5,6 +5,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { TankSvg, tankStateOf } from "@/components/tank/TankSvg";
 import { StatsGrid } from "@/features/tank-detail/StatsGrid";
 import { DaySelector } from "@/features/time-nav/DaySelector";
+import type { TankCardData } from "@/lib/types";
 
 afterEach(() => {
   cleanup();
@@ -81,14 +82,25 @@ describe("tankStateOf: state mapping", () => {
     const card = {
       status: "active" as const,
       thresholds: { warnPct: 40, critPct: 20, emptyPct: 5 },
-      current: { levelPct: 15, distanceCm: 250, quality: "good", ageMin: 2 } as any,
-    };
+      current: {
+        t: null,
+        ageMin: 2,
+        rssi: null,
+        snr: null,
+        batteryPct: null,
+        distanceCm: 250,
+        levelCm: 50,
+        levelPct: 15,
+        volumeL: 1000,
+        quality: "ok" as const,
+      },
+    } satisfies Partial<TankCardData>;
     expect(tankStateOf(card)).toBe("critical");
 
     const emgCard = {
       ...card,
-      current: { levelPct: 3, distanceCm: 290, quality: "good", ageMin: 2 } as any,
-    };
+      current: { ...card.current, levelPct: 3, distanceCm: 290 },
+    } satisfies Partial<TankCardData>;
     expect(tankStateOf(emgCard)).toBe("emergency");
   });
 });

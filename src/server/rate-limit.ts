@@ -82,3 +82,35 @@ export async function recordLoginFailure(key: string): Promise<void> {
 export async function resetLoginRateLimit(key: string): Promise<void> {
   await q("DELETE FROM rate_limits WHERE key = $1", [key]);
 }
+
+export async function checkGeneralRateLimit(
+  key: string,
+  limit = 60,
+  windowMs = 60_000
+): Promise<{ allowed: boolean; remaining: number; resetMs: number }> {
+  const now = Date.now();
+  const row = await q1<{ attempts: number; first_attempt_at: number }>(
+    `INSERT INTO rate_limits (key, attempts, first_attempt_at, locked_until)
+     VALUES ($1, 1, $2, NULL)
+     ON CONFLICT (key) DO UPDATE SET
+       attempts = CASE
+         WHEN rate_limits.first_attempt_at <= $2 - $3 THEN 1
+         ELSE rate_limits.attempts + 1
+       END,
+       first_attempt_at = CASE
+         WHEN rate_limits.first_attempt_at <= $2 - $3 THEN $2
+         ELSE rate_limits.first_attempt_at
+       END,
+       locked_until = NULL
+     RETURNING attempts, first_attempt_at`,
+    [key, now, windowMs]
+  );
+  if (!row) throw new Error("Rate limit counter update returned no row");
+  const firstAttemptAt = Number(row.first_attempt_at);
+  const allowed = row.attempts <= limit;
+  return {
+    allowed,
+    remaining: Math.max(0, limit - row.attempts),
+    resetMs: Math.max(0, firstAttemptAt + windowMs - now),
+  };
+}

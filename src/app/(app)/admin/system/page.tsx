@@ -95,12 +95,12 @@ export default function SystemAdminPage() {
         <div className="ops-grid-2">
           <Card
             eyebrow={{ icon: ICON.gateway, text: "INGESTION PIPELINE" }}
-            title="The Things Stack (TTS) Ingestion"
+            title="REST API and Manual Ingestion"
           >
             <div className="ops-dl-grid">
-              <div className="ops-dl-dt">Webhook Ingestion</div>
+              <div className="ops-dl-dt">Data Ingestion</div>
               <div className="ops-dl-dd" style={{ color: "var(--ok-tx)", fontWeight: 700 }}>
-                {sys.ingest.enabled ? "Active ✓ (Listening on /api/ingest/tts)" : "Disabled"}
+                {sys.ingest.enabled ? "Active ✓ (/api/v1/readings and /api/readings/manual)" : "Disabled"}
               </div>
 
               <div className="ops-dl-dt">Last Received Packet</div>

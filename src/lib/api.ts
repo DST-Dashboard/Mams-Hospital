@@ -46,7 +46,7 @@ function attachMockMeta<T>(data: T, res: Response): T {
 }
 
 export async function fetcher<T>(url: string): Promise<T> {
-  const r = await fetch(url, { credentials: "same-origin" });
+  const r = await fetch(url, { credentials: "same-origin", cache: "no-store" });
   handle401(r);
   if (!r.ok) {
     const json = (await r.json().catch(() => null)) as { error?: string; details?: unknown } | null;
@@ -62,6 +62,7 @@ async function mutate<T>(url: string, method: string, body?: unknown): Promise<T
     method,
     headers,
     credentials: "same-origin",
+    cache: "no-store",
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   handle401(r);
