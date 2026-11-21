@@ -70,6 +70,39 @@ export interface InsertReading {
 }
 
 /**
+ * Same idempotent insert as `upsertMany`, but reports per row whether it was stored (`true`)
+ * or ignored because that device+time already existed (`false`). All rows commit or none do.
+ */
+export async function upsertManyWithResults(rows: InsertReading[]): Promise<boolean[]> {
+  if (rows.length === 0) return [];
+
+  return await tx(async (client) => {
+    const stored: boolean[] = [];
+    for (const r of rows) {
+      const res = await client.query(
+        `INSERT INTO readings (device_id, t, distance_cm, f_cnt, rssi, snr, battery_pct, gateway_id, source, user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (device_id, t) DO NOTHING`,
+        [
+          r.deviceId,
+          r.t,
+          r.distanceCm,
+          r.fCnt ?? null,
+          r.rssi ?? null,
+          r.snr ?? null,
+          r.batteryPct ?? null,
+          r.gatewayId ?? null,
+          r.source ?? "manual",
+          r.userId ?? null,
+        ]
+      );
+      stored.push((res.rowCount ?? 0) > 0);
+    }
+    return stored;
+  });
+}
+
+/**
  * Idempotent insert (same device+time ignored).
  * Returns number of rows actually inserted.
  */

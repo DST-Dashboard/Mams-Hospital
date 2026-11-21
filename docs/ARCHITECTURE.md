@@ -5,6 +5,7 @@ One deployable. Next.js (App Router) serves pages **and** the REST API; an in-pr
 
 ```
 Manual Entry Modal ─► POST /api/readings ─► validate & RBAC ─► readings (upsert) ───┤
+External system  ─► POST /api/ingest   ─► API key & validate ─► readings (upsert) ───┤
                                                                                       │
                                                                                       ▼
                          domain (pure) ◄── services (alert-engine, dashboard, analytics) ──► /api/* ──► React UI

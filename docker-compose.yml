@@ -26,6 +26,7 @@ services:
       DATABASE_URL: postgresql://postgres:password@db:5432/ohtms
       SESSION_SECRET: ${SESSION_SECRET:-dev-only-secret-dev-only-secret-dev-only-secret-must-be-32-chars}
       CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-dev-cron-secret-32ch}
+      INGEST_API_KEY: ${INGEST_API_KEY:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@mams.local}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe!2026}
       SMTP_URL: ${SMTP_URL:-}

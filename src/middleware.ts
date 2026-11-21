@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE, verify } from "@/server/auth/session";
 
-// Public: login page, recovery pages, kiosk, auth endpoints, health, and cron
+// Public: login page, recovery pages, kiosk, auth endpoints, health, cron, and machine ingest
+// (/api/ingest has no login cookie by design; the route itself enforces the INGEST_API_KEY)
 const PUBLIC = [
   /^\/login$/,
   /^\/forgot-password$/,
@@ -10,6 +11,7 @@ const PUBLIC = [
   /^\/api\/auth\//,
   /^\/api\/health$/,
   /^\/api\/cron\//,
+  /^\/api\/ingest$/,
 ];
 
 export async function middleware(req: NextRequest) {

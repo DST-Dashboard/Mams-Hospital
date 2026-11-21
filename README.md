@@ -8,6 +8,7 @@ Running on **PostgreSQL**, deployed to **Vercel Hobby** (or self-hosted Docker),
 
 ## Key Features
 
+- **Live Data Push API**: an external system sends readings to `POST /api/ingest` with an API key (`INGEST_API_KEY`); idempotent, validated, and wired into the same alert engine. See [`docs/DATA-PUSH-API.md`](docs/DATA-PUSH-API.md).
 - **Role-Based Manual Data Entry**: Authorized administrators and assigned tank owners record physical telemetry directly into the Data module with bidirectional calculation, geometry validation, non-overwriting historical protection, and audit logging.
 - **Rooftop Fleet Dashboard**: Live water level, volume in litres, fill percentages, and telemetry health across hospital rooftop tanks.
 - **Authoritative 9 Alert Rules**:

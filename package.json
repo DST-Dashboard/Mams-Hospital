@@ -19,6 +19,7 @@
     "db:bootstrap": "tsx scripts/bootstrap.ts",
     "setup": "npm run db:migrate && npm run db:bootstrap",
     "auth:reset": "tsx scripts/reset-admin.ts",
+    "ingest:key": "tsx scripts/generate-ingest-key.ts",
     "backup:db": "tsx scripts/backup-db.ts",
     "restore:db": "tsx scripts/restore-db.ts",
     "e2e": "playwright test"

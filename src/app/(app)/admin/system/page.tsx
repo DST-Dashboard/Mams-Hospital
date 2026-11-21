@@ -95,10 +95,18 @@ export default function SystemAdminPage() {
         <div className="ops-grid-2">
           <Card
             eyebrow={{ icon: ICON.gateway, text: "TELEMETRY INGESTION" }}
-            title="Manual Data Entry Pipeline"
+            title="Live Data & Manual Entry"
           >
             <div className="ops-dl-grid">
-              <div className="ops-dl-dt">Ingestion Mode</div>
+              <div className="ops-dl-dt">Live Data Push (API key)</div>
+              <div
+                className="ops-dl-dd"
+                style={{ color: sys.ingest.enabled ? "var(--ok-tx)" : "var(--warn-tx)", fontWeight: 700 }}
+              >
+                {sys.ingest.enabled ? "Enabled ✓" : "Not enabled · set INGEST_API_KEY"}
+              </div>
+
+              <div className="ops-dl-dt">Manual Entry</div>
               <div className="ops-dl-dd" style={{ color: "var(--ok-tx)", fontWeight: 700 }}>
                 Role-Based Manual Entry Active ✓
               </div>

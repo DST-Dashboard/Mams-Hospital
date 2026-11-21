@@ -30,6 +30,8 @@ Source of truth for request/response shapes: **`src/contracts/*.ts`** (zod) and 
 | GET · PUT `/tanks/:id/recipients` | operator | LIVE | `TankRecipientInput[]` → `TankRecipientDTO[]` | Per-tank alert notification recipients |
 | GET `/readings` | viewer | LIVE | `?tankId&from&to&res=auto\|raw\|15m\|1h\|1d` → `ReadingsResponse` | Telemetry series |
 | POST `/readings` | operator | LIVE | `{tankId, t?, distanceCm?, levelCm?, batteryPct?, rssi?, snr?, notes?}` → `{ok: true, reading}` | Role-based Manual Data Entry (Admin & Tank Owner, conflict guard, audited) |
+| POST `/ingest` | API key | LIVE | `X-API-Key` header; body: one reading, an array, or `{readings: [...]}` (max 100) of `{deviceId\|tankId, distanceCm\|levelCm, t?, batteryPct?, rssi?, snr?, fCnt?, gatewayId?}` → `{ok, received, inserted, duplicates, results[]}` (201/200); 401 bad key, 422 invalid (nothing stored), 503 disabled | Machine-to-machine live data push; idempotent per `(device, t)`; see `docs/DATA-PUSH-API.md` |
+| GET `/ingest` | API key | LIVE | → `{ok, acceptedDevices[]}` | Key & device-id connectivity check |
 | GET `/readings/export` | operator | LIVE | `?tankId&from&to` → CSV streaming download | Raw telemetry export (audited) |
 | GET `/alerts` | viewer | LIVE | `?state=open\|acknowledged\|snoozed\|resolved\|all` → `AlertRow[]` | Active & historical incidents |
 | GET `/alerts/:id` | viewer | LIVE | → `AlertDetailDTO` with evidence & telemetry | Forensic incident record |

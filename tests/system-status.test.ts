@@ -3,7 +3,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { createTestSchema, TestSchemaContext } from "./test-db";
 import { q } from "@/server/db";
 import { sign } from "@/server/auth/session";
-import { env } from "@/server/env";
+import { env, resetEnvCache } from "@/server/env";
 import { getSystemStatus } from "@/server/services/system-status";
 import { logger } from "@/server/logger";
 import { GET as GET_STATUS } from "@/app/api/system/status/route";
@@ -58,6 +58,8 @@ describe("BE-13: System Monitoring & Logging", () => {
   it("calculates system metrics and health status", async () => {
     const asOf = 1700000000000 + 10 * 60_000;
     await q("INSERT INTO job_runs (name, last_run_at, ok, error) VALUES ('alerts', $1, FALSE, 'test failure')", [asOf - 1000]);
+    process.env.INGEST_API_KEY = "k".repeat(40);
+    resetEnvCache();
     const status = await getSystemStatus(asOf);
 
     expect(status.version).toBeDefined();
@@ -67,6 +69,11 @@ describe("BE-13: System Monitoring & Logging", () => {
     expect(status.db.lastReadingAt).toBe(1700000000000 + 30 * 60_000);
     expect(status.jobs).toEqual([{ name: "alerts", lastRunAt: asOf - 1000, ok: false }]);
     expect(status.ingest.enabled).toBe(true);
+
+    // Ingest is only "enabled" when a usable API key is configured
+    delete process.env.INGEST_API_KEY;
+    resetEnvCache();
+    expect((await getSystemStatus(asOf)).ingest.enabled).toBe(false);
 
     const devFresh = status.devices.find((d) => d.deviceId === "dev-fresh")!;
     expect(devFresh.status).toBe("fresh");

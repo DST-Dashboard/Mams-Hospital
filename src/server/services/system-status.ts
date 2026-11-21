@@ -1,6 +1,7 @@
 import { q, q1 } from "../db";
 import { now, clockMode } from "../clock";
 import type { SystemStatusDTO } from "@/contracts/system";
+import { configuredIngestKeys } from "../ingest-auth";
 
 export async function getSystemStatus(asOf = now()): Promise<SystemStatusDTO> {
 
@@ -93,7 +94,7 @@ export async function getSystemStatus(asOf = now()): Promise<SystemStatusDTO> {
     devices,
     jobs,
     ingest: {
-      enabled: true,
+      enabled: configuredIngestKeys().length > 0,
       lastUplinkAt: readingStats?.max_t ? Number(readingStats.max_t) : null,
     },
   };

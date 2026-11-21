@@ -143,7 +143,7 @@ export async function performRestore(backupFilePath: string): Promise<{
           r.snr,
           r.battery_pct,
           r.gateway_id,
-          r.source ?? "ttn",
+          r.source ?? "api",
         ]
       );
       recordsRestored++;

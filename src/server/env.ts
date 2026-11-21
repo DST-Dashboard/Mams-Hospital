@@ -21,6 +21,11 @@ const Env = z.object({
   SMTP_URL: z.preprocess((val) => (val === "" ? undefined : val), z.string().url("SMTP_URL must be valid URL").optional()),
   EMAIL_FROM: z.string().default("alerts@mams.local"),
   APP_BASE_URL: z.preprocess((val) => (val === "" ? undefined : val), z.string().url("APP_BASE_URL must be valid URL").optional()),
+
+  // Shared secret(s) for the machine-to-machine ingest endpoint (POST /api/ingest).
+  // Comma-separate two keys to rotate without downtime. Validated at request time (not here)
+  // so a bad value disables ingest instead of taking the whole dashboard down.
+  INGEST_API_KEY: z.preprocess((val) => (val === "" ? undefined : val), z.string().optional()),
 });
 
 export type EnvConfig = z.infer<typeof Env>;

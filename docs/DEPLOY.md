@@ -42,6 +42,7 @@ openssl rand -hex 32  # Run twice: once for SESSION_SECRET, once for CRON_SECRET
 | `CRON_SECRET` | Secret token for securing `/api/cron/*` endpoints | Generated hex string |
 | `ADMIN_EMAIL` | Initial administrator login email | `admin@mams.local` |
 | `ADMIN_PASSWORD` | Initial administrator password (change required) | `HospitalSecure!2026` |
+| `INGEST_API_KEY` | Secret the data provider sends in the `X-API-Key` header to `POST /api/ingest` (min 32 chars; generate with `npm run ingest:key`) | `ohtms_live_<64 hex chars>` |
 | `SMTP_URL` | (Optional) Outbound email SMTP relay | `smtp://user:pass@smtp.example.com:587` |
 | `EMAIL_FROM` | (Optional) Outbound email sender | `alerts@mams.local` |
 
@@ -55,6 +56,20 @@ openssl rand -hex 32  # Run twice: once for SESSION_SECRET, once for CRON_SECRET
 2. Sign in at `https://<your-vercel-domain>/login` using `ADMIN_EMAIL` and `ADMIN_PASSWORD`.
 3. If `ADMIN_PASSWORD` was set to an initial temporary value, the **Password Change Required** modal will prompt you to set a personal password.
 4. The **Dimensions Modal (M1)** will display unconfirmed rooftop tanks. Enter the verified physical dimensions (Total Height H, Radius R or Width W / Length L, and Dead Zone) for each hospital tank.
+
+---
+
+## 5A. Live Data Push (API Key)
+
+Live readings can be pushed by an external system straight into the dashboard; no third-party platform integration is involved.
+
+1. Generate a key: `npm run ingest:key` (prints `ohtms_live_...`).
+2. In Vercel: **Settings -> Environment Variables -> add `INGEST_API_KEY`** (Production), then **redeploy** so it takes effect.
+3. Give the sender: the endpoint `https://<your-domain>/api/ingest`, the key, and `docs/DATA-PUSH-API.md`.
+4. Verify: `curl -H "X-API-Key: <key>" https://<your-domain>/api/ingest` returns `{"ok":true,"acceptedDevices":[...]}`.
+5. Watch **Admin -> System**: the ingest card shows enabled and the time of the last reading.
+
+The endpoint is idempotent (re-sent readings are ignored, never overwritten) and all-or-nothing per request. Rotate keys by setting `INGEST_API_KEY` to `<new>,<old>`, switching the sender, then removing `<old>`.
 
 ---
 
